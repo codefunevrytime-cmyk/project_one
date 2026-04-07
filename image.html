@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Céleste — Event Gallery</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: #f5f0e8;
+    min-height: 100vh;
+    padding: 40px 24px 60px;
+    color: #1a1008;
+  }
+
+  /* ── PAGE HEADER ── */
+  .page-header {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+
+  .page-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: rgba(255,160,30,0.12);
+    border: 1px solid rgba(255,160,30,0.35);
+    border-radius: 100px;
+    padding: 5px 14px;
+    font-size: 11px;
+    color: #b36b00;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 500;
+    margin-bottom: 14px;
+  }
+
+  .page-tag-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #ffa01e;
+    animation: blink 1.4s ease-in-out infinite;
+  }
+
+  @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.2;} }
+
+  .page-title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(28px, 4vw, 44px);
+    font-weight: 700;
+    color: #1a1008;
+    line-height: 1.2;
+    margin-bottom: 10px;
+  }
+
+  .page-title em { font-style: italic; color: #ffa01e; }
+
+  .page-sub {
+    font-size: 15px;
+    color: #7a6a56;
+    max-width: 480px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+
+  /* ── GRID ── */
+  .grid-wrap { max-width: 1100px; margin: 0 auto; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  .item {
+    position: relative;
+    border-radius: 18px;
+    overflow: hidden;
+    cursor: pointer;
+    aspect-ratio: 4/3;
+    transition: transform 0.42s cubic-bezier(0.22,1,0.36,1),
+                box-shadow 0.42s ease,
+                filter 0.32s ease;
+    z-index: 1;
+    background: #c8b99a;
+  }
+
+  /* Blur siblings on hover */
+  .grid:has(.item:hover) .item:not(:hover) {
+    filter: blur(2.5px) brightness(0.65);
+    transform: scale(0.95);
+  }
+
+  .item:hover {
+    transform: scale(1.1);
+    z-index: 20;
+    box-shadow: 0 28px 70px rgba(26,16,8,0.42);
+  }
+
+  .item img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.42s cubic-bezier(0.22,1,0.36,1);
+  }
+
+  .item:hover img { transform: scale(1.07); }
+
+  /* Gradient overlay */
+  .item-overlay {
+    position: absolute; inset: 0;
+    background: linear-gradient(to top,
+      rgba(15,8,2,0.92) 0%,
+      rgba(15,8,2,0.15) 55%,
+      transparent 100%);
+    opacity: 0;
+    transition: opacity 0.32s ease;
+    display: flex;
+    align-items: flex-end;
+    padding: 18px;
+  }
+
+  .item:hover .item-overlay { opacity: 1; }
+
+  /* Eye icon */
+  .eye-icon {
+    position: absolute;
+    top: 14px; right: 14px;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.18);
+    border: 1px solid rgba(255,255,255,0.35);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0;
+    transform: scale(0.6);
+    transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    backdrop-filter: blur(4px);
+  }
+
+  .item:hover .eye-icon { opacity: 1; transform: scale(1); }
+
+  /* Hover card info */
+  .item-mini { display: flex; gap: 10px; align-items: flex-end; width: 100%; }
+
+  .item-mini-text { flex: 1; min-width: 0; }
+
+  .item-mini-tag {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #ffa01e;
+    margin-bottom: 4px;
+  }
+
+  .item-mini-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 5px;
+  }
+
+  .item-mini-meta {
+    font-size: 11px;
+    color: rgba(255,255,255,0.6);
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .meta-chip { display: flex; align-items: center; gap: 3px; }
+
+  .item-price {
+    background: rgba(255,160,30,0.2);
+    border: 1px solid rgba(255,160,30,0.45);
+    border-radius: 9px;
+    padding: 5px 11px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #ffa01e;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* ── MODAL ── */
+  .modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15,8,2,0.7);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    backdrop-filter: blur(6px);
+  }
+
+  .modal-backdrop.open { display: flex; }
+
+  .modal-box {
+    background: #faf7f2;
+    border-radius: 22px;
+    overflow: hidden;
+    display: flex;
+    max-width: 860px;
+    width: 100%;
+    max-height: 90vh;
+    box-shadow: 0 40px 100px rgba(0,0,0,0.5);
+    animation: modalIn 0.42s cubic-bezier(0.22,1,0.36,1) both;
+  }
+
+  @keyframes modalIn {
+    from { opacity: 0; transform: scale(0.94) translateY(24px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+  }
+
+  .modal-img-col {
+    width: 42%;
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .modal-img-col img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.6s ease;
+  }
+
+  .modal-img-col:hover img { transform: scale(1.04); }
+
+  .modal-badge {
+    position: absolute;
+    top: 18px; left: 18px;
+    background: rgba(255,160,30,0.92);
+    color: #1a1008;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    border-radius: 8px;
+    padding: 4px 11px;
+  }
+
+  .modal-content {
+    flex: 1;
+    padding: 32px 32px 28px;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    position: relative;
+  }
+
+  .modal-close {
+    position: absolute;
+    top: 14px; right: 14px;
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    background: rgba(26,16,8,0.08);
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    color: #7a6a56;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.2s, color 0.2s;
+  }
+
+  .modal-close:hover { background: rgba(26,16,8,0.15); color: #1a1008; }
+
+  .modal-tag {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #ffa01e;
+    margin-bottom: 6px;
+  }
+
+  .modal-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 24px;
+    font-weight: 700;
+    color: #1a1008;
+    line-height: 1.25;
+    margin-bottom: 20px;
+  }
+
+  .detail-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 18px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid rgba(26,16,8,0.1);
+  }
+
+  .detail-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+  }
+
+  .d-icon {
+    width: 30px; height: 30px;
+    border-radius: 9px;
+    background: rgba(26,16,8,0.07);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    color: #7a6a56;
+  }
+
+  .d-label { color: #9e8e7a; width: 64px; flex-shrink: 0; }
+  .d-val { color: #1a1008; font-weight: 500; }
+
+  .pill-row { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 16px; }
+
+  .pill {
+    font-size: 11px;
+    border-radius: 100px;
+    padding: 4px 12px;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+  }
+
+  .pill-amber { background: #faeeda; color: #633806; }
+  .pill-teal  { background: #e1f5ee; color: #085041; }
+  .pill-blue  { background: #e6f1fb; color: #0c447c; }
+
+  .modal-desc {
+    font-size: 13.5px;
+    color: #5a4a36;
+    line-height: 1.75;
+    flex: 1;
+    margin-bottom: 22px;
+  }
+
+  .modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    border-top: 1px solid rgba(26,16,8,0.1);
+    padding-top: 18px;
+  }
+
+  .price-block {}
+  .price-big {
+    font-family: 'Playfair Display', serif;
+    font-size: 26px;
+    font-weight: 700;
+    color: #ffa01e;
+  }
+
+  .price-note { font-size: 11px; color: #9e8e7a; margin-top: 2px; }
+
+  .footer-right { display: flex; align-items: center; gap: 10px; }
+
+  .nav-btn {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(26,16,8,0.15);
+    background: transparent;
+    cursor: pointer;
+    font-size: 16px;
+    color: #1a1008;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.2s, border-color 0.2s;
+  }
+
+  .nav-btn:hover { background: rgba(26,16,8,0.08); border-color: rgba(26,16,8,0.3); }
+
+  .btn-book {
+    background: #1a1008;
+    color: #ffa01e;
+    border: none;
+    border-radius: 11px;
+    padding: 11px 24px;
+    font-size: 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-book::after {
+    content: '';
+    position: absolute;
+    top: 0; left: -70%;
+    width: 45%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,160,30,0.25), transparent);
+    animation: shimmer 2.8s 1s ease infinite;
+  }
+
+  @keyframes shimmer { 0%{left:-70%;} 60%,100%{left:130%;} }
+
+  .btn-book:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(26,16,8,0.3); }
+  .btn-book:active { transform: scale(0.97); }
+
+  /* Responsive */
+  @media (max-width: 700px) {
+    .grid { grid-template-columns: repeat(2, 1fr); }
+    .modal-box { flex-direction: column; max-height: 95vh; }
+    .modal-img-col { width: 100%; height: 220px; flex-shrink: 0; }
+  }
+
+  @media (max-width: 480px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="page-header">
+  <div class="page-tag"><div class="page-tag-dot"></div>Our Events</div>
+  <div class="page-title">Curated <em>Experiences</em><br>Worth Celebrating</div>
+  <div class="page-sub">Hover to preview. Click to explore every detail of each unforgettable event.</div>
+</div>
+
+<!-- Grid -->
+<div class="grid-wrap">
+  <div class="grid" id="grid"></div>
+</div>
+
+<!-- Modal -->
+<div class="modal-backdrop" id="modal" onclick="handleBackdropClick(event)">
+  <div class="modal-box" id="modal-box">
+    <div class="modal-img-col">
+      <img id="m-img" src="" alt=""/>
+      <div class="modal-badge" id="m-badge"></div>
+    </div>
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeModal()">&#x2715;</button>
+      <div class="modal-tag" id="m-tag"></div>
+      <div class="modal-title" id="m-title"></div>
+
+      <div class="detail-list">
+        <div class="detail-row">
+          <div class="d-icon">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <rect x="2" y="3" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.4" fill="none"/>
+              <path d="M5 1v4M11 1v4M2 7h12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <span class="d-label">Date</span>
+          <span class="d-val" id="m-date"></span>
+        </div>
+        <div class="detail-row">
+          <div class="d-icon">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <path d="M8 1.5C5.5 1.5 3.5 3.5 3.5 6c0 3.5 4.5 8.5 4.5 8.5s4.5-5 4.5-8.5c0-2.5-2-4.5-4.5-4.5z" stroke="currentColor" stroke-width="1.4" fill="none"/>
+              <circle cx="8" cy="6" r="1.5" stroke="currentColor" stroke-width="1.2" fill="none"/>
+            </svg>
+          </div>
+          <span class="d-label">Location</span>
+          <span class="d-val" id="m-loc"></span>
+        </div>
+        <div class="detail-row">
+          <div class="d-icon">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4" fill="none"/>
+              <path d="M8 5v3.5l2 1.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <span class="d-label">Time</span>
+          <span class="d-val" id="m-time"></span>
+        </div>
+        <div class="detail-row">
+          <div class="d-icon">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <circle cx="6" cy="5" r="2.5" stroke="currentColor" stroke-width="1.3" fill="none"/>
+              <path d="M1 13c0-2.8 2.2-5 5-5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none"/>
+              <circle cx="11.5" cy="5" r="2" stroke="currentColor" stroke-width="1.3" fill="none"/>
+              <path d="M14.5 13c0-2.2-1.3-4-3-4.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none"/>
+            </svg>
+          </div>
+          <span class="d-label">Guests</span>
+          <span class="d-val" id="m-cap"></span>
+        </div>
+      </div>
+
+      <div class="pill-row" id="m-pills"></div>
+      <div class="modal-desc" id="m-desc"></div>
+
+      <div class="modal-footer">
+        <div class="price-block">
+          <div class="price-big" id="m-price"></div>
+          <div class="price-note">per person · all inclusive</div>
+        </div>
+        <div class="footer-right">
+          <button class="nav-btn" onclick="navigate(-1)" title="Previous">&#8592;</button>
+          <button class="nav-btn" onclick="navigate(1)"  title="Next">&#8594;</button>
+          <button class="btn-book">Book Now</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const events = [
+  {
+    tag:'Wedding',
+    title:'Garden Bloom Wedding',
+    date:'12 May 2025',
+    time:'4:00 PM – 11:00 PM',
+    location:'The Rosewood Estate, Lucknow',
+    capacity:'Up to 350 guests',
+    price:'₹8,500',
+    pills:['Outdoor','Floral Decor','Live Band'],
+    desc:'An enchanting garden wedding draped in fresh florals and golden fairy lights. Our team curates every detail from the rose-adorned mandap to the candlelit reception dinner. Guests enjoy a live string quartet, a curated 5-course menu, and a personalised photo booth. The Rosewood Estate offers expansive lawns with a heritage fountain as your backdrop — the perfect canvas for timeless memories.',
+    img:'https://images.unsplash.com/photo-1519741497674-611481863552?w=700&q=80',
+  },
+  {
+    tag:'Corporate',
+    title:'Executive Summit 2025',
+    date:'3 Jun 2025',
+    time:'9:00 AM – 6:00 PM',
+    location:'Taj Convention Centre, Delhi',
+    capacity:'Up to 500 delegates',
+    price:'₹4,200',
+    pills:['Indoor','AV Setup','Networking'],
+    desc:'A premium one-day corporate summit designed for C-suite leaders and industry trailblazers. Features keynote stages, breakout boardrooms, a curated networking lunch, and live panel discussions. Full AV production with simultaneous translation booths. Business lounge access, executive gifting, and a post-event cocktail hour are all included in the package.',
+    img:'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=700&q=80',
+  },
+  {
+    tag:'Birthday',
+    title:'Golden Hour Birthday Gala',
+    date:'22 Jun 2025',
+    time:'7:00 PM – 1:00 AM',
+    location:'The Sky Lounge, Mumbai',
+    capacity:'Up to 120 guests',
+    price:'₹6,000',
+    pills:['Rooftop','DJ Night','Custom Cake'],
+    desc:'Celebrate your milestone birthday 35 floors above the city skyline. A bespoke evening featuring a custom 4-tier cake design session, open bar with curated cocktails, a professional DJ set, and a personalised video montage screened on a 180° panoramic display. The Sky Lounge delivers breathtaking views for a night your guests will never forget.',
+    img:'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=700&q=80',
+  },
+  {
+    tag:'Concert',
+    title:'Strings & Serenade Night',
+    date:'5 Jul 2025',
+    time:'6:30 PM – 10:00 PM',
+    location:'Amphitheatre, Jaipur',
+    capacity:'Up to 800 seats',
+    price:'₹1,800',
+    pills:['Open Air','Classical','Premium Seating'],
+    desc:'An intimate evening of classical and fusion music set against the majestic Pink City skyline. Featuring 3 acclaimed Indian classical artists alongside a jazz fusion ensemble. Premium category includes reserved cushioned seating, a pre-show wine and charcuterie reception, and an exclusive meet-and-greet with the performers following the show.',
+    img:'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=700&q=80',
+  },
+  {
+    tag:'Anniversary',
+    title:'Silver Jubilee Soirée',
+    date:'18 Aug 2025',
+    time:'7:00 PM – 12:00 AM',
+    location:'Le Méridien Ballroom, Bangalore',
+    capacity:'Up to 200 guests',
+    price:'₹9,200',
+    pills:['Indoor','Silver Theme','Fine Dining'],
+    desc:'A sophisticated anniversary celebration styled in silver, ivory, and champagne. Includes a 7-course plated dinner by a Michelin-trained chef, live saxophone music during cocktail hour, a curated memory reel, personalised silverware keepsakes for each guest table, and a sparkler send-off at midnight under a cascading floral installation.',
+    img:'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=700&q=80',
+  },
+  {
+    tag:'Exhibition',
+    title:'Artisan Craft & Design Fair',
+    date:'30 Aug 2025',
+    time:'10:00 AM – 8:00 PM',
+    location:'NSIC Exhibition Grounds, Delhi',
+    capacity:'Open to all',
+    price:'₹500',
+    pills:['Indoor + Outdoor','Workshop','200+ Stalls'],
+    desc:'A curated fair celebrating India\'s finest artisans, designers, and craft traditions. Over 200 handpicked stalls spanning textile, pottery, jewellery, and sustainable living. Includes live craft demonstrations, masterclass workshops, a food court with regional delicacies, and a design-talk stage featuring leading Indian designers sharing their creative journeys.',
+    img:'https://images.unsplash.com/photo-1605810230434-7631ac76ec81?w=700&q=80',
+  },
+  {
+    tag:'Gala Dinner',
+    title:'Starlight Charity Gala',
+    date:'14 Sep 2025',
+    time:'7:30 PM – 11:30 PM',
+    location:'ITC Grand Chola, Chennai',
+    capacity:'Up to 280 guests',
+    price:'₹12,000',
+    pills:['Black Tie','Auction','Live Performance'],
+    desc:'An elegant black-tie gala raising funds for children\'s education. The evening features a gourmet 6-course dinner, a live performance by a celebrated Carnatic vocalist, a curated silent auction of exclusive lots, and a stirring short film spotlighting beneficiary communities. Dress code: formal black tie. All proceeds go directly to the Starlight Foundation.',
+    img:'https://images.unsplash.com/photo-1478147427282-58a87a433b2a?w=700&q=80',
+  },
+  {
+    tag:'Baby Shower',
+    title:'Blossom Baby Shower',
+    date:'28 Sep 2025',
+    time:'11:00 AM – 3:00 PM',
+    location:'Garden Pavilion, Pune',
+    capacity:'Up to 80 guests',
+    price:'₹3,500',
+    pills:['Pastel Theme','Games','Brunch'],
+    desc:'A whimsical pastel-hued baby shower surrounded by blooms and joy. Includes a themed brunch spread, guest activity stations (name ribbon station, wish jar, and artwork wall), a custom gender-neutral diaper cake centrepiece, professional photography throughout, and a curated gift registry table. Every guest receives a handcrafted favour sachet as a keepsake.',
+    img:'https://images.unsplash.com/photo-1527529482837-4698179dc6ce?w=700&q=80',
+  },
+  {
+    tag:'Sangeet',
+    title:'Raga & Rhythm Sangeet',
+    date:'10 Oct 2025',
+    time:'5:00 PM – 11:00 PM',
+    location:'Haveli Banquets, Udaipur',
+    capacity:'Up to 250 guests',
+    price:'₹7,800',
+    pills:['Heritage Venue','Bollywood DJ','Mehendi'],
+    desc:'A vibrant sangeet evening set within a stunning heritage haveli adorned with hand-painted frescoes and lantern-lit courtyards. Features professional Bollywood choreography sessions, a live dhol and folk music ensemble, Mehendi artists for all guests, a 12-variety chaat and street food counter, and a grand finale dance performance by both families under a fireworks finale.',
+    img:'https://images.unsplash.com/photo-1583939003579-730e3918a45a?w=700&q=80',
+  },
+];
+
+let current = -1;
+
+// ── BUILD GRID ──
+function buildGrid() {
+  const grid = document.getElementById('grid');
+  events.forEach((e, i) => {
+    const item = document.createElement('div');
+    item.className = 'item';
+    item.innerHTML = `
+      <img src="${e.img}" alt="${e.title}" loading="lazy"/>
+      <div class="eye-icon">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <path d="M1 8s3-6 7-6 7 6 7 6-3 6-7 6-7-6-7-6z" stroke="white" stroke-width="1.4" fill="none"/>
+          <circle cx="8" cy="8" r="2" stroke="white" stroke-width="1.3" fill="none"/>
+        </svg>
+      </div>
+      <div class="item-overlay">
+        <div class="item-mini">
+          <div class="item-mini-text">
+            <div class="item-mini-tag">${e.tag}</div>
+            <div class="item-mini-title">${e.title}</div>
+            <div class="item-mini-meta">
+              <span class="meta-chip">
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
+                  <rect x="2" y="3" width="12" height="12" rx="2" stroke="rgba(255,255,255,0.65)" stroke-width="1.4" fill="none"/>
+                  <path d="M5 1v4M11 1v4M2 7h12" stroke="rgba(255,255,255,0.65)" stroke-width="1.4" stroke-linecap="round"/>
+                </svg>
+                ${e.date}
+              </span>
+              <span class="meta-chip">
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
+                  <path d="M8 1.5C5.5 1.5 3.5 3.5 3.5 6c0 3.5 4.5 8.5 4.5 8.5s4.5-5 4.5-8.5c0-2.5-2-4.5-4.5-4.5z" stroke="rgba(255,255,255,0.65)" stroke-width="1.4" fill="none"/>
+                </svg>
+                ${e.location.split(',')[0]}
+              </span>
+            </div>
+          </div>
+          <div class="item-price">${e.price}</div>
+        </div>
+      </div>
+    `;
+    item.addEventListener('click', () => openModal(i));
+    grid.appendChild(item);
+  });
+}
+
+// ── OPEN MODAL ──
+function openModal(i) {
+  current = i;
+  const e = events[i];
+  document.getElementById('m-img').src = e.img;
+  document.getElementById('m-img').alt = e.title;
+  document.getElementById('m-badge').textContent = e.tag;
+  document.getElementById('m-tag').textContent = e.tag;
+  document.getElementById('m-title').textContent = e.title;
+  document.getElementById('m-date').textContent = e.date;
+  document.getElementById('m-loc').textContent = e.location;
+  document.getElementById('m-time').textContent = e.time;
+  document.getElementById('m-cap').textContent = e.capacity;
+  document.getElementById('m-desc').textContent = e.desc;
+  document.getElementById('m-price').textContent = e.price;
+
+  const pillColors = ['pill-amber', 'pill-teal', 'pill-blue'];
+  document.getElementById('m-pills').innerHTML = e.pills
+    .map((p, j) => `<span class="pill ${pillColors[j % 3]}">${p}</span>`)
+    .join('');
+
+  // Re-trigger animation
+  const box = document.getElementById('modal-box');
+  box.style.animation = 'none';
+  void box.offsetHeight;
+  box.style.animation = '';
+
+  document.getElementById('modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+// ── CLOSE MODAL ──
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+  document.body.style.overflow = '';
+  current = -1;
+}
+
+// ── BACKDROP CLICK ──
+function handleBackdropClick(e) {
+  if (e.target === document.getElementById('modal')) closeModal();
+}
+
+// ── NAVIGATE ──
+function navigate(dir) {
+  if (current < 0) return;
+  current = (current + dir + events.length) % events.length;
+  openModal(current);
+}
+
+// ── KEYBOARD ──
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+  if (e.key === 'ArrowRight') navigate(1);
+  if (e.key === 'ArrowLeft') navigate(-1);
+});
+
+buildGrid();
+</script>
+</body>
+</html>
