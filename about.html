@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="nav.css"/>
+</head>
+<style>
+    .page-header {
+      text-align: center;
+      padding: 60px 20px 40px;
+      background: linear-gradient(135deg, #1a1008 0%, #3a2e1e 100%);
+      color: white;
+    }
+
+    .page-header h1 {
+      font-family: "Playfair Display", serif;
+      font-size: 48px;
+      margin-bottom: 15px;
+    }
+
+    .page-header p {
+      font-family: "DM Sans", sans-serif;
+      font-size: 16px;
+      color: #faf7f2;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .about-section {
+      padding: 80px 20px;
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    .about-content {
+      font-family: "DM Sans", sans-serif;
+      line-height: 1.8;
+      color: #3a2e1e;
+      margin-bottom: 50px;
+    }
+
+    .about-content h2 {
+      font-family: "Playfair Display", serif;
+      font-size: 32px;
+      color: #1a1008;
+      margin-bottom: 20px;
+      margin-top: 40px;
+    }
+
+    .about-content p {
+      font-size: 16px;
+      margin-bottom: 15px;
+    }
+
+    .values-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 30px;
+      margin: 50px 0;
+    }
+
+    .value-card {
+      background: #faf7f2;
+      padding: 30px;
+      border-radius: 12px;
+      text-align: center;
+      border-left: 4px solid #ffa01e;
+    }
+
+    .value-card h3 {
+      font-family: "Playfair Display", serif;
+      font-size: 22px;
+      color: #1a1008;
+      margin-bottom: 12px;
+    }
+
+    .value-card p {
+      font-size: 14px;
+      color: #9e8e7a;
+    }
+
+    .team-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 30px;
+      margin-top: 40px;
+    }
+
+    .team-member {
+      text-align: center;
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    }
+
+    .member-avatar {
+      width: 150px;
+      height: 150px;
+      background: linear-gradient(135deg, #ffa01e 0%, #ff8c00 100%);
+      border-radius: 50%;
+      margin: 0 auto 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 60px;
+    }
+
+    .member-name {
+      font-family: "Playfair Display", serif;
+      font-size: 20px;
+      color: #1a1008;
+      margin-bottom: 5px;
+    }
+
+    .member-role {
+      font-size: 14px;
+      color: #ffa01e;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+
+    .member-bio {
+      font-size: 13px;
+      color: #9e8e7a;
+      line-height: 1.6;
+    }
+  </style>
+<body>
+    <nav>
+  <a href="index.html" class="nav-logo">Arc<em>.</em></a>
+
+  <ul class="nav-links">
+    <li><a href="landing.html" class="active">Home</a></li>
+    <li><a href="product.html">Products</a></li>
+    <li><a href="about.html">About</a></li>
+    <li><a href="blog.html">Blog</a></li>
+    <li><a href="contact.html">Contact</a></li>
+  </ul>
+
+  <div style="display:flex;align-items:center;gap:12px;">
+    <div class="nav-socials">
+      <!-- Instagram -->
+      <a href="#" aria-label="Instagram">
+        <svg viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+      </a>
+      <!-- Facebook -->
+      <a href="#" aria-label="Facebook">
+        <svg viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+      </a>
+      <!-- Twitter/X -->
+      <a href="#" aria-label="Twitter">
+        <svg viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+      </a>
+    </div>
+
+    <div class="sep"></div>
+
+    <div class="nav-auth">
+      <a href="signup.html" class="btn-fill">Sign Up</a>
+      <a href="login.html?mode=signin" class="btn-outline">Log In</a>
+      
+    </div>
+  </div>
+
+  <button class="hamburger" onclick="toggleMenu()" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+
+  <div class="mobile-menu" id="mobileMenu">
+    <a href="#">Home</a>
+    <a href="#">Products</a>
+    <a href="#">About</a>
+    <a href="#">Blog</a>
+    <a href="#">Contact</a>
+    <a href="signup.html">Sign Up</a>
+    <a href="login.html?mode=signin">Log In</a>
+    
+  </div>
+</nav>
+
+<div class="page-header">
+  <h1>About Us</h1>
+  <p>Discover the story behind Lumière Visual Studio and our passion for capturing moments that matter.</p>
+</div>
+
+<!-- About Section -->
+<section class="about-section">
+  <div class="about-content">
+    <h2>Our Story</h2>
+    <p>Lumière Visual Studio was founded with a simple yet profound vision: to capture the beauty of human moments through the lens of exceptional photography. What started as a passion project has blossomed into a full-service photography studio serving clients across India and beyond.</p>
+    <p>Our team of dedicated photographers and creative professionals believe that every moment tells a story worth preserving. Whether it's the joy of a wedding day, the elegance of a portrait, or the raw beauty of nature, we approach each project with meticulous attention to detail and artistic excellence.</p>
+
+    <h2>Our Mission</h2>
+    <p>To create timeless visual narratives that celebrate life's most precious moments, deliver exceptional quality that exceeds expectations, and build lasting relationships with our clients through trust and artistic integrity.</p>
+
+    <h2>Our Values</h2>
+    <div class="values-grid">
+      <div class="value-card">
+        <h3>🎨 Artistry</h3>
+        <p>Every photograph is a work of art, crafted with creativity and technical excellence.</p>
+      </div>
+      <div class="value-card">
+        <h3>💎 Quality</h3>
+        <p>We never compromise on quality—from pre-production to final delivery of every image.</p>
+      </div>
+      <div class="value-card">
+        <h3>🤝 Trust</h3>
+        <p>Your memories are sacred to us. We handle every project with utmost professionalism and care.</p>
+      </div>
+      <div class="value-card">
+        <h3>✨ Innovation</h3>
+        <p>We embrace new techniques and technology to deliver fresh, contemporary photography.</p>
+      </div>
+    </div>
+
+    <h2>Meet Our Team</h2>
+    <div class="team-grid">
+      <div class="team-member">
+        <div class="member-avatar">📸</div>
+        <div class="member-name">Arjun Sharma</div>
+        <div class="member-role">Lead Photographer</div>
+        <div class="member-bio">12+ years of experience in wedding and portrait photography. Award-winning artist dedicated to capturing authentic moments.</div>
+      </div>
+
+      <div class="team-member">
+        <div class="member-avatar">🎬</div>
+        <div class="member-name">Priya Patel</div>
+        <div class="member-role">Creative Director</div>
+        <div class="member-bio">Specializes in commercial and brand photography. Known for innovative visual storytelling and creative direction.</div>
+      </div>
+
+      <div class="team-member">
+        <div class="member-avatar">🖼️</div>
+        <div class="member-name">Rohan Verma</div>
+        <div class="member-role">Post-Production Expert</div>
+        <div class="member-bio">Master of digital editing and color grading. Ensures every image meets our highest quality standards.</div>
+      </div>
+    </div>
+
+    <h2>Why Choose Lumière?</h2>
+    <p>We're not just photographers—we're storytellers. Our commitment to excellence, attention to detail, and genuine care for our clients set us apart. With every project, we aim to exceed expectations and create photographs that will be treasured for generations to come.</p>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div class="logo">Lumière</div>
+  <p>© 2026 Lumière Visual Studio. All rights reserved.</p>
+</footer>
+</body>
+</html>

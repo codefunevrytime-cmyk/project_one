@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="nav.css"/>
+     <style>
+    .products-section {
+      padding: 80px 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .products-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 30px;
+      margin-top: 50px;
+    }
+
+    .product-card {
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .product-card:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+    }
+
+    .product-image {
+      width: 100%;
+      height: 250px;
+      background: linear-gradient(135deg, #ffa01e 0%, #ff8c00 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 80px;
+    }
+
+    .product-info {
+      padding: 25px;
+    }
+
+    .product-name {
+      font-family: "Playfair Display", serif;
+      font-size: 22px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: #1a1008;
+    }
+
+    .product-desc {
+      font-family: "DM Sans", sans-serif;
+      font-size: 14px;
+      color: #9e8e7a;
+      margin-bottom: 15px;
+      line-height: 1.6;
+    }
+
+    .product-price {
+      font-size: 24px;
+      font-weight: 700;
+      color: #ffa01e;
+      margin-bottom: 15px;
+    }
+
+    .product-btn {
+      width: 100%;
+      padding: 12px;
+      background: #ffa01e;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-family: "DM Sans", sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+
+    .product-btn:hover {
+      background: #ff8c00;
+    }
+
+    .page-header {
+      text-align: center;
+      padding: 60px 20px 40px;
+      background: linear-gradient(135deg, #1a1008 0%, #3a2e1e 100%);
+      color: white;
+    }
+
+    .page-header h1 {
+      font-family: "Playfair Display", serif;
+      font-size: 48px;
+      margin-bottom: 15px;
+    }
+
+    .page-header p {
+      font-family: "DM Sans", sans-serif;
+      font-size: 16px;
+      color: #faf7f2;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+  </style>
+</head>
+<body>
+    <nav>
+  <a href="index.html" class="nav-logo">Arc<em>.</em></a>
+
+  <ul class="nav-links">
+    <li><a href="landing.html" class="active">Home</a></li>
+    <li><a href="product.html">Products</a></li>
+    <li><a href="about.html">About</a></li>
+    <li><a href="blog.html">Blog</a></li>
+    <li><a href="contact.html">Contact</a></li>
+  </ul>
+
+  <div style="display:flex;align-items:center;gap:12px;">
+    <div class="nav-socials">
+      <!-- Instagram -->
+      <a href="#" aria-label="Instagram">
+        <svg viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+      </a>
+      <!-- Facebook -->
+      <a href="#" aria-label="Facebook">
+        <svg viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+      </a>
+      <!-- Twitter/X -->
+      <a href="#" aria-label="Twitter">
+        <svg viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+      </a>
+    </div>
+
+    <div class="sep"></div>
+
+    <div class="nav-auth">
+      <a href="signup.html" class="btn-fill">Sign Up</a>
+      <a href="login.html?mode=signin" class="btn-outline">Log In</a>
+      
+    </div>
+  </div>
+
+  <button class="hamburger" onclick="toggleMenu()" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+
+  <div class="mobile-menu" id="mobileMenu">
+    <a href="#">Home</a>
+    <a href="#">Products</a>
+    <a href="#">About</a>
+    <a href="#">Blog</a>
+    <a href="#">Contact</a>
+    <a href="signup.html">Sign Up</a>
+    <a href="login.html?mode=signin">Log In</a>
+    
+  </div>
+</nav>
+
+<div class="page-header">
+  <h1>Our Products</h1>
+  <p>Explore our premium collection of photography services and packages designed to capture your most precious moments.</p>
+</div>
+
+<!-- Products Section -->
+<section class="products-section">
+  <h2 class="section-title" style="text-align: center;">Featured Services</h2>
+  <div class="section-line" style="margin: 0 auto 50px;"></div>
+
+  <div class="products-grid">
+    <!-- Product 1 -->
+    <div class="product-card">
+      <div class="product-image">📷</div>
+      <div class="product-info">
+        <div class="product-name">Portrait Session</div>
+        <div class="product-desc">Professional portrait photography session with editing and 50 high-res images.</div>
+        <div class="product-price">₹8,999</div>
+        <button class="product-btn">Book Now</button>
+      </div>
+    </div>
+
+    <!-- Product 2 -->
+    <div class="product-card">
+      <div class="product-image">💒</div>
+      <div class="product-info">
+        <div class="product-name">Wedding Package</div>
+        <div class="product-desc">Complete wedding coverage with pre-wedding shoot, ceremony, and reception.</div>
+        <div class="product-price">₹49,999</div>
+        <button class="product-btn">Book Now</button>
+      </div>
+    </div>
+
+    <!-- Product 3 -->
+    <div class="product-card">
+      <div class="product-image">🏢</div>
+      <div class="product-info">
+        <div class="product-name">Brand Photography</div>
+        <div class="product-desc">Commercial photography for your brand, products, and business marketing needs.</div>
+        <div class="product-price">₹15,999</div>
+        <button class="product-btn">Book Now</button>
+      </div>
+    </div>
+
+    <!-- Product 4 -->
+    <div class="product-card">
+      <div class="product-image">🏔️</div>
+      <div class="product-info">
+        <div class="product-name">Landscape & Travel</div>
+        <div class="product-desc">Stunning landscape photography sessions to capture nature's breathtaking beauty.</div>
+        <div class="product-price">₹12,999</div>
+        <button class="product-btn">Book Now</button>
+      </div>
+    </div>
+
+    <!-- Product 5 -->
+    <div class="product-card">
+      <div class="product-image">🏛️</div>
+      <div class="product-info">
+        <div class="product-name">Architecture Photography</div>
+        <div class="product-desc">Professional architectural photography for buildings, interiors, and design showcases.</div>
+        <div class="product-price">₹18,999</div>
+        <button class="product-btn">Book Now</button>
+      </div>
+    </div>
+
+    <!-- Product 6 -->
+    <div class="product-card">
+      <div class="product-image">🦁</div>
+      <div class="product-info">
+        <div class="product-name">Wildlife Photography</div>
+        <div class="product-desc">Adventure wildlife expeditions with expert photography and premium image collection.</div>
+        <div class="product-price">₹25,999</div>
+        <button class="product-btn">Book Now</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div class="logo">Lumière</div>
+  <p>© 2026 Lumière Visual Studio. All rights reserved.</p>
+</footer>
+
+</body>
+</html>
