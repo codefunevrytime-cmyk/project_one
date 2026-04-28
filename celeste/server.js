@@ -19,6 +19,22 @@ app.use(session({
 
 app.use('/', authRoutes);
 
+// ─────────────────────────────────────────────────
+// HOW TO CHANGE THE REDIRECT AFTER LOGIN / SIGNUP:
+//
+// Open your routes/auth.js file and find the login
+// and signup POST handlers. Look for the line:
+//
+//   redirect: '/landing.html'
+//
+// Change '/landing.html' to wherever you want:
+//   redirect: '/dashboard.html'   → goes to dashboard
+//   redirect: '/home.html'        → goes to home
+//   redirect: '/'                 → goes to root
+//
+// Do this for BOTH the login and signup routes.
+// ─────────────────────────────────────────────────
+
 app.use((req, res) => {
   res.status(404).redirect('/login');
 });

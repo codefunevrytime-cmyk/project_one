@@ -5,6 +5,7 @@ const { body, validationResult } = require('express-validator');
 
 const users = new Map();
 
+// Middleware
 function requireGuest(req, res, next) {
   if (req.session.user) return res.redirect('http://localhost:5500/landing.html');
   next();
@@ -15,17 +16,22 @@ function requireAuth(req, res, next) {
   next();
 }
 
+// Routes
 router.get('/', (req, res) => res.redirect('/login'));
+
 router.get('/login', requireGuest, (req, res) => {
   res.sendFile(require('path').join(__dirname, '../public', 'login.html'));
 });
+
 router.get('/signup', requireGuest, (req, res) => {
   res.sendFile(require('path').join(__dirname, '../public', 'signup.html'));
 });
+
 router.get('/dashboard', requireAuth, (req, res) => {
   res.sendFile(require('path').join(__dirname, '../public', 'dashboard.html'));
 });
 
+// LOGIN
 router.post('/api/login', [
   body('email').trim().isEmail().withMessage('Please enter a valid email'),
   body('password').notEmpty().withMessage('Password is required')
@@ -35,19 +41,30 @@ router.post('/api/login', [
   if (!errors.isEmpty()) {
     return res.status(400).json({ success: false, errors: errors.array() });
   }
+
   const { email, password, remember } = req.body;
   const user = users.get(email.toLowerCase());
   if (!user) {
     return res.status(401).json({ success: false, errors: [{ path: 'email', msg: 'No account found with this email' }] });
   }
+
   const match = await bcrypt.compare(password, user.password);
   if (!match) {
     return res.status(401).json({ success: false, errors: [{ path: 'password', msg: 'Incorrect password' }] });
   }
+
   req.session.user = { id: user.id, email: user.email, name: user.firstName };
   if (remember) req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000;
-res.json({ success: true, redirect: 'http://localhost:5500/landing.html?user=' + user.firstName, name: user.firstName });});
 
+  return res.json({
+    success: true,
+    name: `${user.firstName} ${user.lastName}`.trim(),
+    email: user.email,
+    redirect: `http://localhost:5500/landing.html?user=${encodeURIComponent(user.firstName)}&email=${encodeURIComponent(user.email)}`
+  });
+});
+
+// SIGNUP
 router.post('/api/signup', [
   body('firstName').trim().notEmpty().withMessage('First name is required')
     .isLength({ min: 2 }).withMessage('First name too short')
@@ -70,11 +87,13 @@ router.post('/api/signup', [
   if (!errors.isEmpty()) {
     return res.status(400).json({ success: false, errors: errors.array() });
   }
+
   const { firstName, lastName, email, phone, password } = req.body;
   const key = email.toLowerCase();
   if (users.has(key)) {
     return res.status(409).json({ success: false, errors: [{ path: 'email', msg: 'An account with this email already exists' }] });
   }
+
   const hashed = await bcrypt.hash(password, 12);
   const user = {
     id: Date.now().toString(),
@@ -85,13 +104,22 @@ router.post('/api/signup', [
   };
   users.set(key, user);
   req.session.user = { id: user.id, email: user.email, name: user.firstName };
-res.json({ success: true, redirect: 'http://localhost:5500/landing.html?user=' + user.firstName, name: user.firstName });});
 
+  return res.json({
+    success: true,
+    name: `${user.firstName} ${user.lastName}`.trim(),
+    email: user.email,
+    redirect: `http://localhost:5500/landing.html?user=${encodeURIComponent(user.firstName)}&email=${encodeURIComponent(user.email)}`
+  });
+});
+
+// PROFILE
 router.get('/api/me', (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
   res.json({ name: req.session.user.name, email: req.session.user.email });
 });
 
+// LOGOUT
 router.post('/api/logout', (req, res) => {
   req.session.destroy(() => res.json({ success: true, redirect: '/login' }));
 });
