@@ -1,3 +1,10 @@
+/**
+ * Auth Styles — Login & Signup Pages
+ * Extracted from celeste/public/css/lo.css
+ * Preserves original color theme exactly.
+ * Used by: LoginPage, SignupPage
+ */
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
@@ -19,9 +26,10 @@ html, body {
   font-family: 'DM Sans', sans-serif;
 }
 
-.scene {
+/* ── SCENE (split-screen wrapper) ── */
+.scene-auth {
   width: 100vw;
-  height: 100vh;
+  height: calc(100vh - 64px);
   display: flex;
   position: relative;
   overflow: hidden;
@@ -42,7 +50,7 @@ html, body {
   100% { transform: translateY(-110vh) rotate(420deg) scale(0.5); opacity: 0; }
 }
 
-/* ── LEFT PANEL ── */
+/* ── LEFT PANEL (branding side) ── */
 .left {
   flex: 1;
   position: relative;
@@ -106,7 +114,7 @@ html, body {
 .stat-num { font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 700; color: var(--gold); }
 .stat-lbl { font-size: 11px; color: rgba(255,255,255,0.32); text-transform: uppercase; letter-spacing: 0.09em; margin-top: 3px; }
 
-/* ── RIGHT PANEL ── */
+/* ── RIGHT PANEL (form side) ── */
 .panel-wrap {
   width: 430px;
   flex-shrink: 0;
@@ -281,3 +289,11 @@ html, body {
   vertical-align: middle; margin-right: 8px;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Responsive */
+@media (max-width: 900px) {
+  .scene-auth { flex-direction: column; }
+  .left { display: none; }
+  .panel-wrap { width: 100%; height: 100vh; }
+}
+
