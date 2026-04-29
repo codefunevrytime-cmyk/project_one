@@ -1717,3 +1717,161 @@ footer p {
   color: var(--text);
   font-weight: 500;
 }
+
+/* ─────────────────────────────────────────
+   Services dropdown — paste into your
+   existing navbar CSS file
+───────────────────────────────────────── */
+
+/* The <li> wrapper — same as nav-events-wrap but wider dropdown */
+.nav-services-wrap {
+  position: relative;
+}
+
+/* The dropdown panel */
+.nav-services-menu {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 680px;
+  background: var(--nav-bg, #fff);          /* inherits your existing nav bg */
+  border: 0.5px solid rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%) translateY(-6px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 200;
+}
+
+.nav-services-menu.open {
+  opacity: 1;
+  pointer-events: all;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Inner grid */
+.nsm-inner {
+  padding: 28px 28px 20px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+}
+
+/* Column */
+.nsm-col {
+  padding: 0 24px 0 0;
+}
+.nsm-col-border {
+  border-right: 0.5px solid rgba(0, 0, 0, 0.08);
+  margin-right: 0;
+}
+.nsm-col + .nsm-col {
+  padding-left: 24px;
+}
+
+/* Column header */
+.nsm-col-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.nsm-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.nsm-col-label {
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 1.1px;
+  color: #aaa;
+}
+
+/* Service item */
+.nsm-item {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 6px;
+  text-decoration: none;
+  margin-bottom: 2px;
+  transition: background 0.15s;
+}
+.nsm-item:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+.nsm-item-name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--text-primary, #1a1a1a);
+  font-weight: 400;
+}
+.nsm-item-desc {
+  font-size: 11px;
+  color: #aaa;
+  margin-top: 2px;
+  display: block;
+}
+
+/* Pills */
+.nsm-pill {
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  padding: 2px 7px;
+  border-radius: 20px;
+}
+.nsm-pill-violet {
+  background: #EEEDFE;
+  color: #534AB7;
+}
+.nsm-pill-teal {
+  background: #E1F5EE;
+  color: #0F6E56;
+}
+
+/* Footer cards */
+.nsm-footer {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 10px;
+  border-top: 0.5px solid rgba(0, 0, 0, 0.08);
+  padding-top: 16px;
+  margin-top: 16px;
+}
+.nsm-footer-card {
+  flex: 1;
+  padding: 12px 14px;
+  border: 0.5px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  text-decoration: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.nsm-footer-card:hover {
+  border-color: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.02);
+}
+.nsm-footer-card-t {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary, #1a1a1a);
+}
+.nsm-footer-card-s {
+  font-size: 11px;
+  color: #aaa;
+  margin-top: 2px;
+}
+
+/* Mobile services submenu — reuses your existing mobile-submenu styles */
+/* No extra CSS needed — .mobile-submenu already handles it */

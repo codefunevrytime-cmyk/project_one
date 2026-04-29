@@ -25,7 +25,7 @@ export default function App() {
         <Route path="/explore" element={<ExploreEventPage />} />
         <Route path="/gallery" element={<GalleryPage />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/product" element={<ProductPage />} />
+        <Route path="/products" element={<ProductPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
