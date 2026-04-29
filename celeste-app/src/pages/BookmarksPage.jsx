@@ -1,10 +1,14 @@
 import { Link } from 'react-router-dom';
-import EventCard from '../components/EventCard';
 import EventModal from '../components/EventModal';
 import Footer from '../components/Footer';
-import { eventsData } from '../data/eventsData';
+import { eventsData } from '../context/data/eventsData';
 import { useAuth } from '../hooks/useAuth';
 import { useModal } from '../hooks/useModal';
+import { EventCard } from '../components/EventCard';
+import { BookmarksPanel } from '../components/BookmarksPanel';
+import { Sidebar } from '../components/Sidebar';
+import { BookmarkIcon } from '../components/BookmarkIcon';
+import { ExplorePage } from '../pages/ExplorePage';
 
 function sortLatestFirst(events) {
   return [...events].sort((first, second) => new Date(second.eventDate) - new Date(first.eventDate));

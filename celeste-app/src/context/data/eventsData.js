@@ -1,13 +1,18 @@
 // Curated event catalog used by the Explore Events and Bookmarks pages.
 // The ISO eventDate field drives sorting, while the labels keep the UI readable.
-
+// src/data/eventsData.js  — add or update this export
 export const featuredEventTypes = [
-  'Wedding',
-  'Birthday',
-  'Corporate',
-  'Baby Shower',
-  'Sangeet',
-  'Anniversary',
+  "Wedding",
+  "Birthday",
+  "Corporate",
+  "Concert",
+  "Festival",
+  "Sports",
+  "Outdoor",
+  "Expo",
+  "Cultural",
+  "Charity",
+  "Food",
 ];
 
 export const eventsData = [

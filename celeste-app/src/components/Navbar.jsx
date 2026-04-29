@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { featuredEventTypes } from '../data/eventsData';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { featuredEventTypes } from '../context/data/eventsData';
 import { useAuth } from '../hooks/useAuth';
 
 function Chevron({ open }) {
@@ -61,6 +61,13 @@ export default function Navbar() {
   const [mobileExploreOpen, setMobileExploreOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [exploreOpen, setExploreOpen] = useState(false);
+  const exploreTimeoutRef = useRef(null);
+  const navigate = useNavigate();
+
+const handleTypeClick = (type) => {
+  closeAllMenus();
+  navigate('/explore', { state: { selectedType: type } });
+};
 
   const profileRef = useRef(null);
   const exploreRef = useRef(null);
@@ -68,12 +75,12 @@ export default function Navbar() {
   const isRouteActive = (path) => location.pathname === path;
   const isExploreRoute = location.pathname === '/events' || location.pathname === '/gallery';
 
-  useEffect(() => {
+     
+useEffect(() => {
     const handleClickOutside = (event) => {
       if (profileRef.current && !profileRef.current.contains(event.target)) {
         setProfileOpen(false);
       }
-
       if (exploreRef.current && !exploreRef.current.contains(event.target)) {
         setExploreOpen(false);
       }
@@ -91,10 +98,11 @@ export default function Navbar() {
     document.addEventListener('keydown', handleKeyDown);
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, []);
+  document.removeEventListener('mousedown', handleClickOutside);
+  document.removeEventListener('keydown', handleKeyDown);
+  clearTimeout(exploreTimeoutRef.current);
+};        // ← closing brace for return
+}, []);   // ← closing useEffect
 
   const closeAllMenus = () => {
     setMobileOpen(false);
@@ -122,30 +130,42 @@ export default function Navbar() {
           </Link>
         </li>
 
-        <li className="nav-events-wrap" ref={exploreRef}>
-          <button
-            type="button"
-            className={`nav-link-button${isExploreRoute ? ' active' : ''}`}
-            onClick={() => setExploreOpen((currentValue) => !currentValue)}
-            aria-expanded={exploreOpen}
-          >
-            Explore Events
+        <li
+             className="nav-events-wrap"
+            ref={exploreRef}
+            onMouseEnter={() => {
+  clearTimeout(exploreTimeoutRef.current);
+  setExploreOpen(true);
+}}
+onMouseLeave={() => {
+  exploreTimeoutRef.current = setTimeout(() => {
+    setExploreOpen(false);
+  }, 300); // 300ms delay — enough time to move mouse to menu
+}}
+>
+            <button
+           type="button"
+             className={`nav-link-button${isExploreRoute ? ' active' : ''}`}
+           aria-expanded={exploreOpen}
+            >
+                Explore Events
             <Chevron open={exploreOpen} />
-          </button>
+                 </button>
 
           <div className={`nav-events-menu${exploreOpen ? ' open' : ''}`}>
             <Link to="/events" onClick={closeAllMenus}>
               All Events
             </Link>
             {featuredEventTypes.map((type) => (
-              <Link
-                key={type}
-                to={`/events?type=${encodeURIComponent(type)}`}
-                onClick={closeAllMenus}
-              >
-                {type}
-              </Link>
-            ))}
+  <button
+    key={type}
+    type="button"
+    className="nav-type-btn"
+    onClick={() => handleTypeClick(type)}
+  >
+    {type}
+  </button>
+))}
           </div>
         </li>
 
@@ -283,14 +303,15 @@ export default function Navbar() {
         <div className={`mobile-submenu${mobileExploreOpen ? ' open' : ''}`}>
           <Link to="/events" onClick={closeAllMenus}>All Events</Link>
           {featuredEventTypes.map((type) => (
-            <Link
-              key={type}
-              to={`/events?type=${encodeURIComponent(type)}`}
-              onClick={closeAllMenus}
-            >
-              {type}
-            </Link>
-          ))}
+  <button
+    key={type}
+    type="button"
+    className="nav-type-btn"
+    onClick={() => handleTypeClick(type)}
+  >
+    {type}
+  </button>
+))}
         </div>
 
         <Link to="/products" onClick={closeAllMenus}>Products</Link>

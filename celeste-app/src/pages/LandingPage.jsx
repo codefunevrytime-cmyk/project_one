@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { galleryData } from '../data/galleryData';
-import { testimonialData } from '../data/testimonialData';
+import { galleryData } from '../context/data/galleryData';
+import { testimonialData } from '../context/data/testimonialData';
 import { useSlider } from '../hooks/useSlider';
 import { useModal } from '../hooks/useModal';
 import Footer from '../components/Footer';

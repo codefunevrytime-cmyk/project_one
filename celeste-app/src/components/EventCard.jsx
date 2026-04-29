@@ -1,63 +1,71 @@
-function BookmarkIcon({ active }) {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true">
-      <path
-        d="M6 3.5h8a1 1 0 0 1 1 1v12l-5-3.2L5 16.5v-12a1 1 0 0 1 1-1Z"
-        fill={active ? 'currentColor' : 'none'}
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
+import { useState } from "react";
+import { BookmarkIcon } from "./BookmarkIcon";
+import { THEME_GRADIENTS, EVENT_CATEGORIES } from "../context/data/events";
+import styles from "./EventCard.module.css";
 
-// Reusable image card shared by the main event explorer and saved bookmarks page.
-export default function EventCard({
-  event,
-  isBookmarked,
-  onToggleBookmark,
-  onOpen,
-}) {
-  const handleBookmarkClick = (eventObject) => {
-    eventObject.stopPropagation();
-    onToggleBookmark(event.id);
+export function EventCard({ event, isBookmarked, onBookmarkToggle }) {
+  const [hovered, setHovered] = useState(false);
+  const [bmHovered, setBmHovered] = useState(false);
+
+  const gradient = THEME_GRADIENTS[event.type] || ["#e0e0e0", "#bdbdbd"];
+  const category = EVENT_CATEGORIES.find((c) => c.type === event.type);
+  const emoji = category?.icon ?? "📅";
+
+  const handleBookmark = (e) => {
+    e.stopPropagation();
+    onBookmarkToggle(event.id);
   };
 
   return (
-    <article className="event-card" onClick={onOpen}>
-      <img className="event-card-image" src={event.img} alt={event.title} loading="lazy" />
-
-      <button
-        type="button"
-        className={`event-bookmark-btn${isBookmarked ? ' active' : ''}`}
-        onClick={handleBookmarkClick}
-        aria-label={isBookmarked ? `Remove ${event.title} from bookmarks` : `Save ${event.title} to bookmarks`}
+    <div
+      className={styles.card}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{ transform: hovered ? "translateY(-3px)" : "translateY(0)" }}
+    >
+      {/* Image area */}
+      <div
+        className={styles.imgArea}
+        style={{ background: `linear-gradient(135deg, ${gradient[0]}, ${gradient[1]})` }}
       >
-        <BookmarkIcon active={isBookmarked} />
-      </button>
-
-      <div className="event-card-overlay"></div>
-
-      <div className="event-card-content">
-        <div className="event-card-meta">
-          <span className="event-card-type">{event.type}</span>
-          <span className="event-card-date">{event.dateLabel}</span>
+        <div className={styles.imgContent}>
+          <div className={styles.emoji}>{emoji}</div>
+          <div className={styles.imgDate}>{event.month} {event.year}</div>
         </div>
 
-        <h3>{event.title}</h3>
+        {/* Bookmark button */}
+        <button
+          className={styles.bmBtn}
+          style={{
+            opacity: hovered || isBookmarked ? 1 : 0,
+            background: isBookmarked
+              ? "rgba(29,158,117,0.88)"
+              : bmHovered
+              ? "rgba(0,0,0,0.72)"
+              : "rgba(0,0,0,0.52)",
+          }}
+          onClick={handleBookmark}
+          onMouseEnter={() => setBmHovered(true)}
+          onMouseLeave={() => setBmHovered(false)}
+          title={isBookmarked ? "Remove bookmark" : "Save event"}
+        >
+          <BookmarkIcon filled={isBookmarked} size={15} color="#fff" />
+        </button>
+      </div>
 
-        <div className="event-card-details">
-          <span>{event.venueType}</span>
-          <span>{event.city}</span>
-          <span>{event.guests}</span>
+      {/* Body */}
+      <div className={styles.body}>
+        <div className={styles.tags}>
+          <span className={styles.tagType}>{event.type}</span>
+          <span className={styles.tagVenue}>{event.venue}</span>
+          <span className={styles.tagScale}>{event.scale}</span>
         </div>
-
-        <div className="event-card-footer">
-          <p>{event.venueName}</p>
-          <strong>{event.price}</strong>
+        <div className={styles.title}>{event.title}</div>
+        <div className={styles.meta}>
+          <span>📅 {event.month} {event.year}</span>
+          <span className={styles.planner}>by {event.planner}</span>
         </div>
       </div>
-    </article>
+    </div>
   );
 }

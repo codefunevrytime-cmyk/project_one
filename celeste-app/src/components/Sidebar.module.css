@@ -1,0 +1,89 @@
+.sidebar {
+  width: 252px;
+  flex-shrink: 0;
+  background: #faf6f0;
+  border-right: 1px solid #e8ddd0;
+  padding: 18px 14px 32px;
+  overflow-y: auto;
+  height: calc(100vh - 64px);
+  position: sticky;
+  top: 64px;
+}
+
+.sidebarHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.sidebarTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: #2E1C10;
+  letter-spacing: -0.01em;
+  font-family: 'Playfair Display', serif;
+}
+.clearBtn {
+  font-size: 12px;
+  color: #c9a84c;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+  transition: background 0.12s;
+}
+.clearBtn:hover { background: #faeeda; color: #8a5a00; }
+
+.section { margin-bottom: 22px; }
+.sectionTitle {
+  font-size: 10px;
+  font-weight: 700;
+  color: #c4a882;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e8ddd0;
+}
+
+.filterLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  font-size: 13px;
+  color: #5a3e28;
+  cursor: pointer;
+  border-radius: 7px;
+  transition: background 0.12s;
+}
+.filterLabel:hover { background: #f0e8d8; }
+
+/* Gold accent checkbox */
+.check {
+  accent-color: #c9a84c;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.labelText { flex: 1; }
+.count {
+  font-size: 11px;
+  color: #c4a882;
+  background: #f0e8d8;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+@media (prefers-color-scheme: dark) {
+  .sidebar { background: #1a1510; border-color: #2c2010; }
+  .sidebarTitle { color: #f0e8d8; }
+  .sectionTitle { color: #8a6a48; border-color: #2c2010; }
+  .filterLabel { color: #c4a882; }
+  .filterLabel:hover { background: #2a1e10; }
+  .count { background: #2a1e10; color: #8a6a48; }
+}

@@ -1,13 +1,13 @@
 import PageHeader from '../components/PageHeader';
 import Footer from '../components/Footer';
-import { blogData } from '../data/blogData';
+import { blogData } from '../context/data/blogData';
 
 /* Blog Page - Grid of 6 article cards */
-export default function BlogPage() {
+export default function ExploreEventPage() {
   return (
     <>
       <PageHeader
-        title="Our Blog"
+title="Explore Event"
         subtitle="Stories, tips, and insights about photography, visual art, and capturing life's beautiful moments."
       />
       <section className="blog-section">

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import EventCard from '../components/EventCard';
+import { EventCard } from '../components/EventCard';
 import EventModal from '../components/EventModal';
 import Footer from '../components/Footer';
-import { eventsData, featuredEventTypes } from '../data/eventsData';
+import { eventsData, featuredEventTypes } from '../context/data/eventsData';
 import { useAuth } from '../hooks/useAuth';
 import { useModal } from '../hooks/useModal';
 

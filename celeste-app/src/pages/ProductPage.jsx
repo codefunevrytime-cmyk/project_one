@@ -1,6 +1,6 @@
 import PageHeader from '../components/PageHeader';
 import Footer from '../components/Footer';
-import { productData } from '../data/productData';
+import { productData } from '../context/data/productData';
 
 /* Product Page - 6 photography service cards with pricing */
 export default function ProductPage() {

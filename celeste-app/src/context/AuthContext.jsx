@@ -6,7 +6,6 @@ import {
   storeUserSession,
 } from './authStorage';
 
-const API_BASE = '';
 const BOOKMARKS_KEY = 'celeste_bookmarks';
 
 function readBookmarkedEventIds() {
@@ -20,15 +19,7 @@ function readBookmarkedEventIds() {
   }
 }
 
-async function parseAuthResponse(response, fallbackMessage) {
-  const data = await response.json().catch(() => ({}));
 
-  if (!response.ok || !data.success) {
-    throw new Error(data.errors?.[0]?.msg || fallbackMessage);
-  }
-
-  return data;
-}
 
 export function AuthProvider({ children }) {
   // Read the saved session once so the navbar knows whether a user is signed in.
@@ -53,35 +44,27 @@ export function AuthProvider({ children }) {
     return data;
   }, []);
 
-  const login = useCallback(async (email, password, remember = false) => {
-    const response = await fetch(`${API_BASE}/api/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, remember }),
-    });
-    const data = await parseAuthResponse(response, 'Login failed');
+ const login = useCallback(async (email, password) => {
+  const users = JSON.parse(localStorage.getItem('celeste_users') || '[]');
+  const found = users.find(u => u.email === email && u.password === password);
 
-    return finishAuthentication(data);
-  }, [finishAuthentication]);
+  if (!found) throw new Error('Invalid email or password');
 
-  const signup = useCallback(async (firstName, lastName, email, password, phone = '', terms = true) => {
-    const response = await fetch(`${API_BASE}/api/signup`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        firstName,
-        lastName,
-        email,
-        phone,
-        password,
-        confirmPassword: password,
-        terms: String(terms),
-      }),
-    });
-    const data = await parseAuthResponse(response, 'Signup failed');
+  return finishAuthentication({ name: found.name, email: found.email });
+}, [finishAuthentication]);
 
-    return finishAuthentication(data);
-  }, [finishAuthentication]);
+  const signup = useCallback(async (firstName, lastName, email, password) => {
+  const users = JSON.parse(localStorage.getItem('celeste_users') || '[]');
+  const exists = users.find(u => u.email === email);
+
+  if (exists) throw new Error('Email already registered');
+
+  const newUser = { name: `${firstName} ${lastName}`, email, password };
+  users.push(newUser);
+  localStorage.setItem('celeste_users', JSON.stringify(users));
+
+  return finishAuthentication({ name: newUser.name, email: newUser.email });
+}, [finishAuthentication]);
 
   const getInitials = useCallback((name) => {
     if (!name) return '?';
