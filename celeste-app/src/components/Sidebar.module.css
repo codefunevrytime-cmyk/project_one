@@ -1,11 +1,12 @@
 .sidebar {
-  width: 252px;
+  width: 240px;
   flex-shrink: 0;
-  background: #faf6f0;
-  border-right: 1px solid #e8ddd0;
-  padding: 18px 14px 32px;
+  background: #fff;
+  border-radius: 12px;
+  border: 0.5px solid rgba(0,0,0,0.08);
+  padding: 20px;
   overflow-y: auto;
-  height: calc(100vh - 64px);
+  height: fit-content;
   position: sticky;
   top: 64px;
 }
@@ -16,36 +17,43 @@
   justify-content: space-between;
   margin-bottom: 16px;
 }
+
 .sidebarTitle {
-  font-size: 14px;
-  font-weight: 700;
-  color: #2E1C10;
-  letter-spacing: -0.01em;
-  font-family: 'Playfair Display', serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1A1714;
+  font-family: 'DM Sans', sans-serif;
+  letter-spacing: 0;
 }
+
 .clearBtn {
-  font-size: 12px;
-  color: #c9a84c;
+  font-size: 11.5px;
+  color: #534AB7;
   background: none;
   border: none;
   cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-weight: 500;
-  transition: background 0.12s;
+  font-family: inherit;
+  padding: 0;
+  font-weight: 400;
 }
-.clearBtn:hover { background: #faeeda; color: #8a5a00; }
+.clearBtn:hover { text-decoration: underline; }
 
-.section { margin-bottom: 22px; }
+.section {
+  border-top: 0.5px solid rgba(0,0,0,0.07);
+  padding: 14px 0;
+}
+.section:last-child { padding-bottom: 0; }
+
 .sectionTitle {
-  font-size: 10px;
-  font-weight: 700;
-  color: #c4a882;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin-bottom: 10px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid #e8ddd0;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #1A1714;
+  margin-bottom: 12px;
+  font-family: 'DM Sans', sans-serif;
+  text-transform: none;
+  letter-spacing: 0;
+  border-bottom: none;
+  padding-bottom: 0;
 }
 
 .filterLabel {
@@ -53,37 +61,30 @@
   align-items: center;
   gap: 8px;
   padding: 5px 8px;
-  font-size: 13px;
-  color: #5a3e28;
+  font-size: 12.5px;
+  color: #555;
   cursor: pointer;
   border-radius: 7px;
   transition: background 0.12s;
+  margin-bottom: 2px;
 }
-.filterLabel:hover { background: #f0e8d8; }
+.filterLabel:hover { background: #F7F5F2; }
 
-/* Gold accent checkbox */
 .check {
-  accent-color: #c9a84c;
-  width: 14px;
-  height: 14px;
+  accent-color: #534AB7;
+  width: 13px;
+  height: 13px;
   flex-shrink: 0;
   cursor: pointer;
 }
+
 .labelText { flex: 1; }
+
 .count {
   font-size: 11px;
-  color: #c4a882;
-  background: #f0e8d8;
+  color: #999;
+  background: #F7F5F2;
   padding: 1px 7px;
   border-radius: 10px;
-  font-weight: 500;
-}
-
-@media (prefers-color-scheme: dark) {
-  .sidebar { background: #1a1510; border-color: #2c2010; }
-  .sidebarTitle { color: #f0e8d8; }
-  .sectionTitle { color: #8a6a48; border-color: #2c2010; }
-  .filterLabel { color: #c4a882; }
-  .filterLabel:hover { background: #2a1e10; }
-  .count { background: #2a1e10; color: #8a6a48; }
+  font-weight: 400;
 }

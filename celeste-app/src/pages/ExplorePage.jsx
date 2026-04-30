@@ -138,7 +138,7 @@ export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClear
               <EventCard
                 key={event.id}
                 event={event}
-                isBookmarked={bookmarks.has(event.id)}
+                isBookmarked={!!bookmarks[event.id]}
                 onBookmarkToggle={onBookmarkToggle}
                 allEvents={EVENTS}
                 openId={openId}

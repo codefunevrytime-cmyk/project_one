@@ -52,7 +52,7 @@ body {
 nav {
   position: sticky;
   top: 0;
-  z-index: 50;
+  z-index: 200;
   background: var(--cream);
   border-bottom: 1px solid var(--warm);
   padding: 0 2.5rem;
@@ -1640,7 +1640,7 @@ footer p {
   padding: 8px;
   min-width: 180px;
   box-shadow: 0 12px 40px rgba(26,16,8,0.12);
-  z-index: 999;
+  z-index: 9999;
   flex-direction: column;
   gap: 2px;
 }
@@ -1743,7 +1743,7 @@ footer p {
   pointer-events: none;
   transform: translateX(-50%) translateY(-6px);
   transition: opacity 0.2s ease, transform 0.2s ease;
-  z-index: 200;
+  z-index: 9999;
 }
 
 .nav-services-menu.open {
@@ -1875,3 +1875,4 @@ footer p {
 
 /* Mobile services submenu — reuses your existing mobile-submenu styles */
 /* No extra CSS needed — .mobile-submenu already handles it */
+

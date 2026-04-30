@@ -211,24 +211,30 @@ export function EventCard({ event, isBookmarked, onBookmarkToggle, allEvents = [
 
   const isOpen = openId === event.id;
 
-  const handleBookmark = (e) => {
-    e.stopPropagation();
-    onBookmarkToggle(event.id);
-  };
+ const handleBookmark = (e) => {
+  e.stopPropagation();
+  onBookmarkToggle({
+    id: event.id,
+    name: event.title,
+    image: null,
+    type: event.type,
+  });
+};
 
   return (
     <>
       <div
-        className={styles.card}
+         className={styles.card}
         onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        onClick={() => isOpen ? onClose() : onOpen(event.id)}
-        style={{
-          transform: hovered ? "translateY(-5px)" : "translateY(0)",
-          borderColor: isOpen ? "#c9a84c" : undefined,
-          boxShadow: isOpen ? "0 12px 32px rgba(26,16,8,0.15)" : undefined,
-        }}
-      >
+      onMouseLeave={() => setHovered(false)}
+  onClick={() => isOpen ? onClose() : onOpen(event.id)}
+  style={{
+    transform: hovered ? "translateY(-5px)" : "translateY(0)",
+    borderColor: isOpen ? "#c9a84c" : undefined,
+    boxShadow: isOpen ? "0 12px 32px rgba(26,16,8,0.15)" : undefined,
+    display: isOpen ? "none" : undefined,  // ← ADD THIS
+  }}
+>
         {/* image */}
         <div className={styles.imgArea} style={{ background: getGradient(event.type) }}>
           <div className={styles.imgContent}>
@@ -278,7 +284,12 @@ export function EventCard({ event, isBookmarked, onBookmarkToggle, allEvents = [
             onClose={onClose}
             onRelatedClick={(r) => onOpen(r.id)}
             isBookmarked={isBookmarked}
-            onBookmark={() => onBookmarkToggle(event.id)}
+           onBookmark={() => onBookmarkToggle({
+            id: event.id,
+            name: event.title,
+            image: null,
+            type: event.type,
+          })}
           />
         </div>
       )}

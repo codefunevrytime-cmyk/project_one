@@ -1,23 +1,36 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 
 export function useBookmarks() {
-  const [bookmarks, setBookmarks] = useState(new Set());
+  const [bookmarks, setBookmarks] = useState({});
+  const [toast, setToast] = useState({ visible: false, message: "" });
+  const timerRef = useRef(null);
 
-  const toggle = useCallback((id) => {
-    setBookmarks((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+  const showToast = (msg) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setToast({ visible: true, message: msg });
+    timerRef.current = setTimeout(() =>
+      setToast(t => ({ ...t, visible: false })), 2200);
+  };
+
+  const toggle = useCallback((item) => {
+    setBookmarks(prev => {
+      const next = { ...prev };
+      if (next[item.id]) { delete next[item.id]; showToast("Bookmark removed"); }
+      else { next[item.id] = item; showToast("Bookmark added"); }
       return next;
     });
   }, []);
 
   const remove = useCallback((id) => {
-    setBookmarks((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
+    setBookmarks(prev => { const n = { ...prev }; delete n[id]; return n; });
   }, []);
 
-  return { bookmarks, toggle, remove };
+  return {
+    bookmarks,
+    bookmarkList: Object.values(bookmarks),
+    count: Object.keys(bookmarks).length,
+    toggle,
+    remove,
+    toast,
+  };
 }

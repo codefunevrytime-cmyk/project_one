@@ -3,8 +3,7 @@ import { BookmarkIcon } from "./BookmarkIcon";
 import styles from "./BookmarksPanel.module.css";
 
 export function BookmarksPanel({ bookmarks, onRemove, isOpen, onClose }) {
-  const saved = EVENTS.filter((e) => bookmarks.has(e.id));
-
+const saved = EVENTS.filter((e) => !!bookmarks[e.id]);
   return (
     <>
       <div

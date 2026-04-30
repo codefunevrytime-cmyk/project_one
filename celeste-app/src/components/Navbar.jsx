@@ -24,7 +24,7 @@ const SERVICES = [
       { name: 'Entertainment booking', desc: 'Live acts, DJs, performers', tag: null },
       { name: 'Custom invitations', desc: 'Digital & printed stationery', tag: null },
       { name: 'Guest experience design', desc: 'Arrivals, gifts, flow', tag: null },
-      { name: 'Photography direction', desc: 'Shoot brief & vendor liaison', tag: { label: 'popular', type: 'teal' } },
+      { name: 'Photography direction', desc: 'Shoot brief & vendor liaison', tag: { label: 'popular', type: 'teal' }, path: '/services/photography' },     
       { name: 'Catering coordination', desc: 'Menu curation & vendor tie-up', tag: null },
     ],
   },
@@ -89,9 +89,9 @@ function SocialLinks() {
   );
 }
 
-export default function Navbar() {
+export default function Navbar({ bookmarkCount }) {
   const location = useLocation();
-  const { user, isLoggedIn, bookmarkCount, getInitials, avatarColor, signOut } = useAuth();
+  const { user, isLoggedIn,  getInitials, avatarColor, signOut } = useAuth();
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobileExploreOpen, setMobileExploreOpen] = useState(false);
@@ -177,7 +177,7 @@ export default function Navbar() {
             <Chevron open={exploreOpen} />
           </button>
           <div className={`nav-events-menu${exploreOpen ? ' open' : ''}`}>
-            <Link to="/events" onClick={closeAllMenus}>All Events</Link>
+            <Link to="/my-events" onClick={closeAllMenus}>All Events</Link>
             {featuredEventTypes.map((type) => (
               <button key={type} type="button" className="nav-type-btn" onClick={() => handleTypeClick(type)}>
                 {type}
@@ -207,7 +207,7 @@ export default function Navbar() {
                     <span className="nsm-col-label">{col.col}</span>
                   </div>
                   {col.items.map((item) => (
-                    <Link key={item.name} to="/services" className="nsm-item" onClick={closeAllMenus}>
+                    <Link key={item.name} to={item.path || '/services'} className="nsm-item" onClick={closeAllMenus}>
                       <span className="nsm-item-name">
                         {item.name}
                         {item.tag && (
@@ -250,14 +250,37 @@ export default function Navbar() {
           </div>
         ) : (
           <div className="profile-wrap" ref={profileRef}>
-            <button type="button" className="avatar-btn" onClick={() => setProfileOpen((v) => !v)} aria-haspopup="true" aria-expanded={profileOpen}>
-              <div className="avatar-circle" style={{ background: avatar.bg, color: avatar.color }}>{initials}</div>
-              <div className="avatar-info">
-                <span className="avatar-name">{user?.name || user?.email}</span>
-                <span className="avatar-email">{user?.email || ''}</span>
-              </div>
-              <Chevron open={profileOpen} />
-            </button>
+           <button type="button" className="avatar-btn" onClick={() => setProfileOpen((v) => !v)} aria-haspopup="true" aria-expanded={profileOpen}>
+  
+  <div style={{ position: 'relative' }}>
+    <div className="avatar-circle" style={{ background: avatar.bg, color: avatar.color }}>{initials}</div>
+    {bookmarkCount > 0 && (
+      <span style={{
+        position: 'absolute',
+        top: -4, right: -4,
+        background: '#e53e3e',
+        color: '#fff',
+        fontSize: 9,
+        fontWeight: 700,
+        width: 16, height: 16,
+        borderRadius: '50%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        border: '1.5px solid #fff',
+        zIndex: 10,
+      }}>
+        {bookmarkCount > 9 ? '9+' : bookmarkCount}
+      </span>
+    )}
+  </div>
+
+  <div className="avatar-info">
+    <span className="avatar-name">{user?.name || user?.email}</span>
+    <span className="avatar-email">{user?.email || ''}</span>
+  </div>
+  <Chevron open={profileOpen} />
+</button>
             <div className={`celeste-dropdown${profileOpen ? ' cd-open' : ''}`}>
               <div className="cd-header">
                 <div className="avatar-circle avatar-circle-lg" style={{ background: avatar.bg, color: avatar.color }}>{initials}</div>
@@ -266,11 +289,11 @@ export default function Navbar() {
                   <div className="cd-email">{user?.email || ''}</div>
                 </div>
               </div>
-              <Link to="/events" className="cd-item" onClick={closeAllMenus}>
+              <Link to="/my-events" className="cd-item" onClick={closeAllMenus}>
                 <span className="cd-icon"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="2" stroke="currentColor" strokeWidth="1.3"/><path d="M5 2v2M11 2v2M2 7h12" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg></span>
                 My Events
               </Link>
-              <Link to="/events" className="cd-item" onClick={closeAllMenus}>
+              <Link to="/create-events" className="cd-item" onClick={closeAllMenus}>
                 <span className="cd-icon"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.3"/><path d="M8 5v6M5 8h6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg></span>
                 Create Event
               </Link>
@@ -320,11 +343,11 @@ export default function Navbar() {
         <div className={`mobile-submenu${mobileServicesOpen ? ' open' : ''}`}>
           {SERVICES.flatMap((col) =>
             col.items.map((item) => (
-              <Link key={item.name} to="/services" onClick={closeAllMenus}>{item.name}</Link>
+              <Link key={item.name} to={item.path || '/services'} onClick={closeAllMenus}>{item.name}</Link>
             ))
           )}
         </div>
-
+        
         <Link to="/about" onClick={closeAllMenus}>About</Link>
         <Link to="/contact" onClick={closeAllMenus}>Contacts</Link>
 
