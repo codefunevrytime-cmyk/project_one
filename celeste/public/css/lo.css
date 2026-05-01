@@ -17,7 +17,6 @@ html, body {
   height: 100%;
   background: var(--dark);
   font-family: 'DM Sans', sans-serif;
-  overflow: hidden;
 }
 
 .scene {

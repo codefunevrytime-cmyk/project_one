@@ -1,0 +1,29 @@
+import { useState } from "react";
+import { useLocation } from "react-router-dom";
+import { ExplorePage } from "./ExplorePage";
+import { BookmarksPanel } from "../components/BookmarksPanel";
+
+export default function ExploreEventPage({ bookmarks, onBookmarkToggle }) {
+  const location = useLocation();
+  const [selectedType, setSelectedType] = useState(
+    location.state?.selectedType || null
+  );
+  const [bookmarksOpen, setBookmarksOpen] = useState(false);
+
+  return (
+    <>
+      <ExplorePage
+        bookmarks={bookmarks}
+        onBookmarkToggle={onBookmarkToggle}
+        selectedType={selectedType}
+        onClearType={() => setSelectedType(null)}
+      />
+      <BookmarksPanel
+        bookmarks={bookmarks}
+        onRemove={onBookmarkToggle}
+        isOpen={bookmarksOpen}
+        onClose={() => setBookmarksOpen(false)}
+      />
+    </>
+  );
+}
