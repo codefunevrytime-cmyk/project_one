@@ -1876,3 +1876,16 @@ footer p {
 /* Mobile services submenu — reuses your existing mobile-submenu styles */
 /* No extra CSS needed — .mobile-submenu already handles it */
 
+/* ═══════════════════════════════════
+   ADMIN PANEL OVERRIDES
+═══════════════════════════════════ */
+.admin-layout nav {
+  position: static;
+  height: auto;
+  border-bottom: none;
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+  z-index: auto;
+}
