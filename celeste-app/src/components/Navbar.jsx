@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { featuredEventTypes } from '../context/data/eventsData';
 import { useAuth } from '../hooks/useAuth';
 
+
 // ── Services data ──────────────────────────────────────────────
 const SERVICES = [
   {
@@ -116,6 +117,7 @@ export default function Navbar({ bookmarkCount }) {
   const isRouteActive = (path) => location.pathname === path;
   const isExploreRoute = location.pathname === '/events' || location.pathname === '/gallery';
   const isServicesRoute = location.pathname === '/services';
+
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -302,10 +304,10 @@ export default function Navbar({ bookmarkCount }) {
                 Bookmarked
                 <span className="nav-count-badge">{bookmarkCount}</span>
               </Link>
-              <button type="button" className="cd-item" onClick={() => setProfileOpen(false)}>
-                <span className="cd-icon"><svg viewBox="0 0 16 16" fill="none"><rect x="1.5" y="4" width="13" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.3"/><path d="M1.5 7h13" stroke="currentColor" strokeWidth="1.3"/></svg></span>
-                Payments
-              </button>
+             <button type="button" className="cd-item" onClick={() => { setProfileOpen(false); navigate("/payments"); }}>
+  <span className="cd-icon"><svg viewBox="0 0 16 16" fill="none"><rect x="1.5" y="4" width="13" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.3"/><path d="M1.5 7h13" stroke="currentColor" strokeWidth="1.3"/></svg></span>
+  Payments
+</button>
               <button type="button" className="cd-item" onClick={() => setProfileOpen(false)}>
                 <span className="cd-icon"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.3"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg></span>
                 Settings

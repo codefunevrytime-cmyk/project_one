@@ -1,5 +1,6 @@
 // src/pages/PhotographyPage.jsx
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PHOTOGRAPHERS, EVENT_TYPES, MEDIA_TYPES, YEARS } from "../context/data/photographyData";
 import PriceSlider from "../components/PriceSlider";
 import { BookmarkIcon } from "../components/BookmarkIcon";
@@ -57,7 +58,7 @@ function CheckChip({ label, checked, onChange }) {
 }
 
 // ── Expand Panel ──────────────────────────────────────────────────────────
-function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked, onBookmark }) {
+function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked, onBookmark, navigate }) {
   const related = getRelated(vendor, allVendors);
 
   return (
@@ -363,7 +364,7 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
               <span className="ep-price-val">{vendor.pricePerDay.toLocaleString('en-IN')}</span>
               <span className="ep-price-unit">/ day</span>
             </div>
-            <button className="ep-cta">View Profile</button>
+             <button className="ep-cta" onClick={() => navigate(`/services/photography/${vendor.id}`)}>View Profile</button>
             <button className="ep-cta">Add to Your Event </button>
 
           </div>
@@ -392,6 +393,7 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
 function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark, allVendors }) {
   const [hovered, setHovered] = useState(false);
   const [bmHovered, setBmHovered] = useState(false);
+  const navigate = useNavigate();  // ← ADD THIS
 
   const handleBookmark = (e) => {
     e.stopPropagation();
@@ -502,6 +504,7 @@ function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark,
           onRelatedClick={(r) => onOpen(r.id)}
           isBookmarked={isBookmarked}
           onBookmark={() => onBookmark(vendor.id)}
+           navigate={navigate} 
         />
       )}
     </>
@@ -522,7 +525,31 @@ export default function PhotographyPage({ bookmarks, onBookmarkToggle }) {
   // expand panel state
   const [openId, setOpenId] = useState(null);
 
+const [dbVendors, setDbVendors] = useState([]);
+const [dbPortfolio, setDbPortfolio] = useState([]);
+const [openPortfolioId, setOpenPortfolioId] = useState(null);
 
+useEffect(() => {
+  const fetchDbVendors = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/api/vendors');
+      const data = await res.json();
+      const active = data.filter(v => v.is_active);
+      setDbVendors(active);
+      const allPortfolio = await Promise.all(
+        active.map(async (v) => {
+          const r = await fetch(`http://localhost:5000/api/vendors/${v.id}/portfolio`);
+          const d = await r.json();
+          return d.map(img => ({ ...img, vendor: v }));
+        })
+      );
+      setDbPortfolio(allPortfolio.flat());
+    } catch (err) {
+      console.error(err);
+    }
+  };
+  fetchDbVendors();
+}, []);
 
 const toggleBookmark = (id) => {
   const vendor = PHOTOGRAPHERS.find(p => p.id === id);
@@ -712,6 +739,138 @@ const toggleBookmark = (id) => {
               ))}
             </div>
           )}
+{/* Database Vendors Portfolio Section */}
+{dbPortfolio.length > 0 && (
+  <div style={{ gridColumn: '1 / -1', marginTop: 48 }}>
+    <div style={{ borderTop: '0.5px solid rgba(255,255,255,0.06)', paddingTop: 32, marginBottom: 24 }}>
+      <div style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: '#D4860A', marginBottom: 6, fontFamily: 'DM Sans, sans-serif' }}>From Our Network</div>
+      <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 26, fontWeight: 400, color: '#F5EDD8' }}>
+        Featured Work · {dbPortfolio.length} pieces
+      </h2>
+    </div>
+
+    <div className="vendor-grid">
+      {dbPortfolio.map(item => (
+        <div key={item.id}>
+          {/* Card */}
+          <div
+            onClick={() => setOpenPortfolioId(openPortfolioId === item.id ? null : item.id)}
+            className="vendor-card"
+            style={{ display: openPortfolioId === item.id ? 'none' : undefined }}
+          >
+            <div className="vendor-img-wrap">
+              <img src={item.image_url} alt={item.caption} className="vendor-img" />
+
+              {/* Tags overlay — top left like media badge */}
+              {item.tags && item.tags.length > 0 && (
+                <div style={{ position: 'absolute', top: 10, left: 10, display: 'flex', gap: 5, flexWrap: 'wrap', zIndex: 2 }}>
+                  {item.tags.slice(0, 3).map((tag, i) => (
+                    <span key={i} style={{
+                      fontSize: 10, padding: '3px 9px', borderRadius: 20,
+                      background: 'rgba(212,134,10,0.85)', color: '#0F0D0A',
+                      fontWeight: 600, backdropFilter: 'blur(4px)',
+                      border: '0.5px solid rgba(212,134,10,0.5)',
+                    }}>
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Vendor specialty badge — bottom left like media badge */}
+              <div className="vendor-media-badge">{item.vendor?.specialty || 'Photography'}</div>
+            </div>
+
+            <div className="vendor-info">
+              <div className="vendor-top-row">
+                <h3 className="vendor-name">{item.caption || 'Untitled Work'}</h3>
+              </div>
+              <div className="vendor-meta">
+                <span className="vendor-location">
+                  <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M8 1.5C5.5 1.5 3.5 3.5 3.5 6c0 3.5 4.5 8.5 4.5 8.5s4.5-5 4.5-8.5c0-2.5-2-4.5-4.5-4.5z"/>
+                    <circle cx="8" cy="6" r="1.5"/>
+                  </svg>
+                  {item.vendor?.name}
+                </span>
+              </div>
+              <div className="vendor-bottom-row">
+                <div style={{ fontSize: 12, color: '#7A6E5C' }}>{item.vendor?.specialty}</div>
+                <button className="vendor-cta" onClick={e => { e.stopPropagation(); setOpenPortfolioId(item.id); }}>
+                  View Work
+                </button>
+              </div>
+              <div className="vendor-tags">
+                {item.tags && item.tags.slice(0, 2).map((t, i) => (
+                  <span key={i} className="award-tag">🏅 {t}</span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Expand Panel */}
+          {openPortfolioId === item.id && (
+            <div className="ep-wrap" style={{ gridColumn: 'unset' }}>
+              <style>{`
+                .ep-wrap { grid-column: 1 / -1; background: #1E1A13; border-radius: 16px; border: 0.5px solid rgba(255,255,255,0.06); overflow: hidden; margin-bottom: 4px; animation: epIn 0.28s cubic-bezier(0.22,1,0.36,1); box-shadow: 0 8px 40px rgba(0,0,0,0.5); }
+                @keyframes epIn { from { opacity:0; transform:translateY(-12px); } to { opacity:1; transform:translateY(0); } }
+              `}</style>
+              <div className="ep-top">
+                <div className="ep-img-col">
+                  <img src={item.image_url} alt={item.caption} />
+                  <div className="ep-img-overlay" />
+                  <button className="ep-close" onClick={() => setOpenPortfolioId(null)}>✕</button>
+                </div>
+                <div className="ep-right" style={{ background: '#1E1A13' }}>
+                  <div>
+                    <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: '#D4860A', marginBottom: 8 }}>Portfolio Work</div>
+                    <div className="ep-name" style={{ color: '#F5EDD8' }}>{item.caption || 'Untitled Work'}</div>
+                    <div style={{ fontSize: 13, color: '#7A6E5C', marginBottom: 20 }}>
+                      by <strong style={{ color: '#F5EDD8' }}>{item.vendor?.name}</strong>
+                    </div>
+
+                    {item.tags && item.tags.length > 0 && (
+                      <div className="ep-types" style={{ marginBottom: 18 }}>
+                        {item.tags.map((tag, i) => (
+                          <span key={i} style={{ fontSize: 12, padding: '5px 14px', borderRadius: 20, background: 'rgba(212,134,10,0.12)', color: '#F0A020', border: '0.5px solid rgba(212,134,10,0.25)', fontWeight: 500 }}>
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="ep-grid">
+                      <div className="ep-cell" style={{ background: '#252018', border: '0.5px solid rgba(255,255,255,0.06)' }}>
+                        <div className="ep-cell-label">Vendor</div>
+                        <div className="ep-cell-val" style={{ color: '#F5EDD8' }}>{item.vendor?.name}</div>
+                      </div>
+                      <div className="ep-cell" style={{ background: '#252018', border: '0.5px solid rgba(255,255,255,0.06)' }}>
+                        <div className="ep-cell-label">Specialty</div>
+                        <div className="ep-cell-val" style={{ color: '#F5EDD8' }}>{item.vendor?.specialty || 'Photography'}</div>
+                      </div>
+                      <div className="ep-cell" style={{ background: '#252018', border: '0.5px solid rgba(255,255,255,0.06)' }}>
+                        <div className="ep-cell-label">Contact</div>
+                        <div className="ep-cell-val" style={{ color: '#F5EDD8' }}>{item.vendor?.contact || 'N/A'}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="ep-footer">
+                    <button className="ep-cta">View Profile</button>
+                    <button className="ep-cta" style={{ background: 'rgba(212,134,10,0.12)', color: '#F0A020', border: '0.5px solid rgba(212,134,10,0.25)', marginLeft: 10 }}>
+                      Add to Event
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  </div>
+)}
+
         </main>
 
       </div>

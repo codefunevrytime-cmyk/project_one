@@ -14,9 +14,14 @@ import LoginPage from "./pages/LoginPage";
 import ProductPage from "./pages/ProductPage";
 import SignupPage from "./pages/SignupPage";
 import PhotographyPage from './pages/PhotographyPage';
+import PhotographerProfilePage from './pages/PhotographerProfilePage';
 import MyEvents from './pages/MyEvents';
 import AdminApp from './admin/AdminApp';
 import CreateEventPage from './pages/CreateEventPage';
+import PaymentCheckout from "./pages/PaymentCheckout";
+import PaymentsHistory from "./pages/PaymentsHistory";
+import PaymentsEmpty   from "./pages/PaymentsEmpty";
+
 
 
 function MainApp({ bm }) {
@@ -54,10 +59,26 @@ function MainApp({ bm }) {
             onBookmarkToggle={bm.toggle}
           />}
         />
+        {/* ── Photographer Profile Page ── */}
+        <Route path="/services/photography/:id" element={
+          <PhotographerProfilePage
+            bookmarks={bm.bookmarks}
+            onBookmarkToggle={bm.toggle}
+          />}
+        />
         <Route path="/my-events" element={<MyEvents />} />
         <Route path="/admin/*" element={<AdminApp />} />
         <Route path="/create-event" element={<CreateEventPage />} />
-
+        <Route path="/create-events" element={<CreateEventPage />} />
+        <Route path="/services/photography2" element={
+<Route path="/services/photography" element={
+  <PhotographyPage
+    bookmarks={bm.bookmarks}
+    onBookmarkToggle={bm.toggle}
+  />}
+  
+/>}
+/>
       </Routes>
       {!isAdmin && <BookmarkToast toast={bm.toast} />}
     </>

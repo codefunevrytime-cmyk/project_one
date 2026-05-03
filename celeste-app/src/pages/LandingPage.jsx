@@ -1,10 +1,11 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { galleryData } from '../context/data/galleryData';
-import { testimonialData } from '../context/data/testimonialData';
 import { useSlider } from '../hooks/useSlider';
 import { useModal } from '../hooks/useModal';
 import Footer from '../components/Footer';
+import { testimonialData } from '../context/data/testimonialData';
+
+const API = 'http://localhost:5000/api';
 
 /* Hero Slider Data */
 const heroSlides = [
@@ -16,38 +17,27 @@ const heroSlides = [
 /* Gallery Modal Component */
 function GalleryModal({ isOpen, onClose, item, onPrev, onNext }) {
   if (!item) return null;
-  const pillColors = ['pill-amber', 'pill-teal', 'pill-blue'];
   return (
     <div className={isOpen ? 'modal-backdrop open' : 'modal-backdrop'} onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal-box" key={item.title}>
         <div className="modal-img-col">
-          <img src={item.img} alt={item.title} />
-          <div className="modal-badge">{item.tag}</div>
+          <img src={item.image_url} alt={item.title} />
         </div>
         <div className="modal-content">
           <button className="modal-close" onClick={onClose}>x</button>
-          <div className="modal-tag">{item.tag}</div>
-          <div className="modal-title">{item.title}</div>
-          <div className="detail-list">
-            <div className="detail-row">
-              <div className="d-icon"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 1.5C5.5 1.5 3.5 3.5 3.5 6c0 3.5 4.5 8.5 4.5 8.5s4.5-5 4.5-8.5c0-2.5-2-4.5-4.5-4.5z" stroke="currentColor" strokeWidth="1.4" fill="none"/><circle cx="8" cy="6" r="1.5" stroke="currentColor" strokeWidth="1.2" fill="none"/></svg></div>
-              <span className="d-label">Location</span><span className="d-val">{item.location}</span>
+          <div className="modal-title">{item.title || 'Untitled'}</div>
+          {item.description && <div className="modal-desc">{item.description}</div>}
+          {item.event_date && (
+            <div className="detail-row" style={{ marginTop: 12 }}>
+              <span className="d-label">Date</span>
+              <span className="d-val">{new Date(item.event_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
             </div>
-            <div className="detail-row">
-              <div className="d-icon"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4" fill="none"/><path d="M8 5v3.5l2 1.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg></div>
-              <span className="d-label">Category</span><span className="d-val">{item.category}</span>
-            </div>
-          </div>
-          <div className="pill-row">
-            {item.pills.map((p, j) => <span key={p} className={'pill ' + pillColors[j % 3]}>{p}</span>)}
-          </div>
-          <div className="modal-desc">{item.desc}</div>
+          )}
           <div className="modal-footer">
-            <div className="price-block"><div className="price-big">{item.price}</div><div className="price-note">Photography Session</div></div>
             <div className="footer-right">
               <button className="nav-btn" onClick={onPrev} title="Previous">&larr;</button>
               <button className="nav-btn" onClick={onNext} title="Next">&rarr;</button>
-              <button className="btn-book">Book Session</button>
+              <a href="#contact" className="btn-book" onClick={onClose}>Book Session</a>
             </div>
           </div>
         </div>
@@ -56,7 +46,7 @@ function GalleryModal({ isOpen, onClose, item, onPrev, onNext }) {
   );
 }
 
-/* Testimonial Carousel - 3 cards per slide, auto-advances every 6s */
+/* Testimonial Carousel */
 function TestimonialCarousel() {
   const cardsPerSlide = 3;
   const slideCount = Math.ceil(testimonialData.length / cardsPerSlide);
@@ -88,14 +78,45 @@ function TestimonialCarousel() {
   );
 }
 
-/* Contact Form with 3-second success feedback */
+/* Contact Section — connected to /api/queries */
 function ContactSection() {
   const [sent, setSent] = useState(false);
-  const handleSubmit = useCallback((e) => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
-    setSent(true);
-    setTimeout(() => { setSent(false); e.target.reset(); }, 3000);
+    setLoading(true);
+    setError('');
+
+    const formData = new FormData(e.target);
+    const payload = {
+      client_name: `${formData.get('firstName')} ${formData.get('lastName')}`.trim(),
+      email: formData.get('email'),
+      phone: formData.get('phone') || '',
+      message: `[${formData.get('projectType') || 'General'}] ${formData.get('message')}`,
+    };
+
+    try {
+      const res = await fetch(`${API}/queries`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSent(true);
+        e.target.reset();
+        setTimeout(() => setSent(false), 4000);
+      } else {
+        setError('Something went wrong. Please try again.');
+      }
+    } catch (err) {
+      setError('Could not connect to server. Please try again.');
+    }
+    setLoading(false);
   }, []);
+
   return (
     <section id="contact">
       <div className="section-label">Get in Touch</div>
@@ -103,20 +124,26 @@ function ContactSection() {
       <div className="section-line"></div>
       <div className="contact-wrap">
         <div className="contact-info">
-          <p>Whether you have a project in mind, a question about our work, or simply want to say hello — we would love to hear from you. Great photographs begin with great conversations.</p>
+          <p>Whether you have a project in mind, a question about our work, or simply want to say hello — we would love to hear from you.</p>
           <div className="contact-detail"><div className="contact-icon">{'\u2709'}</div><span><strong>Email Us</strong>hello@lumiere-studio.com</span></div>
           <div className="contact-detail"><div className="contact-icon">{'\u260F'}</div><span><strong>Call Us</strong>+91 98765 43210</span></div>
           <div className="contact-detail"><div className="contact-icon">{'\u2316'}</div><span><strong>Studio</strong>12 Hazratganj, Lucknow<br />Uttar Pradesh, India</span></div>
         </div>
         <form className="contact-form" onSubmit={handleSubmit}>
+          {error && (
+            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#b91c1c' }}>
+              {error}
+            </div>
+          )}
           <div className="form-row">
-            <div className="form-group"><label>First Name</label><input type="text" placeholder="Arjun" required /></div>
-            <div className="form-group"><label>Last Name</label><input type="text" placeholder="Sharma" required /></div>
+            <div className="form-group"><label>First Name</label><input type="text" name="firstName" placeholder="Arjun" required /></div>
+            <div className="form-group"><label>Last Name</label><input type="text" name="lastName" placeholder="Sharma" required /></div>
           </div>
-          <div className="form-group"><label>Email Address</label><input type="email" placeholder="arjun@example.com" required /></div>
+          <div className="form-group"><label>Email Address</label><input type="email" name="email" placeholder="arjun@example.com" required /></div>
+          <div className="form-group"><label>Phone (optional)</label><input type="tel" name="phone" placeholder="+91 98765 43210" /></div>
           <div className="form-group">
             <label>Project Type</label>
-            <select defaultValue="">
+            <select name="projectType" defaultValue="">
               <option value="">Select a service</option>
               <option>Wedding Photography</option>
               <option>Portrait Session</option>
@@ -126,18 +153,37 @@ function ContactSection() {
               <option>Other</option>
             </select>
           </div>
-          <div className="form-group"><label>Your Message</label><textarea placeholder="Tell us about your vision..."></textarea></div>
-          <button type="submit" className="submit-btn" style={sent ? { background: 'var(--gold)', color: 'var(--dark)' } : {}}>{sent ? 'Message Sent ' + '\u2713' : 'Send Message \u2192'}</button>
+          <div className="form-group"><label>Your Message</label><textarea name="message" placeholder="Tell us about your vision..." required></textarea></div>
+          <button
+            type="submit"
+            className="submit-btn"
+            disabled={loading}
+            style={sent ? { background: 'var(--gold)', color: 'var(--dark)' } : {}}
+          >
+            {loading ? 'Sending…' : sent ? 'Message Sent ✓' : 'Send Message →'}
+          </button>
         </form>
       </div>
     </section>
   );
 }
 
-/* Landing Page - Hero Slider + Gallery + Testimonials + Contact + Footer */
+/* Landing Page */
 export default function LandingPage() {
   const { current: heroCurrent, goTo: goToHero } = useSlider(heroSlides.length, 4000);
-  const { isOpen, open, close, navigate, currentIndex } = useModal(galleryData.length);
+  const [galleryImages, setGalleryImages] = useState([]);
+  const [galleryLoading, setGalleryLoading] = useState(true);
+  const { isOpen, open, close, navigate, currentIndex } = useModal(galleryImages.length);
+
+  useEffect(() => {
+    fetch(`${API}/gallery`)
+      .then(res => res.json())
+      .then(data => {
+        setGalleryImages(Array.isArray(data) ? data : []);
+        setGalleryLoading(false);
+      })
+      .catch(() => setGalleryLoading(false));
+  }, []);
 
   return (
     <>
@@ -158,39 +204,50 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Gallery Grid */}
+      {/* Gallery Grid — from DB */}
       <section id="gallery">
         <div className="section-label">Our Work</div>
         <h2 className="section-title">Visual Stories</h2>
         <div className="section-line"></div>
-        <div className="gallery-grid">
-          {galleryData.map((item, index) => (
-            <div key={index} className="gallery-item" onClick={() => open(index)}>
-              <img src={item.img} alt={item.title} loading="lazy" />
-              <div className="eye-icon">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1 8s3-6 7-6 7 6 7 6-3 6-7 6-7-6-7-6z" stroke="white" strokeWidth="1.4" fill="none"/><circle cx="8" cy="8" r="2" stroke="white" strokeWidth="1.3" fill="none"/></svg>
-              </div>
-              <div className="item-overlay">
-                <div className="item-mini">
-                  <div className="item-mini-text">
-                    <div className="item-mini-tag">{item.tag}</div>
-                    <div className="item-mini-title">{item.title}</div>
-                    <div className="item-mini-meta">
-                      <span className="meta-chip">
-                        <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 1.5C5.5 1.5 3.5 3.5 3.5 6c0 3.5 4.5 8.5 4.5 8.5s4.5-5 4.5-8.5c0-2.5-2-4.5-4.5-4.5z" stroke="rgba(255,255,255,0.65)" strokeWidth="1.4" fill="none"/></svg>
-                        {item.location.split(',')[0]}
-                      </span>
+
+        {galleryLoading ? (
+          <p style={{ textAlign: 'center', color: '#9e8e7a', padding: '40px 0' }}>Loading gallery…</p>
+        ) : galleryImages.length === 0 ? (
+          <p style={{ textAlign: 'center', color: '#9e8e7a', padding: '40px 0' }}>No images yet.</p>
+        ) : (
+          <div className="gallery-grid">
+            {galleryImages.map((item, index) => (
+              <div key={item.id} className="gallery-item" onClick={() => open(index)}>
+                <img src={item.image_url} alt={item.title} loading="lazy" />
+                <div className="eye-icon">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1 8s3-6 7-6 7 6 7 6-3 6-7 6-7-6-7-6z" stroke="white" strokeWidth="1.4" fill="none"/><circle cx="8" cy="8" r="2" stroke="white" strokeWidth="1.3" fill="none"/></svg>
+                </div>
+                <div className="item-overlay">
+                  <div className="item-mini">
+                    <div className="item-mini-text">
+                      <div className="item-mini-title">{item.title || 'Untitled'}</div>
+                      {item.event_date && (
+                        <div className="item-mini-meta">
+                          <span className="meta-chip">{new Date(item.event_date).getFullYear()}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* Gallery Modal */}
-      <GalleryModal isOpen={isOpen} onClose={close} item={galleryData[currentIndex] || null} onPrev={() => navigate(-1)} onNext={() => navigate(1)} />
+      <GalleryModal
+        isOpen={isOpen}
+        onClose={close}
+        item={galleryImages[currentIndex] || null}
+        onPrev={() => navigate(-1)}
+        onNext={() => navigate(1)}
+      />
 
       {/* Testimonials */}
       <section id="testimonials">
@@ -208,4 +265,3 @@ export default function LandingPage() {
     </>
   );
 }
-

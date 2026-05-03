@@ -4,9 +4,11 @@ import AdminReviews from './AdminReviews';
 import AdminBookings from './AdminBookings';
 import AdminAvailability from './AdminAvailability';
 import AdminQueries from './AdminQueries';
+import AdminVendors from './AdminVendors';
 
 const MENU = [
   { id: 'gallery', label: 'Gallery', icon: '🖼' },
+  { id: 'vendors', label: 'Vendors', icon: '👥' },
   { id: 'reviews', label: 'Reviews', icon: '⭐' },
   { id: 'bookings', label: 'Bookings', icon: '📅' },
   { id: 'availability', label: 'Availability', icon: '🗓' },
@@ -19,6 +21,7 @@ export default function AdminDashboard({ onLogout }) {
   const renderPage = () => {
     switch(active) {
       case 'gallery': return <AdminGallery />;
+      case 'vendors': return <AdminVendors />;
       case 'reviews': return <AdminReviews />;
       case 'bookings': return <AdminBookings />;
       case 'availability': return <AdminAvailability />;

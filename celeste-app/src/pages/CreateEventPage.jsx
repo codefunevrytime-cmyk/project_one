@@ -1,9 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { EVENTS, EVENT_CATEGORIES, THEME_GRADIENTS } from "../context/data/events";
+import { useAuth } from "../hooks/useAuth";
 import styles from "./CreateEventPage.module.css";
 
-// ── helpers ───────────────────────────────────────────────────────────────────
+const API = "http://localhost:5000/api";
+
 function getGradient(type) {
   const g = THEME_GRADIENTS[type] || ["#f5f5f5", "#e0e0e0"];
   return `linear-gradient(135deg, ${g[0]}, ${g[1]})`;
@@ -12,135 +14,173 @@ function getEmoji(type) {
   return EVENT_CATEGORIES.find((c) => c.type === type)?.icon ?? "📅";
 }
 
-// ── vendor catalogue ──────────────────────────────────────────────────────────
 const VENDOR_CATALOGUE = [
-  {
-    category: "Food & Drink",
-    items: [
-      { name: "Catering service",  cost: 18000 },
-      { name: "Bar / cocktail setup", cost: 12000 },
-      { name: "Dessert & cake",    cost: 4000  },
-      { name: "Coffee station",    cost: 3000  },
-    ],
-  },
-  {
-    category: "Entertainment",
-    items: [
-      { name: "Live music / band", cost: 25000 },
-      { name: "DJ",                cost: 15000 },
-      { name: "MC / host",         cost: 8000  },
-      { name: "Photo booth",       cost: 5000  },
-    ],
-  },
-  {
-    category: "Venue & Setup",
-    items: [
-      { name: "Venue hire",        cost: 40000 },
-      { name: "Lighting & AV",     cost: 12000 },
-      { name: "Stage / podium",    cost: 9000  },
-      { name: "Furniture rental",  cost: 6000  },
-    ],
-  },
-  {
-    category: "Photography",
-    items: [
-      { name: "Photographer",      cost: 20000 },
-      { name: "Videographer",      cost: 18000 },
-      { name: "Drone coverage",    cost: 10000 },
-    ],
-  },
-  {
-    category: "Decor & Styling",
-    items: [
-      { name: "Florist",           cost: 8000  },
-      { name: "Event stylist",     cost: 15000 },
-      { name: "Custom signage",    cost: 4000  },
-    ],
-  },
-  {
-    category: "Logistics",
-    items: [
-      { name: "Transport / shuttles", cost: 10000 },
-      { name: "Security",             cost: 8000  },
-      { name: "Event coordinator",    cost: 12000 },
-    ],
-  },
+  { category: "Food & Drink", items: [{ name: "Catering service", cost: 18000 }, { name: "Bar / cocktail setup", cost: 12000 }, { name: "Dessert & cake", cost: 4000 }, { name: "Coffee station", cost: 3000 }] },
+  { category: "Entertainment", items: [{ name: "Live music / band", cost: 25000 }, { name: "DJ", cost: 15000 }, { name: "MC / host", cost: 8000 }, { name: "Photo booth", cost: 5000 }] },
+  { category: "Venue & Setup", items: [{ name: "Venue hire", cost: 40000 }, { name: "Lighting & AV", cost: 12000 }, { name: "Stage / podium", cost: 9000 }, { name: "Furniture rental", cost: 6000 }] },
+  { category: "Photography", items: [{ name: "Photographer", cost: 20000 }, { name: "Videographer", cost: 18000 }, { name: "Drone coverage", cost: 10000 }] },
+  { category: "Decor & Styling", items: [{ name: "Florist", cost: 8000 }, { name: "Event stylist", cost: 15000 }, { name: "Custom signage", cost: 4000 }] },
+  { category: "Logistics", items: [{ name: "Transport / shuttles", cost: 10000 }, { name: "Security", cost: 8000 }, { name: "Event coordinator", cost: 12000 }] },
 ];
 
-const EXTRA_PILLS = [
-  "Accessibility ramps", "Valet parking", "Live translation",
-  "Prayer / quiet room", "Kids zone", "Merchandise stall",
-  "First aid station", "Green room / backstage",
-  "Permit / license help", "Guest gifting",
-  "Halal / Jain menu", "Live social media wall",
-];
-
-const EVENT_TYPES = [
-  "Wedding", "Birthday", "Corporate", "Concert",
-  "Festival", "Sports", "Outdoor", "Expo",
-  "Cultural", "Charity", "Food", "Other",
-];
-
+const EXTRA_PILLS = ["Accessibility ramps", "Valet parking", "Live translation", "Prayer / quiet room", "Kids zone", "Merchandise stall", "First aid station", "Green room / backstage", "Permit / license help", "Guest gifting", "Halal / Jain menu", "Live social media wall"];
+const EVENT_TYPES = ["Wedding", "Birthday", "Corporate", "Concert", "Festival", "Sports", "Outdoor", "Expo", "Cultural", "Charity", "Food", "Other"];
 const STEPS = ["Basics", "Vendors", "Extras", "Budget"];
+const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const DAY_NAMES = ["Su","Mo","Tu","We","Th","Fr","Sa"];
 
-// ── main component ────────────────────────────────────────────────────────────
+// ── Availability Calendar ─────────────────────────────────────────────────────
+function AvailabilityCalendar({ value, onChange, availability }) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const initDate = value ? new Date(value + 'T00:00:00') : today;
+  const [viewYear, setViewYear]   = useState(initDate.getFullYear());
+  const [viewMonth, setViewMonth] = useState(initDate.getMonth());
+
+  const statusMap = {};
+  availability.forEach(a => {
+    const d = new Date(a.date);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    statusMap[key] = a.status;
+  });
+
+  const firstDay    = new Date(viewYear, viewMonth, 1).getDay();
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+
+  const prevMonth = () => { if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y-1); } else setViewMonth(m => m-1); };
+  const nextMonth = () => { if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y+1); } else setViewMonth(m => m+1); };
+
+  const cells = [];
+  for (let i = 0; i < firstDay; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  return (
+    <div style={{ background: '#1e1a14', border: '0.5px solid rgba(200,175,120,0.2)', borderRadius: 10, padding: 16, width: 280 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <button onClick={prevMonth} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'rgba(200,175,120,0.5)', lineHeight: 1, padding: '0 6px' }}>‹</button>
+        <span style={{ fontSize: 13, fontWeight: 500, color: '#c8af78', letterSpacing: '0.05em' }}>{MONTH_NAMES[viewMonth]} {viewYear}</span>
+        <button onClick={nextMonth} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'rgba(200,175,120,0.5)', lineHeight: 1, padding: '0 6px' }}>›</button>
+      </div>
+
+      <div style={{ display: 'flex', gap: 14, marginBottom: 10, fontSize: 10, color: 'rgba(200,175,120,0.4)', letterSpacing: '0.05em' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(111,207,151,0.7)', display: 'inline-block' }} />Free</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(235,87,87,0.6)', display: 'inline-block' }} />Busy</span>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2, marginBottom: 4 }}>
+        {DAY_NAMES.map(d => (
+          <div key={d} style={{ textAlign: 'center', fontSize: 9, color: 'rgba(200,175,120,0.3)', fontWeight: 600, padding: '2px 0' }}>{d}</div>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}>
+        {cells.map((day, idx) => {
+          if (!day) return <div key={`e-${idx}`} />;
+          const dateKey  = `${viewYear}-${String(viewMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+          const status   = statusMap[dateKey];
+          const thisDate = new Date(viewYear, viewMonth, day);
+          const isPast   = thisDate < today;
+          const isBusy   = status === 'busy';
+          const isFree   = status === 'free';
+          const isSel    = value === dateKey;
+          const disabled = isPast || isBusy;
+
+          let bg = 'transparent', color = 'rgba(200,175,120,0.7)', border = '0.5px solid transparent', cursor = 'pointer', fw = 400;
+          if (isPast)  { color = 'rgba(200,175,120,0.2)'; cursor = 'not-allowed'; }
+          if (isFree)  { bg = 'rgba(111,207,151,0.12)'; color = '#6fcf97'; border = '0.5px solid rgba(111,207,151,0.3)'; }
+          if (isBusy)  { bg = 'rgba(235,87,87,0.1)'; color = 'rgba(235,87,87,0.55)'; border = '0.5px solid rgba(235,87,87,0.22)'; cursor = 'not-allowed'; }
+          if (isSel)   { bg = '#c8af78'; color = '#141210'; border = '0.5px solid #c8af78'; fw = 700; }
+
+          return (
+            <div key={dateKey} onClick={() => !disabled && onChange(dateKey)} title={isBusy ? 'Not available' : isFree ? 'Available' : ''} style={{ textAlign: 'center', fontSize: 11, padding: '5px 2px', borderRadius: 5, background: bg, color, border, cursor, fontWeight: fw, userSelect: 'none', transition: 'all 0.15s' }}>
+              {day}
+            </div>
+          );
+        })}
+      </div>
+
+      {value && (
+        <div style={{ marginTop: 10, fontSize: 11, color: 'rgba(200,175,120,0.4)', textAlign: 'center', borderTop: '0.5px solid rgba(200,175,120,0.08)', paddingTop: 10 }}>
+          <span style={{ color: '#c8af78' }}>{new Date(value + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Date Picker Toggle ────────────────────────────────────────────────────────
+function DatePickerField({ value, onChange, availability }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const displayValue = value
+    ? new Date(value + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+    : '';
+
+  return (
+    <div ref={ref} style={{ position: 'relative', maxWidth: 320 }}>
+      <div
+        onClick={() => setOpen(o => !o)}
+        style={{ background: '#1e1a14', border: `0.5px solid ${open ? 'rgba(200,175,120,0.45)' : 'rgba(200,175,120,0.15)'}`, borderRadius: 8, padding: '11px 14px', fontSize: 13, color: value ? '#e8dcc8' : 'rgba(200,175,120,0.22)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none', transition: 'border-color 0.2s' }}
+      >
+        <span>{displayValue || 'Select date…'}</span>
+        <span style={{ fontSize: 9, color: 'rgba(200,175,120,0.4)', marginLeft: 8 }}>{open ? '▲' : '▼'}</span>
+      </div>
+      {open && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 100, boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
+          <AvailabilityCalendar value={value} onChange={(d) => { onChange(d); setOpen(false); }} availability={availability} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
 export default function CreateEventPage() {
-  const navigate   = useNavigate();
-  const location   = useLocation();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { user } = useAuth();
 
-  // pre-filled reference event passed from ExplorePage via navigate state
   const prefillEvent = location.state?.referenceEvent ?? null;
 
-  // ── form state ──
-  const [step, setStep]       = useState(0); // 0-3 + 4=calculating + 5=done
-  const [calcStep, setCalcStep] = useState(false);
-  const [done, setDone]       = useState(false);
+  const cameFromExplore = location.pathname === '/create-events' || !!prefillEvent;
+  const [showEmpty, setShowEmpty]   = useState(!cameFromExplore);
+  const [step, setStep]             = useState(0);
+  const [calcStep, setCalcStep]     = useState(false);
+  const [done, setDone]             = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [availability, setAvailability] = useState([]);
 
-  const [name,     setName]    = useState("");
-  const [evType,   setEvType]  = useState("");
-  const [date,     setDate]    = useState("");
-  const [time,     setTime]    = useState("18:00");
+  const [name,      setName]     = useState("");
+  const [evType,    setEvType]   = useState(prefillEvent?.type || "");
+  const [date,      setDate]     = useState("");
+  const [time,      setTime]     = useState("18:00");
   const [location_, setLocation] = useState("");
-  const [capacity, setCapacity] = useState(150);
-  const [refEvent, setRefEvent] = useState(prefillEvent);
+  const [capacity,  setCapacity] = useState(150);
+  const [refEvent,  setRefEvent] = useState(prefillEvent);
 
-  const [vendors,  setVendors] = useState({}); // { name: cost }
-  const [extras,   setExtras]  = useState(new Set());
+  const [vendors,   setVendors]   = useState({});
+  const [extras,    setExtras]    = useState(new Set());
   const [extraNote, setExtraNote] = useState("");
-
   const [ticketPrice, setTicketPrice] = useState("");
   const [ticketQty,   setTicketQty]   = useState("");
   const [budget,      setBudget]      = useState(null);
 
-  // pre-fill from explore card
   useEffect(() => {
-    if (prefillEvent) {
-      setEvType(prefillEvent.type || "");
-      setRefEvent(prefillEvent);
-    }
-  }, [prefillEvent]);
+    fetch(`${API}/availability`).then(r => r.json()).then(d => setAvailability(Array.isArray(d) ? d : [])).catch(() => {});
+  }, []);
 
-  // ── vendor toggle ──
-  const toggleVendor = (name, cost) => {
-    setVendors((prev) => {
-      const next = { ...prev };
-      if (next[name] !== undefined) delete next[name];
-      else next[name] = cost;
-      return next;
-    });
-  };
+  const toggleVendor = (n, cost) => setVendors(prev => { const next = { ...prev }; next[n] !== undefined ? delete next[n] : (next[n] = cost); return next; });
+  const toggleExtra  = (pill)    => setExtras(prev  => { const next = new Set(prev); next.has(pill) ? next.delete(pill) : next.add(pill); return next; });
 
-  // ── extra toggle ──
-  const toggleExtra = (pill) => {
-    setExtras((prev) => {
-      const next = new Set(prev);
-      if (next.has(pill)) next.delete(pill);
-      else next.add(pill);
-      return next;
-    });
-  };
-
-  // ── budget calculation ──
   const calculateBudget = () => {
     setCalcStep(true);
     const vendorTotal = Object.values(vendors).reduce((a, b) => a + b, 0);
@@ -148,177 +188,141 @@ export default function CreateEventPage() {
     const extrasCost  = extras.size * 3500;
     const buffer      = Math.round((vendorTotal + cateringEst + extrasCost) * 0.12);
     const grand       = vendorTotal + cateringEst + extrasCost + buffer;
-    setTimeout(() => {
-      setBudget({ vendorTotal, cateringEst, extrasCost, buffer, grand });
-      setCalcStep(false);
-      setStep(3);
-    }, 2200);
+    setTimeout(() => { setBudget({ vendorTotal, cateringEst, extrasCost, buffer, grand }); setCalcStep(false); setStep(3); }, 2200);
   };
 
-  const revenue =
-    ticketPrice && ticketQty
-      ? Math.round(parseFloat(ticketPrice) * parseFloat(ticketQty))
-      : null;
+  const handleCreateEvent = useCallback(async () => {
+    setSubmitting(true); setSubmitError('');
+    const msg = [
+      `Event: ${name}`, `Location: ${location_}`, `Time: ${time}`, `Capacity: ${capacity} guests`,
+      Object.keys(vendors).length ? `Vendors: ${Object.keys(vendors).join(', ')}` : null,
+      extras.size ? `Extras: ${[...extras].join(', ')}` : null,
+      extraNote ? `Notes: ${extraNote}` : null,
+      budget ? `Est. Budget: ₹${budget.grand.toLocaleString('en-IN')}` : null,
+    ].filter(Boolean).join('\n');
+    try {
+      const res  = await fetch(`${API}/bookings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_name: user?.name || 'Guest', email: user?.email || '', phone: '', event_type: evType, event_date: date, message: msg }) });
+      const data = await res.json();
+if (data.success) {
+  navigate("/payments/checkout", {
+    state: {
+      event: {
+        id:      data.bookingId || data.id || "NEW",
+        name,
+        type:    evType,
+        venue:   location_,
+        guests:  capacity,
+        vendors: Object.keys(vendors).length,
+        date,
+        time,
+        breakdown: [
+          ...Object.entries(vendors).map(([label, amount]) => ({
+            label,
+            sub: "Vendor service",
+            amount,
+          })),
+          { label: `Per-head catering`, sub: `${capacity} × ₹180`, amount: budget.cateringEst },
+          ...(extras.size > 0 ? [{ label: "Extra requirements", sub: `${extras.size} items`, amount: budget.extrasCost }] : []),
+          { label: "Contingency buffer (12%)", sub: "Applied on subtotal", amount: budget.buffer },
+        ],
+        gst: 0.18,
+      }
+    }
+  });
+} else {
+  setSubmitError('Something went wrong. Please try again.');
+}    
+} catch { setSubmitError('Could not connect to server.'); }
+    setSubmitting(false);
+  }, [user, name, evType, date, time, location_, capacity, vendors, extras, extraNote, budget]);
 
-  // ── step navigation ──
-  const goNext = () => setStep((s) => Math.min(s + 1, 3));
-  const goBack = () => setStep((s) => Math.max(s - 1, 0));
+  const revenue = ticketPrice && ticketQty ? Math.round(parseFloat(ticketPrice) * parseFloat(ticketQty)) : null;
+  const goNext  = () => setStep(s => Math.min(s + 1, 3));
+  const goBack  = () => setStep(s => Math.max(s - 1, 0));
 
-  // ── today date for min ──
-  const today = new Date().toISOString().split("T")[0];
-
-  // ── render ────────────────────────────────────────────────────────────────
-  if (done) return <DoneScreen name={name} evType={evType} location_={location_} capacity={capacity} vendors={vendors} navigate={navigate} />;
+  // if (done)     return <DoneScreen name={name} evType={evType} location_={location_} capacity={capacity} vendors={vendors} navigate={navigate} />;
   if (calcStep) return <CalcScreen />;
+
+  if (showEmpty) return (
+    <div className={styles.root}>
+      <header className={styles.header}>
+        <button className={styles.backBtn} onClick={() => navigate(-1)}><BackIcon /> Back</button>
+        <div className={styles.titleBlock}><h1 className={styles.pageTitle}>Create <em>Event</em></h1></div>
+      </header>
+      <EmptyState onStart={(type) => { if (type) setEvType(type); setShowEmpty(false); }} />
+    </div>
+  );
 
   return (
     <div className={styles.root}>
-      {/* ── page header ── */}
       <header className={styles.header}>
-        <button className={styles.backBtn} onClick={() => navigate(-1)}>
-          <BackIcon /> Back
-        </button>
-        <div className={styles.titleBlock}>
-          <h1 className={styles.pageTitle}>
-            Create <em>Event</em>
-          </h1>
-        </div>
+        <button className={styles.backBtn} onClick={() => navigate(-1)}><BackIcon /> Back</button>
+        <div className={styles.titleBlock}><h1 className={styles.pageTitle}>Create <em>Event</em></h1></div>
       </header>
 
-      {/* ── step pills ── */}
       <nav className={styles.stepNav}>
         {STEPS.map((label, i) => (
-          <button
-            key={label}
-            className={`${styles.stepPill} ${i === step ? styles.stepActive : ""} ${i < step ? styles.stepDone : ""}`}
-            onClick={() => i < step && setStep(i)}
-          >
-            {i < step && <span className={styles.checkMark}>✓</span>}
-            {label}
+          <button key={label} className={`${styles.stepPill} ${i === step ? styles.stepActive : ''} ${i < step ? styles.stepDone : ''}`} onClick={() => i < step && setStep(i)}>
+            {i < step && <span className={styles.checkMark}>✓</span>}{label}
           </button>
         ))}
       </nav>
-
       <div className={styles.shimmerLine} />
 
-      {/* ── step bodies ── */}
       <main className={styles.body}>
-        {step === 0 && (
-          <StepBasics
-            name={name} setName={setName}
-            evType={evType} setEvType={setEvType}
-            date={date} setDate={setDate}
-            time={time} setTime={setTime}
-            location_={location_} setLocation={setLocation}
-            capacity={capacity} setCapacity={setCapacity}
-            refEvent={refEvent} setRefEvent={setRefEvent}
-            today={today}
-            onNext={goNext}
-          />
-        )}
-        {step === 1 && (
-          <StepVendors
-            vendors={vendors}
-            toggleVendor={toggleVendor}
-            onNext={goNext}
-            onBack={goBack}
-          />
-        )}
-        {step === 2 && (
-          <StepExtras
-            extras={extras}
-            toggleExtra={toggleExtra}
-            extraNote={extraNote}
-            setExtraNote={setExtraNote}
-            onCalc={calculateBudget}
-            onBack={goBack}
-          />
-        )}
-        {step === 3 && budget && (
-          <StepBudget
-            budget={budget}
-            vendors={vendors}
-            capacity={capacity}
-            extras={extras}
-            ticketPrice={ticketPrice} setTicketPrice={setTicketPrice}
-            ticketQty={ticketQty}    setTicketQty={setTicketQty}
-            revenue={revenue}
-            onBack={goBack}
-            onDone={() => setDone(true)}
-          />
-        )}
+        {step === 0 && <StepBasics name={name} setName={setName} evType={evType} setEvType={setEvType} date={date} setDate={setDate} time={time} setTime={setTime} location_={location_} setLocation={setLocation} capacity={capacity} setCapacity={setCapacity} refEvent={refEvent} setRefEvent={setRefEvent} availability={availability} onNext={goNext} />}
+        {step === 1 && <StepVendors vendors={vendors} toggleVendor={toggleVendor} onNext={goNext} onBack={goBack} />}
+        {step === 2 && <StepExtras extras={extras} toggleExtra={toggleExtra} extraNote={extraNote} setExtraNote={setExtraNote} onCalc={calculateBudget} onBack={goBack} />}
+        {step === 3 && budget && <StepBudget budget={budget} vendors={vendors} capacity={capacity} extras={extras} ticketPrice={ticketPrice} setTicketPrice={setTicketPrice} ticketQty={ticketQty} setTicketQty={setTicketQty} revenue={revenue} submitting={submitting} submitError={submitError} onBack={goBack} onDone={handleCreateEvent} />}
       </main>
     </div>
   );
 }
 
-// ── Step 1: Basics ────────────────────────────────────────────────────────────
-function StepBasics({ name, setName, evType, setEvType, date, setDate, time, setTime, location_, setLocation, capacity, setCapacity, refEvent, setRefEvent, today, onNext }) {
-  const handleSelectRef = (ev) => {
-    setRefEvent((prev) => (prev?.id === ev.id ? null : ev));
-    if (!evType) setEvType(ev.type);
-  };
-
+// ── Step 1 ────────────────────────────────────────────────────────────────────
+function StepBasics({ name, setName, evType, setEvType, date, setDate, time, setTime, location_, setLocation, capacity, setCapacity, refEvent, setRefEvent, availability, onNext }) {
   return (
     <div className={styles.stepWrap}>
       <div className={styles.fieldRow}>
-        <Field label="Event name">
-          <input
-            className={styles.input}
-            placeholder="e.g. Shubh's Summer Gala"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-        </Field>
+        <Field label="Event name"><input className={styles.input} placeholder="e.g. Shubh's Summer Gala" value={name} onChange={e => setName(e.target.value)} /></Field>
         <Field label="Type of event">
-          <select className={styles.input} value={evType} onChange={(e) => setEvType(e.target.value)}>
+          <select className={styles.input} value={evType} onChange={e => setEvType(e.target.value)}>
             <option value="">Select type...</option>
-            {EVENT_TYPES.map((t) => <option key={t}>{t}</option>)}
+            {EVENT_TYPES.map(t => <option key={t}>{t}</option>)}
           </select>
         </Field>
       </div>
 
-      <div className={styles.fieldRow}>
-        <Field label="Date of event">
-          <input className={styles.input} type="date" min={today} value={date} onChange={(e) => setDate(e.target.value)} />
-        </Field>
-        <Field label="Time">
-          <input className={styles.input} type="time" value={time} onChange={(e) => setTime(e.target.value)} />
-        </Field>
-      </div>
+      <Field label="Date of event">
+        <DatePickerField value={date} onChange={setDate} availability={availability} />
+      </Field>
+
+      <Field label="Time">
+        <input className={styles.input} type="time" value={time} onChange={e => setTime(e.target.value)} style={{ maxWidth: 200 }} />
+      </Field>
 
       <Field label="Location">
-        <input
-          className={styles.input}
-          placeholder="City, Venue name (Landmark near venue)"
-          value={location_}
-          onChange={(e) => setLocation(e.target.value)}
-        />
+        <input className={styles.input} placeholder='City, Venue name (Landmark near venue)' value={location_} onChange={e => setLocation(e.target.value)} />
         <p className={styles.hint}>e.g. "Mumbai, The Taj Mahal Palace (Gateway of India)"</p>
       </Field>
 
       <Field label={`Expected capacity — ${capacity} guests`}>
-        <input
-          type="range" min={10} max={2000} step={10}
-          value={capacity}
-          onChange={(e) => setCapacity(Number(e.target.value))}
-          className={styles.slider}
-        />
+        <input type="range" min={10} max={2000} step={10} value={capacity} onChange={e => setCapacity(Number(e.target.value))} className={styles.slider} />
         <div className={styles.sliderLabels}><span>10</span><span>2,000</span></div>
       </Field>
 
-      {/* ── reference event from Explore ── */}
-      <div className={styles.sectionLabel}>
-        Reference event from Explore Events
-        <span className={styles.sectionNote}> — pick one to use as inspiration, or{" "}
-          <button className={styles.linkBtn} onClick={() => window.open("/explore", "_blank")}>browse all events ↗</button>
-        </span>
+      <div className={styles.sectionLabel} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span>Reference event <span className={styles.sectionNote}>— optional</span></span>
+        <button className={styles.linkBtn} onClick={() => window.open('/explore', '_blank')}>Browse Explore Events ↗</button>
       </div>
 
-      {refEvent && (
+      {refEvent ? (
         <div className={styles.refSelected}>
           <div className={styles.refThumb} style={{ background: getGradient(refEvent.type) }}>
-            <span>{getEmoji(refEvent.type)}</span>
+            {refEvent.image_url
+              ? <img src={refEvent.image_url} alt={refEvent.title} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 }} />
+              : <span style={{ fontSize: 22 }}>{getEmoji(refEvent.type)}</span>
+            }
           </div>
           <div className={styles.refInfo}>
             <div className={styles.refName}>{refEvent.title}</div>
@@ -326,60 +330,36 @@ function StepBasics({ name, setName, evType, setEvType, date, setDate, time, set
           </div>
           <button className={styles.refRemove} onClick={() => setRefEvent(null)}>✕ Remove</button>
         </div>
+      ) : (
+        <p className={styles.hint} style={{ marginBottom: 18 }}>No reference selected.</p>
       )}
 
-      <div className={styles.gallery}>
-        {EVENTS.slice(0, 6).map((ev) => (
-          <div
-            key={ev.id}
-            className={`${styles.galCard} ${refEvent?.id === ev.id ? styles.galSel : ""}`}
-            onClick={() => handleSelectRef(ev)}
-          >
-            <div className={styles.galImg} style={{ background: getGradient(ev.type) }}>
-              {ev.image
-                ? <img src={ev.image} alt={ev.title} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 6 }} />
-                : <span style={{ fontSize: 24 }}>{getEmoji(ev.type)}</span>
-              }
-            </div>
-            <div className={styles.galName}>{ev.title}</div>
-            <div className={styles.galMeta}>{ev.type} · {ev.venue}</div>
-            {refEvent?.id === ev.id && <div className={styles.galCheck}>✓</div>}
-          </div>
-        ))}
-      </div>
-
       <div className={styles.btnRow}>
-        <button className={styles.btnSecondary} onClick={() => alert("Saved to drafts")}>Save as draft</button>
-        <button className={styles.btnPrimary} onClick={onNext} disabled={!name || !evType}>
-          Next — Choose vendors
-        </button>
+        <button className={styles.btnSecondary} onClick={() => alert('Saved to drafts')}>Save as draft</button>
+        <button className={styles.btnPrimary} onClick={onNext} disabled={!name || !evType || !date}>Next — Choose vendors</button>
       </div>
     </div>
   );
 }
 
-// ── Step 2: Vendors ───────────────────────────────────────────────────────────
+// ── Step 2 ────────────────────────────────────────────────────────────────────
 function StepVendors({ vendors, toggleVendor, onNext, onBack }) {
   const count = Object.keys(vendors).length;
   return (
     <div className={styles.stepWrap}>
       <p className={styles.stepDesc}>Select vendors for your event — mix and match like ingredients</p>
       <div className={styles.vendorGrid}>
-        {VENDOR_CATALOGUE.map((cat) => (
+        {VENDOR_CATALOGUE.map(cat => (
           <div key={cat.category} className={styles.vCat}>
             <div className={styles.vCatTitle}>{cat.category}</div>
-            {cat.items.map((item) => {
+            {cat.items.map(item => {
               const sel = vendors[item.name] !== undefined;
               return (
-                <div
-                  key={item.name}
-                  className={`${styles.vItem} ${sel ? styles.vItemSel : ""}`}
-                  onClick={() => toggleVendor(item.name, item.cost)}
-                >
+                <div key={item.name} className={`${styles.vItem} ${sel ? styles.vItemSel : ''}`} onClick={() => toggleVendor(item.name, item.cost)}>
                   <span className={styles.vItemName}>{item.name}</span>
                   <div className={styles.vItemRight}>
-                    <span className={styles.vItemCost}>₹{item.cost.toLocaleString("en-IN")}</span>
-                    <div className={styles.vCheck}>{sel ? "✓" : ""}</div>
+                    <span className={styles.vItemCost}>₹{item.cost.toLocaleString('en-IN')}</span>
+                    <div className={styles.vCheck}>{sel ? '✓' : ''}</div>
                   </div>
                 </div>
               );
@@ -387,10 +367,7 @@ function StepVendors({ vendors, toggleVendor, onNext, onBack }) {
           </div>
         ))}
       </div>
-      <p className={styles.vCount}>
-        Selected: <strong>{count} vendor{count !== 1 ? "s" : ""}</strong>
-        {count > 0 && ` · Est. vendor cost ₹${Object.values(vendors).reduce((a, b) => a + b, 0).toLocaleString("en-IN")}`}
-      </p>
+      <p className={styles.vCount}>Selected: <strong>{count} vendor{count !== 1 ? 's' : ''}</strong>{count > 0 && ` · Est. ₹${Object.values(vendors).reduce((a,b)=>a+b,0).toLocaleString('en-IN')}`}</p>
       <div className={styles.btnRow}>
         <button className={styles.btnSecondary} onClick={onBack}>Back</button>
         <button className={styles.btnPrimary} onClick={onNext}>Next — Extra requirements</button>
@@ -399,177 +376,142 @@ function StepVendors({ vendors, toggleVendor, onNext, onBack }) {
   );
 }
 
-// ── Step 3: Extras ────────────────────────────────────────────────────────────
+// ── Step 3 ────────────────────────────────────────────────────────────────────
 function StepExtras({ extras, toggleExtra, extraNote, setExtraNote, onCalc, onBack }) {
   return (
     <div className={styles.stepWrap}>
       <p className={styles.stepDesc}>What else do you need? Pick any that apply</p>
       <div className={styles.extraPills}>
-        {EXTRA_PILLS.map((pill) => (
-          <button
-            key={pill}
-            className={`${styles.extraPill} ${extras.has(pill) ? styles.extraPillSel : ""}`}
-            onClick={() => toggleExtra(pill)}
-          >
-            {pill}
-          </button>
-        ))}
+        {EXTRA_PILLS.map(pill => <button key={pill} className={`${styles.extraPill} ${extras.has(pill) ? styles.extraPillSel : ''}`} onClick={() => toggleExtra(pill)}>{pill}</button>)}
       </div>
       <Field label="Anything else? Describe freely">
-        <textarea
-          className={`${styles.input} ${styles.textarea}`}
-          placeholder="e.g. Need a charging station, sunrise schedule, specific colour theme ivory and gold..."
-          value={extraNote}
-          onChange={(e) => setExtraNote(e.target.value)}
-        />
+        <textarea className={`${styles.input} ${styles.textarea}`} placeholder="e.g. charging station, ivory and gold theme..." value={extraNote} onChange={e => setExtraNote(e.target.value)} />
       </Field>
       <div className={styles.btnRow}>
         <button className={styles.btnSecondary} onClick={onBack}>Back</button>
-        <button className={styles.btnPrimary} onClick={onCalc}>
-          Calculate avg budget
-        </button>
+        <button className={styles.btnPrimary} onClick={onCalc}>Calculate avg budget</button>
       </div>
     </div>
   );
 }
 
-// ── Step 4: Budget ────────────────────────────────────────────────────────────
-function StepBudget({ budget, vendors, capacity, extras, ticketPrice, setTicketPrice, ticketQty, setTicketQty, revenue, onBack, onDone }) {
-  const rows = [
-    ...Object.entries(vendors).map(([name, cost]) => ({ label: name, amt: cost })),
-    { label: `Per-head catering (${capacity} guests × ₹180)`, amt: budget.cateringEst },
-    ...(extras.size > 0 ? [{ label: `Extra requirements (${extras.size} items)`, amt: budget.extrasCost }] : []),
-    { label: "Contingency buffer (12%)", amt: budget.buffer },
-  ];
-
+// ── Step 4 ────────────────────────────────────────────────────────────────────
+function StepBudget({ budget, vendors, capacity, extras, ticketPrice, setTicketPrice, ticketQty, setTicketQty, revenue, submitting, submitError, onBack, onDone }) {
+  const rows = [...Object.entries(vendors).map(([n,cost]) => ({ label: n, amt: cost })), { label: `Per-head catering (${capacity} × ₹180)`, amt: budget.cateringEst }, ...(extras.size > 0 ? [{ label: `Extra requirements (${extras.size} items)`, amt: budget.extrasCost }] : []), { label: 'Contingency buffer (12%)', amt: budget.buffer }];
   return (
     <div className={styles.stepWrap}>
       <div className={styles.budgetCard}>
         <div className={styles.budgetTitle}>Estimated cost breakdown</div>
-        {rows.map((r) => (
-          <div key={r.label} className={styles.budgetRow}>
-            <span className={styles.budgetLabel}>{r.label}</span>
-            <span className={styles.budgetAmt}>₹{r.amt.toLocaleString("en-IN")}</span>
-          </div>
-        ))}
-        <div className={styles.budgetTotal}>
-          <span className={styles.budgetTotalLabel}>Avg total estimate</span>
-          <span className={styles.budgetTotalAmt}>₹{budget.grand.toLocaleString("en-IN")}</span>
-        </div>
+        {rows.map(r => <div key={r.label} className={styles.budgetRow}><span className={styles.budgetLabel}>{r.label}</span><span className={styles.budgetAmt}>₹{r.amt.toLocaleString('en-IN')}</span></div>)}
+        <div className={styles.budgetTotal}><span className={styles.budgetTotalLabel}>Avg total estimate</span><span className={styles.budgetTotalAmt}>₹{budget.grand.toLocaleString('en-IN')}</span></div>
       </div>
-
       <div className={styles.ticketSection}>
         <div className={styles.sectionLabel}>Ticket pricing (optional)</div>
         <div className={styles.fieldRow}>
-          <Field label="Price per ticket (₹)">
-            <input
-              className={styles.input} type="number" placeholder="e.g. 1500"
-              value={ticketPrice} onChange={(e) => setTicketPrice(e.target.value)}
-            />
-          </Field>
-          <Field label="Max tickets">
-            <input
-              className={styles.input} type="number" placeholder="e.g. 200"
-              value={ticketQty} onChange={(e) => setTicketQty(e.target.value)}
-            />
-          </Field>
+          <Field label="Price per ticket (₹)"><input className={styles.input} type="number" placeholder="e.g. 1500" value={ticketPrice} onChange={e => setTicketPrice(e.target.value)} /></Field>
+          <Field label="Max tickets"><input className={styles.input} type="number" placeholder="e.g. 200" value={ticketQty} onChange={e => setTicketQty(e.target.value)} /></Field>
         </div>
-        {revenue !== null && (
-          <div className={styles.revenueNote}>
-            Potential gross revenue: <strong>₹{revenue.toLocaleString("en-IN")}</strong>
-            {revenue >= budget.grand && <span className={styles.revGreen}> · Covers full cost ✓</span>}
-          </div>
-        )}
+        {revenue !== null && <div className={styles.revenueNote}>Potential gross revenue: <strong>₹{revenue.toLocaleString('en-IN')}</strong>{revenue >= budget.grand && <span className={styles.revGreen}> · Covers full cost ✓</span>}</div>}
       </div>
-
+      {submitError && <div style={{ background: 'rgba(235,87,87,0.1)', border: '0.5px solid rgba(235,87,87,0.3)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: '#eb5757' }}>{submitError}</div>}
       <div className={styles.btnRow}>
         <button className={styles.btnSecondary} onClick={onBack}>Back</button>
-        <button className={styles.btnPrimary} onClick={onDone}>
-          Create event
-        </button>
+        <button className={styles.btnPrimary} onClick={onDone} disabled={submitting}>{submitting ? 'Submitting…' : 'Create event'}</button>
       </div>
     </div>
   );
 }
 
-// ── Calculating screen ────────────────────────────────────────────────────────
+// ── Calc ──────────────────────────────────────────────────────────────────────
 function CalcScreen() {
-  const [widths, setWidths] = useState([0, 0, 0, 0, 0]);
-  const labels = ["Vendors", "Venue", "Catering", "Extras", "Buffer"];
-  const msgs   = ["Analysing vendor rates...", "Factoring in capacity...", "Applying regional pricing...", "Adding extras buffer...", "Finalising estimate..."];
+  const [widths, setWidths] = useState([0,0,0,0,0]);
+  const labels = ["Vendors","Venue","Catering","Extras","Buffer"];
+  const msgs   = ["Analysing vendor rates...","Factoring in capacity...","Applying regional pricing...","Adding extras buffer...","Finalising estimate..."];
   const [msgIdx, setMsgIdx] = useState(0);
-
-  useEffect(() => {
-    labels.forEach((_, i) => {
-      setTimeout(() => {
-        setWidths((prev) => {
-          const next = [...prev];
-          next[i] = 55 + Math.random() * 38;
-          return next;
-        });
-        setMsgIdx(i);
-      }, i * 400 + 100);
-    });
-  }, []);
-
+  useEffect(() => { labels.forEach((_,i) => setTimeout(() => { setWidths(p => { const n=[...p]; n[i]=55+Math.random()*38; return n; }); setMsgIdx(i); }, i*400+100)); }, []);
   return (
     <div className={styles.calcRoot}>
       <div className={styles.calcTitle}>Calculating your event cost…</div>
-      <div className={styles.calcBars}>
-        {labels.map((label, i) => (
-          <div key={label} className={styles.calcBarRow}>
-            <span className={styles.calcBarLabel}>{label}</span>
-            <div className={styles.calcBarTrack}>
-              <div className={styles.calcBarFill} style={{ width: `${widths[i]}%`, transition: "width 0.7s ease" }} />
-            </div>
-          </div>
-        ))}
-      </div>
+      <div className={styles.calcBars}>{labels.map((label,i) => <div key={label} className={styles.calcBarRow}><span className={styles.calcBarLabel}>{label}</span><div className={styles.calcBarTrack}><div className={styles.calcBarFill} style={{ width:`${widths[i]}%`, transition:'width 0.7s ease' }} /></div></div>)}</div>
       <p className={styles.calcStatus}>{msgs[msgIdx]}</p>
     </div>
   );
 }
 
-// ── Done screen ───────────────────────────────────────────────────────────────
+// ── Done ──────────────────────────────────────────────────────────────────────
 function DoneScreen({ name, evType, location_, capacity, vendors, navigate }) {
   return (
     <div className={styles.root}>
       <div className={styles.doneWrap}>
-        <div className={styles.doneIcon}>
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-            <path d="M5 14l7 7L23 7" stroke="#c8af78" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </div>
-        <h2 className={styles.doneTitle}>Event <em>created</em></h2>
-        <p className={styles.doneSub}>Your event has been saved. Publish it now or find it in My Events under Drafts.</p>
-        <div className={styles.donePills}>
-          {[name || "Untitled", evType, location_ || "Location TBD", `${capacity} guests`, `${Object.keys(vendors).length} vendors`].filter(Boolean).map((t) => (
-            <span key={t} className={styles.donePill}>{t}</span>
-          ))}
-        </div>
-        <div className={styles.btnRow} style={{ justifyContent: "center" }}>
-          <button className={styles.btnPrimary} onClick={() => alert("Publishing event...")}>Publish now</button>
-          <button className={styles.btnSecondary} onClick={() => navigate("/my-events")}>Go to My Events</button>
+        <div className={styles.doneIcon}><svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M5 14l7 7L23 7" stroke="#c8af78" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg></div>
+        <h2 className={styles.doneTitle}>Booking <em>submitted!</em></h2>
+        <p className={styles.doneSub}>Your booking request has been sent. The team will review it and get back to you soon.</p>
+        <div className={styles.donePills}>{[name||'Untitled', evType, location_||'Location TBD', `${capacity} guests`, `${Object.keys(vendors).length} vendors`].filter(Boolean).map(t => <span key={t} className={styles.donePill}>{t}</span>)}</div>
+        <div className={styles.btnRow} style={{ justifyContent:'center' }}>
+          <button className={styles.btnPrimary} onClick={() => navigate('/')}>Back to Home</button>
+          <button className={styles.btnSecondary} onClick={() => navigate('/my-events')}>Go to My Events</button>
         </div>
       </div>
     </div>
   );
 }
 
-// ── tiny shared components ────────────────────────────────────────────────────
-function Field({ label, children }) {
-  return (
-    <div className={styles.field}>
-      <label className={styles.fieldLabel}>{label}</label>
-      {children}
-    </div>
-  );
-}
+function Field({ label, children }) { return <div className={styles.field}><label className={styles.fieldLabel}>{label}</label>{children}</div>; }
+function BackIcon() { return <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M10 12L6 8l4-4" /></svg>; }
 
-function BackIcon() {
+// ── Empty State ───────────────────────────────────────────────────────────────
+function EmptyState({ onStart }) {
   return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M10 12L6 8l4-4" />
-    </svg>
+    <div className={styles.emptyRoot}>
+      <div className={styles.emptyGlow} />
+
+      <div className={styles.emptyInner}>
+        {/* Decorative top line */}
+        <div className={styles.emptyRule} />
+
+        <p className={styles.emptyEyebrow}>Arc Events</p>
+
+        <h2 className={styles.emptyHeading}>
+          Build your<br /><em>perfect event</em>
+        </h2>
+
+        <p className={styles.emptyBody}>
+          Start with the basics — name, date, and type — then layer in vendors,
+          extras, and a live budget estimate. Everything in four steps.
+        </p>
+
+        {/* Flow preview */}
+        <div className={styles.emptyFlow}>
+          {[
+            { n: "01", label: "Event basics", sub: "Name, date, location, type" },
+            { n: "02", label: "Build lineup", sub: "Pick vendors like ingredients" },
+            { n: "03", label: "Extras", sub: "Special requirements" },
+            { n: "04", label: "Budget", sub: "Live cost estimate" },
+          ].map((s, i) => (
+            <div key={s.n} className={styles.emptyFlowItem}>
+              <span className={styles.emptyFlowNum}>{s.n}</span>
+              <span className={styles.emptyFlowLabel}>{s.label}</span>
+              <span className={styles.emptyFlowSub}>{s.sub}</span>
+              {i < 3 && <span className={styles.emptyFlowArrow}>›</span>}
+            </div>
+          ))}
+        </div>
+
+        {/* Quick-start pills */}
+        <div className={styles.emptyPillRow}>
+          {["Wedding", "Birthday", "Corporate", "Concert", "Festival"].map(t => (
+            <button key={t} className={styles.emptyPill} onClick={() => onStart(t)}>
+              + {t}
+            </button>
+          ))}
+        </div>
+
+        <button className={styles.emptyCtaBtn} onClick={() => onStart("")}>
+          Start from scratch
+        </button>
+
+        <div className={styles.emptyRule} style={{ marginTop: 40, marginBottom: 0 }} />
+      </div>
+    </div>
   );
 }
