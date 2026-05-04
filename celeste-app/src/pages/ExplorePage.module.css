@@ -137,8 +137,15 @@
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px;
+}
+
+@media (max-width: 1024px) {
+  .grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+  .grid { grid-template-columns: 1fr; }
 }
 
 .empty {

@@ -183,12 +183,13 @@ export default function CreateEventPage() {
 
   const calculateBudget = () => {
     setCalcStep(true);
-    const vendorTotal = Object.values(vendors).reduce((a, b) => a + b, 0);
-    const cateringEst = capacity * 180;
-    const extrasCost  = extras.size * 3500;
-    const buffer      = Math.round((vendorTotal + cateringEst + extrasCost) * 0.12);
-    const grand       = vendorTotal + cateringEst + extrasCost + buffer;
-    setTimeout(() => { setBudget({ vendorTotal, cateringEst, extrasCost, buffer, grand }); setCalcStep(false); setStep(3); }, 2200);
+    const vendorTotal  = Object.values(vendors).reduce((a, b) => a + b, 0);
+    const refEventCost = refEvent?.price ?? refEvent?.cost ?? refEvent?.budget ?? refEvent?.avg_cost ?? 0;
+    const extrasCost   = extras.size * 3500;
+    const subtotal     = vendorTotal + refEventCost + extrasCost;
+    const buffer       = Math.round(subtotal * 0.05);
+    const grand        = subtotal + buffer;
+    setTimeout(() => { setBudget({ vendorTotal, refEventCost, extrasCost, buffer, grand }); setCalcStep(false); setStep(3); }, 2200);
   };
 
   const handleCreateEvent = useCallback(async () => {
@@ -221,9 +222,9 @@ if (data.success) {
             sub: "Vendor service",
             amount,
           })),
-          { label: `Per-head catering`, sub: `${capacity} × ₹180`, amount: budget.cateringEst },
+          ...(budget.refEventCost > 0 ? [{ label: refEvent?.title ? `Reference: ${refEvent.title}` : 'Reference event package', sub: "Based on selected event", amount: budget.refEventCost }] : []),
           ...(extras.size > 0 ? [{ label: "Extra requirements", sub: `${extras.size} items`, amount: budget.extrasCost }] : []),
-          { label: "Contingency buffer (12%)", sub: "Applied on subtotal", amount: budget.buffer },
+          { label: "Contingency buffer (5%)", sub: "Applied on subtotal", amount: budget.buffer },
         ],
         gst: 0.18,
       }
@@ -234,7 +235,7 @@ if (data.success) {
 }    
 } catch { setSubmitError('Could not connect to server.'); }
     setSubmitting(false);
-  }, [user, name, evType, date, time, location_, capacity, vendors, extras, extraNote, budget]);
+  }, [user, name, evType, date, time, location_, capacity, vendors, extras, extraNote, budget, refEvent]);
 
   const revenue = ticketPrice && ticketQty ? Math.round(parseFloat(ticketPrice) * parseFloat(ticketQty)) : null;
   const goNext  = () => setStep(s => Math.min(s + 1, 3));
@@ -273,7 +274,7 @@ if (data.success) {
         {step === 0 && <StepBasics name={name} setName={setName} evType={evType} setEvType={setEvType} date={date} setDate={setDate} time={time} setTime={setTime} location_={location_} setLocation={setLocation} capacity={capacity} setCapacity={setCapacity} refEvent={refEvent} setRefEvent={setRefEvent} availability={availability} onNext={goNext} />}
         {step === 1 && <StepVendors vendors={vendors} toggleVendor={toggleVendor} onNext={goNext} onBack={goBack} />}
         {step === 2 && <StepExtras extras={extras} toggleExtra={toggleExtra} extraNote={extraNote} setExtraNote={setExtraNote} onCalc={calculateBudget} onBack={goBack} />}
-        {step === 3 && budget && <StepBudget budget={budget} vendors={vendors} capacity={capacity} extras={extras} ticketPrice={ticketPrice} setTicketPrice={setTicketPrice} ticketQty={ticketQty} setTicketQty={setTicketQty} revenue={revenue} submitting={submitting} submitError={submitError} onBack={goBack} onDone={handleCreateEvent} />}
+        {step === 3 && budget && <StepBudget budget={budget} vendors={vendors} capacity={capacity} extras={extras} refEvent={refEvent} submitting={submitting} submitError={submitError} onBack={goBack} onDone={handleCreateEvent} />}
       </main>
     </div>
   );
@@ -283,60 +284,83 @@ if (data.success) {
 function StepBasics({ name, setName, evType, setEvType, date, setDate, time, setTime, location_, setLocation, capacity, setCapacity, refEvent, setRefEvent, availability, onNext }) {
   return (
     <div className={styles.stepWrap}>
-      <div className={styles.fieldRow}>
-        <Field label="Event name"><input className={styles.input} placeholder="e.g. Shubh's Summer Gala" value={name} onChange={e => setName(e.target.value)} /></Field>
-        <Field label="Type of event">
-          <select className={styles.input} value={evType} onChange={e => setEvType(e.target.value)}>
-            <option value="">Select type...</option>
-            {EVENT_TYPES.map(t => <option key={t}>{t}</option>)}
-          </select>
-        </Field>
-      </div>
-
-      <Field label="Date of event">
-        <DatePickerField value={date} onChange={setDate} availability={availability} />
-      </Field>
-
-      <Field label="Time">
-        <input className={styles.input} type="time" value={time} onChange={e => setTime(e.target.value)} style={{ maxWidth: 200 }} />
-      </Field>
-
-      <Field label="Location">
-        <input className={styles.input} placeholder='City, Venue name (Landmark near venue)' value={location_} onChange={e => setLocation(e.target.value)} />
-        <p className={styles.hint}>e.g. "Mumbai, The Taj Mahal Palace (Gateway of India)"</p>
-      </Field>
-
-      <Field label={`Expected capacity — ${capacity} guests`}>
-        <input type="range" min={10} max={2000} step={10} value={capacity} onChange={e => setCapacity(Number(e.target.value))} className={styles.slider} />
-        <div className={styles.sliderLabels}><span>10</span><span>2,000</span></div>
-      </Field>
-
-      <div className={styles.sectionLabel} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span>Reference event <span className={styles.sectionNote}>— optional</span></span>
-        <button className={styles.linkBtn} onClick={() => window.open('/explore', '_blank')}>Browse Explore Events ↗</button>
-      </div>
-
-      {refEvent ? (
-        <div className={styles.refSelected}>
-          <div className={styles.refThumb} style={{ background: getGradient(refEvent.type) }}>
-            {refEvent.image_url
-              ? <img src={refEvent.image_url} alt={refEvent.title} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 }} />
-              : <span style={{ fontSize: 22 }}>{getEmoji(refEvent.type)}</span>
-            }
+      <div className={styles.basicsLayout}>
+        {/* LEFT — form fields */}
+        <div className={styles.basicsLeft}>
+          <div className={styles.fieldRow}>
+            <Field label="Event name"><input className={styles.input} placeholder="e.g. Shubh's Summer Gala" value={name} onChange={e => setName(e.target.value)} /></Field>
+            <Field label="Type of event">
+              <select className={styles.input} value={evType} onChange={e => setEvType(e.target.value)}>
+                <option value="">Select type...</option>
+                {EVENT_TYPES.map(t => <option key={t}>{t}</option>)}
+              </select>
+            </Field>
           </div>
-          <div className={styles.refInfo}>
-            <div className={styles.refName}>{refEvent.title}</div>
-            <div className={styles.refMeta}>{refEvent.type} · {refEvent.venue} · {refEvent.month} {refEvent.year}</div>
+
+          <Field label="Date of event">
+            <DatePickerField value={date} onChange={setDate} availability={availability} />
+          </Field>
+
+          <Field label="Time">
+            <input className={styles.input} type="time" value={time} onChange={e => setTime(e.target.value)} style={{ maxWidth: 200 }} />
+          </Field>
+
+          <Field label="Location">
+            <input className={styles.input} placeholder='City, Venue name (Landmark near venue)' value={location_} onChange={e => setLocation(e.target.value)} />
+            <p className={styles.hint}>e.g. "Mumbai, The Taj Mahal Palace (Gateway of India)"</p>
+          </Field>
+
+          <Field label={`Expected capacity — ${capacity} guests`}>
+            <input type="range" min={10} max={2000} step={10} value={capacity} onChange={e => setCapacity(Number(e.target.value))} className={styles.slider} />
+            <div className={styles.sliderLabels}><span>10</span><span>2,000</span></div>
+          </Field>
+
+          <div className={styles.btnRow}>
+            <button className={styles.btnSecondary} onClick={() => alert('Saved to drafts')}>Save as draft</button>
+            <button className={styles.btnPrimary} onClick={onNext} disabled={!name || !evType || !date}>Next — Choose vendors</button>
           </div>
-          <button className={styles.refRemove} onClick={() => setRefEvent(null)}>✕ Remove</button>
         </div>
-      ) : (
-        <p className={styles.hint} style={{ marginBottom: 18 }}>No reference selected.</p>
-      )}
 
-      <div className={styles.btnRow}>
-        <button className={styles.btnSecondary} onClick={() => alert('Saved to drafts')}>Save as draft</button>
-        <button className={styles.btnPrimary} onClick={onNext} disabled={!name || !evType || !date}>Next — Choose vendors</button>
+        {/* RIGHT — reference event panel */}
+        <div className={styles.basicsRight}>
+          <div className={styles.refPanelHeader}>
+            <span className={styles.sectionLabel}>Reference event <span className={styles.sectionNote}>— optional</span></span>
+            <button className={styles.linkBtn} onClick={() => window.open('/explore', '_blank')}>Browse Explore Events ↗</button>
+          </div>
+
+          {refEvent ? (
+            <div className={styles.refPanelCard}>
+              <div className={styles.refPanelImage} style={{ background: getGradient(refEvent.type) }}>
+                {refEvent.image_url
+                  ? <img src={refEvent.image_url} alt={refEvent.title} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 10 }} />
+                  : <span style={{ fontSize: 56 }}>{getEmoji(refEvent.type)}</span>
+                }
+              </div>
+              {/* Cost badge shown directly below the image */}
+              {(refEvent.price ?? refEvent.cost ?? refEvent.budget ?? refEvent.avg_cost) != null && (
+                <div className={styles.refPanelCostBar}>
+                  <span className={styles.refPanelCostLabel}>Estimated package cost</span>
+                  <span className={styles.refPanelCostAmt}>
+                    ₹{(refEvent.price ?? refEvent.cost ?? refEvent.budget ?? refEvent.avg_cost).toLocaleString('en-IN')}
+                  </span>
+                </div>
+              )}
+              <div className={styles.refPanelInfo}>
+                <div className={styles.refName}>{refEvent.title}</div>
+                <div className={styles.refMeta}>{refEvent.type} · {refEvent.venue} · {refEvent.month} {refEvent.year}</div>
+                <button className={styles.refRemove} onClick={() => setRefEvent(null)}>✕ Remove</button>
+              </div>
+            </div>
+          ) : (
+            <div className={styles.refPanelEmpty}>
+              <div className={styles.refPanelEmptyIcon}>
+                <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect x="4" y="8" width="32" height="24" rx="4" stroke="rgba(200,175,120,0.25)" strokeWidth="1.5"/><path d="M4 14h32" stroke="rgba(200,175,120,0.2)" strokeWidth="1"/><circle cx="10" cy="22" r="3" stroke="rgba(200,175,120,0.2)" strokeWidth="1.2"/><path d="M15 28l4-5 4 4 3-3 6 7H4l6-7 5 4z" fill="rgba(200,175,120,0.08)" stroke="rgba(200,175,120,0.18)" strokeWidth="1"/></svg>
+              </div>
+              <p className={styles.refPanelEmptyText}>No reference selected</p>
+              <p className={styles.refPanelEmptySub}>Browse past events to use one as inspiration for your setup</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -396,22 +420,21 @@ function StepExtras({ extras, toggleExtra, extraNote, setExtraNote, onCalc, onBa
 }
 
 // ── Step 4 ────────────────────────────────────────────────────────────────────
-function StepBudget({ budget, vendors, capacity, extras, ticketPrice, setTicketPrice, ticketQty, setTicketQty, revenue, submitting, submitError, onBack, onDone }) {
-  const rows = [...Object.entries(vendors).map(([n,cost]) => ({ label: n, amt: cost })), { label: `Per-head catering (${capacity} × ₹180)`, amt: budget.cateringEst }, ...(extras.size > 0 ? [{ label: `Extra requirements (${extras.size} items)`, amt: budget.extrasCost }] : []), { label: 'Contingency buffer (12%)', amt: budget.buffer }];
+function StepBudget({ budget, vendors, capacity, extras, refEvent, submitting, submitError, onBack, onDone }) {
+  const rows = [
+    ...Object.entries(vendors).map(([n, cost]) => ({ label: n, amt: cost })),
+    ...(budget.refEventCost > 0
+      ? [{ label: refEvent?.title ? `Reference: ${refEvent.title}` : 'Reference event package', amt: budget.refEventCost }]
+      : []),
+    ...(extras.size > 0 ? [{ label: `Extra requirements (${extras.size} items)`, amt: budget.extrasCost }] : []),
+    { label: 'Contingency buffer (5%)', amt: budget.buffer },
+  ];
   return (
     <div className={styles.stepWrap}>
       <div className={styles.budgetCard}>
         <div className={styles.budgetTitle}>Estimated cost breakdown</div>
         {rows.map(r => <div key={r.label} className={styles.budgetRow}><span className={styles.budgetLabel}>{r.label}</span><span className={styles.budgetAmt}>₹{r.amt.toLocaleString('en-IN')}</span></div>)}
         <div className={styles.budgetTotal}><span className={styles.budgetTotalLabel}>Avg total estimate</span><span className={styles.budgetTotalAmt}>₹{budget.grand.toLocaleString('en-IN')}</span></div>
-      </div>
-      <div className={styles.ticketSection}>
-        <div className={styles.sectionLabel}>Ticket pricing (optional)</div>
-        <div className={styles.fieldRow}>
-          <Field label="Price per ticket (₹)"><input className={styles.input} type="number" placeholder="e.g. 1500" value={ticketPrice} onChange={e => setTicketPrice(e.target.value)} /></Field>
-          <Field label="Max tickets"><input className={styles.input} type="number" placeholder="e.g. 200" value={ticketQty} onChange={e => setTicketQty(e.target.value)} /></Field>
-        </div>
-        {revenue !== null && <div className={styles.revenueNote}>Potential gross revenue: <strong>₹{revenue.toLocaleString('en-IN')}</strong>{revenue >= budget.grand && <span className={styles.revGreen}> · Covers full cost ✓</span>}</div>}
       </div>
       {submitError && <div style={{ background: 'rgba(235,87,87,0.1)', border: '0.5px solid rgba(235,87,87,0.3)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: '#eb5757' }}>{submitError}</div>}
       <div className={styles.btnRow}>

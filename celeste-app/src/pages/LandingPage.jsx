@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useSlider } from '../hooks/useSlider';
 import { useModal } from '../hooks/useModal';
@@ -14,6 +14,74 @@ const heroSlides = [
   { tag: 'Wildlife Edition', title: 'Moments Frozen in Time', sub: 'Rare wildlife encounters, beautifully preserved in every frame.', btnText: 'Book a Session', btnLink: '#contact' },
 ];
 
+/* Hardcoded Gallery Data — independent from the database/Explore Events gallery */
+const hardcodedGallery = [
+  {
+    id: 'hc-1',
+    image_url: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=600&q=80',
+    title: 'Mountain Lake',
+    tag: 'Landscape',
+    location: 'Scenic View',
+    description: 'A serene mountain lake reflecting the peaks above.',
+  },
+  {
+    id: 'hc-2',
+    image_url: 'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?w=600&q=80',
+    title: 'Forest Path',
+    tag: 'Nature',
+    location: 'Woodland Trail',
+    description: 'A winding path through an ancient forest.',
+  },
+  {
+    id: 'hc-3',
+    image_url: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=600&q=80',
+    title: 'Golden Hills',
+    tag: 'Sunrise',
+    location: 'Dawn Light',
+    description: 'Rolling hills bathed in the golden light of dawn.',
+  },
+  {
+    id: 'hc-4',
+    image_url: 'https://images.unsplash.com/photo-1501854140801-50d01698950b?w=600&q=80',
+    title: 'Panoramic Vista',
+    tag: 'Valley',
+    location: 'Mountain Range',
+    description: 'A sweeping panorama of valleys and distant peaks.',
+  },
+  {
+    id: 'hc-5',
+    image_url: 'https://images.unsplash.com/photo-1426604966848-d7adac402bff?w=600&q=80',
+    title: 'Golden Foliage',
+    tag: 'Autumn',
+    location: 'Seasonal Colors',
+    description: 'Autumn trees ablaze with warm golden hues.',
+  },
+  {
+    id: 'hc-6',
+    image_url: 'https://images.unsplash.com/photo-1518020382113-a7e8fc38eac9?w=600&q=80',
+    title: "Nature's Beauty",
+    tag: 'Wildlife',
+    location: 'Animal Kingdom',
+    description: 'Wildlife captured in its natural habitat.',
+  },
+  {
+    id: 'hc-7',
+    image_url: 'https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?w=600&q=80',
+    title: 'Pine Forest',
+    tag: 'Forest',
+    location: 'Evergreen',
+    description: 'Tall pine trees stretching toward a clear sky.',
+  },
+  {
+    id: 'hc-8',
+    image_url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=600&q=80',
+    title: 'Mountain Peak',
+    tag: 'Summit',
+    location: 'High Altitude',
+    description: 'A dramatic summit rising above the clouds.',
+  },
+];
+
 /* Gallery Modal Component */
 function GalleryModal({ isOpen, onClose, item, onPrev, onNext }) {
   if (!item) return null;
@@ -25,12 +93,13 @@ function GalleryModal({ isOpen, onClose, item, onPrev, onNext }) {
         </div>
         <div className="modal-content">
           <button className="modal-close" onClick={onClose}>x</button>
+          {item.tag && <div className="modal-tag">{item.tag}</div>}
           <div className="modal-title">{item.title || 'Untitled'}</div>
           {item.description && <div className="modal-desc">{item.description}</div>}
-          {item.event_date && (
+          {item.location && (
             <div className="detail-row" style={{ marginTop: 12 }}>
-              <span className="d-label">Date</span>
-              <span className="d-val">{new Date(item.event_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+              <span className="d-label">Location</span>
+              <span className="d-val">{item.location}</span>
             </div>
           )}
           <div className="modal-footer">
@@ -171,19 +240,7 @@ function ContactSection() {
 /* Landing Page */
 export default function LandingPage() {
   const { current: heroCurrent, goTo: goToHero } = useSlider(heroSlides.length, 4000);
-  const [galleryImages, setGalleryImages] = useState([]);
-  const [galleryLoading, setGalleryLoading] = useState(true);
-  const { isOpen, open, close, navigate, currentIndex } = useModal(galleryImages.length);
-
-  useEffect(() => {
-    fetch(`${API}/gallery`)
-      .then(res => res.json())
-      .then(data => {
-        setGalleryImages(Array.isArray(data) ? data : []);
-        setGalleryLoading(false);
-      })
-      .catch(() => setGalleryLoading(false));
-  }, []);
+  const { isOpen, open, close, navigate, currentIndex } = useModal(hardcodedGallery.length);
 
   return (
     <>
@@ -204,47 +261,42 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Gallery Grid — from DB */}
+      {/* Gallery Grid — hardcoded, fully independent from database */}
       <section id="gallery">
         <div className="section-label">Our Work</div>
         <h2 className="section-title">Visual Stories</h2>
         <div className="section-line"></div>
 
-        {galleryLoading ? (
-          <p style={{ textAlign: 'center', color: '#9e8e7a', padding: '40px 0' }}>Loading gallery…</p>
-        ) : galleryImages.length === 0 ? (
-          <p style={{ textAlign: 'center', color: '#9e8e7a', padding: '40px 0' }}>No images yet.</p>
-        ) : (
-          <div className="gallery-grid">
-            {galleryImages.map((item, index) => (
-              <div key={item.id} className="gallery-item" onClick={() => open(index)}>
-                <img src={item.image_url} alt={item.title} loading="lazy" />
-                <div className="eye-icon">
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1 8s3-6 7-6 7 6 7 6-3 6-7 6-7-6-7-6z" stroke="white" strokeWidth="1.4" fill="none"/><circle cx="8" cy="8" r="2" stroke="white" strokeWidth="1.3" fill="none"/></svg>
-                </div>
-                <div className="item-overlay">
-                  <div className="item-mini">
-                    <div className="item-mini-text">
-                      <div className="item-mini-title">{item.title || 'Untitled'}</div>
-                      {item.event_date && (
-                        <div className="item-mini-meta">
-                          <span className="meta-chip">{new Date(item.event_date).getFullYear()}</span>
-                        </div>
-                      )}
-                    </div>
+        <div className="gallery-grid">
+          {hardcodedGallery.map((item, index) => (
+            <div key={item.id} className="gallery-item" onClick={() => open(index)}>
+              <img src={item.image_url} alt={item.title} loading="lazy" />
+              <div className="eye-icon">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1 8s3-6 7-6 7 6 7 6-3 6-7 6-7-6-7-6z" stroke="white" strokeWidth="1.4" fill="none"/><circle cx="8" cy="8" r="2" stroke="white" strokeWidth="1.3" fill="none"/></svg>
+              </div>
+              <div className="item-overlay">
+                <div className="item-mini">
+                  <div className="item-mini-text">
+                    {item.tag && <div className="item-mini-tag">{item.tag}</div>}
+                    <div className="item-mini-title">{item.title}</div>
+                    {item.location && (
+                      <div className="item-mini-meta">
+                        <span className="meta-chip">{item.location}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+            </div>
+          ))}
+        </div>
       </section>
 
       {/* Gallery Modal */}
       <GalleryModal
         isOpen={isOpen}
         onClose={close}
-        item={galleryImages[currentIndex] || null}
+        item={hardcodedGallery[currentIndex] || null}
         onPrev={() => navigate(-1)}
         onNext={() => navigate(1)}
       />

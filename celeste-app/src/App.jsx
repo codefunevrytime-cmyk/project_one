@@ -18,9 +18,9 @@ import PhotographerProfilePage from "./pages/PhotographerProfilePage";
 import MyEvents from "./pages/MyEvents";
 import AdminApp from "./admin/AdminApp";
 import CreateEventPage from "./pages/CreateEventPage";
-import PaymentCheckout from "./pages/PaymentCheckout";
-import PaymentsHistory from "./pages/PaymentsHistory";
 import PaymentsEmpty from "./pages/PaymentsEmpty";
+import PaymentCheckout from './pages/PaymentCheckout';
+import PaymentsHistory from './pages/PaymentsHistory';
 
 // ── Decides which payments page to show based on whether user has events ──────
 // Replace the mock check below with your real API call once backend is ready:

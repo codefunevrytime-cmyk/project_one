@@ -25,7 +25,7 @@ export default function LoginPage() {
       const size = Math.random() * 7 + 2;
       const x = Math.random() * 58;
       const dur = Math.random() * 7 + 6;
-      const delay = Math.random() * 9;
+      const delay = Math.random() * 1;
       const color = colors[Math.floor(Math.random() * colors.length)];
       el.style.cssText = 'position:absolute;border-radius:50%;width:'+size+'px;height:'+size+'px;left:'+x+'%;bottom:-10px;background:'+color+';animation:floatUp '+dur+'s linear '+delay+'s infinite;';
       container.appendChild(el);
@@ -111,8 +111,10 @@ export default function LoginPage() {
           </div>
           <div className="field">
             <label>Password</label>
-            <input type={showPw ? 'text' : 'password'} placeholder="••••••••" value={pw} onChange={(e) => setPw(e.target.value)} className="has-icon" />
-            <button className="eye-btn" type="button" onClick={() => setShowPw(!showPw)}>{showPw ? '🙈' : '👁'}</button>
+            <div style={{ position: 'relative' }}>
+              <input type={showPw ? 'text' : 'password'} placeholder="••••••••" value={pw} onChange={(e) => setPw(e.target.value)} className="has-icon" style={{ width: '100%', paddingRight: '2.5rem', boxSizing: 'border-box' }} />
+              <button className="eye-btn" type="button" onClick={() => setShowPw(!showPw)} style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1 }}>{showPw ? '🙈' : '👁'}</button>
+            </div>
           </div>
           <div className="options-row">
             <label className="remember"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> Remember me</label>

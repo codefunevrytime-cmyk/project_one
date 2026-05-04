@@ -10,6 +10,7 @@ export default function SignupPage() {
   const [fname, setFname] = useState('');
   const [lname, setLname] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [pw, setPw] = useState('');
   const [pw2, setPw2] = useState('');
   const [showPw, setShowPw] = useState(false);
@@ -28,7 +29,7 @@ export default function SignupPage() {
       const size = Math.random() * 7 + 2;
       const x = Math.random() * 58;
       const dur = Math.random() * 7 + 6;
-      const delay = Math.random() * 9;
+      const delay = Math.random() * 1;
       const color = colors[Math.floor(Math.random() * colors.length)];
       el.style.cssText = 'position:absolute;border-radius:50%;width:'+size+'px;height:'+size+'px;left:'+x+'%;bottom:-10px;background:'+color+';animation:floatUp '+dur+'s linear '+delay+'s infinite;';
       container.appendChild(el);
@@ -127,10 +128,13 @@ export default function SignupPage() {
             <div className="field"><label>Last name</label><input type="text" placeholder="Sharma" value={lname} onChange={(e) => setLname(e.target.value)} /></div>
           </div>
           <div className="field"><label>Email address</label><input type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
+          <div className="field"><label>Phone number <span style={{ fontWeight: 400, opacity: 0.45, fontSize: '0.8em' }}>(optional)</span></label><input type="tel" placeholder="+91 98765 43210" value={phone} onChange={(e) => setPhone(e.target.value)} /></div>
           <div className="field">
             <label>Password</label>
-            <input type={showPw ? 'text' : 'password'} placeholder="Create a strong password" className="has-icon" value={pw} onChange={(e) => { setPw(e.target.value); checkStrength(e.target.value); }} />
-            <button className="eye-btn" type="button" onClick={() => setShowPw(!showPw)}>{showPw ? '🙈' : '👁'}</button>
+            <div style={{ position: 'relative' }}>
+              <input type={showPw ? 'text' : 'password'} placeholder="Create a strong password" className="has-icon" value={pw} onChange={(e) => { setPw(e.target.value); checkStrength(e.target.value); }} style={{ width: '100%', paddingRight: '2.5rem', boxSizing: 'border-box' }} />
+              <button className="eye-btn" type="button" onClick={() => setShowPw(!showPw)} style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1 }}>{showPw ? '🙈' : '👁'}</button>
+            </div>
             <div className="strength-wrap">
               <div className="strength-bar">
                 {[1,2,3,4].map((n) => <div key={n} className={'strength-seg ' + (strength >= n ? 'lit ' + ['weak','fair','good','strong'][strength - 1] : '')} />)}
@@ -140,8 +144,10 @@ export default function SignupPage() {
           </div>
           <div className="field">
             <label>Confirm password</label>
-            <input type={showPw2 ? 'text' : 'password'} placeholder="Repeat your password" className="has-icon" value={pw2} onChange={(e) => setPw2(e.target.value)} />
-            <button className="eye-btn" type="button" onClick={() => setShowPw2(!showPw2)}>{showPw2 ? '🙈' : '👁'}</button>
+            <div style={{ position: 'relative' }}>
+              <input type={showPw2 ? 'text' : 'password'} placeholder="Repeat your password" className="has-icon" value={pw2} onChange={(e) => setPw2(e.target.value)} style={{ width: '100%', paddingRight: '2.5rem', boxSizing: 'border-box' }} />
+              <button className="eye-btn" type="button" onClick={() => setShowPw2(!showPw2)} style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1 }}>{showPw2 ? '🙈' : '👁'}</button>
+            </div>
           </div>
           <div className="terms"><input type="checkbox" /><span>I agree to the Terms of Service and Privacy Policy.</span></div>
           <button className="btn-main" onClick={handleSignup} disabled={loading}>
@@ -158,4 +164,3 @@ export default function SignupPage() {
     </div>
   );
 }
-
