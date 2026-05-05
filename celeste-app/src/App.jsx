@@ -1,5 +1,7 @@
 import { BrowserRouter as Router, Route, Routes, useLocation, Navigate } from "react-router-dom";
+import { useState, useEffect } from "react";
 import { AuthProvider } from "./context/AuthContext";
+import { useAuth } from "./hooks/useAuth";
 import { useBookmarks } from "./hooks/useBookmarks";
 import BookmarkToast from "./components/BookmarkToast_2";
 import Navbar from "./components/Navbar";
@@ -22,18 +24,22 @@ import PaymentsEmpty from "./pages/PaymentsEmpty";
 import PaymentCheckout from './pages/PaymentCheckout';
 import PaymentsHistory from './pages/PaymentsHistory';
 
-// ── Decides which payments page to show based on whether user has events ──────
-// Replace the mock check below with your real API call once backend is ready:
-//   const [hasEvents, setHasEvents] = useState(false);
-//   useEffect(() => {
-//     fetch("http://localhost:5000/api/bookings/mine")
-//       .then(r => r.json())
-//       .then(d => setHasEvents(Array.isArray(d) && d.length > 0))
-//       .catch(() => {});
-//   }, []);
+// ── Decides which payments page to show based on real payment history ─────────
 function PaymentsGate() {
-  const hasEvents = false; // ← flip to true (or wire API) to show history
-  return hasEvents ? <PaymentsHistory /> : <PaymentsEmpty />;
+  const { user } = useAuth();
+  const [hasPayments, setHasPayments] = useState(false);
+  const [checking,    setChecking]    = useState(true);
+
+  useEffect(() => {
+    if (!user?.email) { setChecking(false); return; }
+    fetch(`http://localhost:5000/api/payments/history?email=${encodeURIComponent(user.email)}`)
+      .then(r => r.json())
+      .then(d => { setHasPayments(Array.isArray(d) && d.length > 0); setChecking(false); })
+      .catch(() => setChecking(false));
+  }, [user]);
+
+  if (checking) return null;
+  return hasPayments ? <PaymentsHistory /> : <PaymentsEmpty />;
 }
 
 function MainApp({ bm }) {
@@ -104,9 +110,9 @@ function MainApp({ bm }) {
         <Route path="/create-events" element={<CreateEventPage />} />
 
         {/* ── Payments ── */}
-        <Route path="/payments" element={<PaymentsGate />} />
+        <Route path="/payments"          element={<PaymentsGate />} />
         <Route path="/payments/checkout" element={<PaymentCheckout />} />
-        <Route path="/payments/success" element={<PaymentsHistory />} />
+        <Route path="/payments/history"  element={<PaymentsHistory />} />
 
         {/* ── Admin ── */}
         <Route path="/admin/*" element={<AdminApp />} />

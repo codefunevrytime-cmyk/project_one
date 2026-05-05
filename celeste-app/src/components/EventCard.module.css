@@ -154,19 +154,16 @@
   gap: 2px;
   margin-bottom: 10px;
 }
-.priceSym {
-  font-size: 13px;
-  color: #7a6248;
-}
+
 .priceVal {
-  font-size: 20px;
+  font-size: 28px;
   font-weight: 600;
   color: #e6e6e6;
   font-family: 'Playfair Display', serif;
 }
 .priceUnit {
-  font-size: 11px;
-  color: #b09878;
+  font-size: 41px;
+  color: #d48722;
   margin-left: 3px;
 }
 
@@ -203,7 +200,7 @@
   .title { color: #f5f0e8; }
   .meta  { color: #9e8e7a; }
   .location { color: #9e8e7a; }
-  .priceVal { color: #f5f0e8; }
+  .priceVal { color: #e2ddd5; }
   .tagType  { background: #3a2a00; color: #f0c060; }
   .tagVenue { background: #0a2a18; color: #6ed4a0; }
   .tagScale { background: #2a2018; color: #c4a882; }
@@ -217,44 +214,8 @@
   gap: 2px;
   margin-bottom: 10px;
 }
-.priceSym {
-  font-size: 13px;
-  color: #7a6248;
-}
-.priceVal {
-  font-size: 20px;
-  font-weight: 600;
-  color: #ffffff;
-  font-family: 'Playfair Display', serif;
-}
-.priceUnit {
-  font-size: 11px;
-  color: #b09878;
-  margin-left: 3px;
-}
 
-/* Photography-style price row */
-.vendorPrice {
-  display: flex;
-  align-items: baseline;
-  gap: 2px;
-  margin-bottom: 8px;
-}
-.priceSym {
-  font-size: 13px;
-  color: #7a6248;
-}
-.priceVal {
-font-size: 28px;
-    font-weight: 500;
-    color: var(--text-primary);
-  font-family: 'Playfair Display', serif;
-}
-.priceUnit {
-  font-size: 11px;
-  color: #b09878;
-  margin-left: 3px;
-}
+
 .location {
   display: flex;
   align-items: center;

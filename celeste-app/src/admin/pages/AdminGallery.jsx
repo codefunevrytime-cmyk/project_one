@@ -5,25 +5,42 @@ const token = () => localStorage.getItem('adminToken');
 
 const EVENT_TYPES = ['Wedding', 'Birthday', 'Corporate', 'Concert', 'Festival', 'Sports', 'Outdoor', 'Expo', 'Cultural', 'Charity', 'Food'];
 
+
+const SCALE_OPTIONS = ['Small', 'Medium', 'Large'];
+
+const inputStyle = {
+  width: '100%', padding: '9px 12px', border: '1px solid #e8e0d5',
+  borderRadius: 8, fontSize: 13, fontFamily: 'inherit',
+  outline: 'none', boxSizing: 'border-box', background: '#fff',
+};
+const labelStyle = {
+  fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase',
+  color: '#9e8e7a', display: 'block', marginBottom: 6,
+};
+
 export default function AdminGallery() {
-  const [images, setImages] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [images, setImages]       = useState([]);
+  const [loading, setLoading]     = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [form, setForm] = useState({ title: '', description: '', event_date: '', price: '', tags: '', event_type: '' });
-  const [file, setFile] = useState(null);
+  const [form, setForm] = useState({
+    title: '', description: '', event_date: '',
+    price: '', tags: '', event_type: '', venue: '', scale: ''
+  });
+  const [file, setFile]       = useState(null);
   const [preview, setPreview] = useState(null);
   const [success, setSuccess] = useState('');
   const [filterType, setFilterType] = useState('');
 
+  const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }));
+
   const fetchImages = async () => {
+    setLoading(true);
     try {
-      const url = filterType ? `${API}/gallery?event_type=${filterType}` : `${API}/gallery`;
-      const res = await fetch(url);
+      const url  = filterType ? `${API}/gallery?event_type=${filterType}` : `${API}/gallery`;
+      const res  = await fetch(url);
       const data = await res.json();
       setImages(data);
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); }
     setLoading(false);
   };
 
@@ -38,33 +55,33 @@ export default function AdminGallery() {
   const handleUpload = async () => {
     if (!file) return;
     setUploading(true);
-    const formData = new FormData();
-    formData.append('image', file);
-    formData.append('title', form.title);
-    formData.append('description', form.description);
-    formData.append('event_date', form.event_date);
-    formData.append('price', form.price);
-    formData.append('tags', form.tags);
-    formData.append('event_type', form.event_type);
+    const fd = new FormData();
+    fd.append('image',       file);
+    fd.append('title',       form.title);
+    fd.append('description', form.description);
+    fd.append('event_date',  form.event_date);
+    fd.append('price',       form.price);
+    fd.append('tags',        form.tags);
+    fd.append('event_type',  form.event_type);
+    fd.append('venue',       form.venue);
+    fd.append('scale',       form.scale);
 
     try {
-      const res = await fetch(`${API}/gallery`, {
+      const res  = await fetch(`${API}/gallery`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token()}` },
-        body: formData,
+        body: fd,
       });
       const data = await res.json();
       if (data.success) {
         setSuccess('Image uploaded successfully!');
         setFile(null);
         setPreview(null);
-        setForm({ title: '', description: '', event_date: '', price: '', tags: '', event_type: '' });
+        setForm({ title: '', description: '', event_date: '', price: '', tags: '', event_type: '', venue: '', scale: '' });
         fetchImages();
         setTimeout(() => setSuccess(''), 3000);
       }
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); }
     setUploading(false);
   };
 
@@ -76,19 +93,18 @@ export default function AdminGallery() {
         headers: { Authorization: `Bearer ${token()}` },
       });
       fetchImages();
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); }
   };
 
   return (
     <div>
+      {/* ── Page header ── */}
       <div style={{ marginBottom: 32 }}>
         <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 26, color: '#1a1008', marginBottom: 4 }}>Gallery</h2>
         <p style={{ fontSize: 13, color: '#9e8e7a' }}>Upload and manage recent event photos</p>
       </div>
 
-      {/* Upload Form */}
+      {/* ── Upload Form ── */}
       <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8e0d5', padding: 24, marginBottom: 32 }}>
         <h3 style={{ fontSize: 15, fontWeight: 500, color: '#1a1008', marginBottom: 20 }}>Upload New Image</h3>
 
@@ -98,46 +114,82 @@ export default function AdminGallery() {
           </div>
         )}
 
+        {/* Row 1: Title + Event Type */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
           <div>
-            <label style={{ fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: '#9e8e7a', display: 'block', marginBottom: 6 }}>Title</label>
-            <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="e.g. Royal Wedding 2024"
-              style={{ width: '100%', padding: '9px 12px', border: '1px solid #e8e0d5', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
+            <label style={labelStyle}>Title</label>
+            <input value={form.title} onChange={set('title')} placeholder="e.g. Royal Wedding 2024" style={inputStyle} />
           </div>
           <div>
-            <label style={{ fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: '#9e8e7a', display: 'block', marginBottom: 6 }}>Event Type</label>
-            <select value={form.event_type} onChange={e => setForm({ ...form, event_type: e.target.value })}
-              style={{ width: '100%', padding: '9px 12px', border: '1px solid #e8e0d5', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}>
+            <label style={labelStyle}>Event Type</label>
+            <select value={form.event_type} onChange={set('event_type')} style={inputStyle}>
               <option value="">Select event type</option>
               {EVENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
+        </div>
+
+        {/* Row 2: Venue + Scale */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
           <div>
-            <label style={{ fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: '#9e8e7a', display: 'block', marginBottom: 6 }}>Event Date</label>
-            <input type="date" value={form.event_date} onChange={e => setForm({ ...form, event_date: e.target.value })}
-              style={{ width: '100%', padding: '9px 12px', border: '1px solid #e8e0d5', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
+            <label style={labelStyle}>Location / Venue</label>
+            <input
+              value={form.venue}
+              onChange={set('venue')}
+              placeholder="e.g. Taj Hotel, Lucknow"
+              style={inputStyle}
+            />
           </div>
           <div>
-            <label style={{ fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: '#9e8e7a', display: 'block', marginBottom: 6 }}>Price (₹)</label>
-            <input type="number" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} placeholder="e.g. 50000"
-              style={{ width: '100%', padding: '9px 12px', border: '1px solid #e8e0d5', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
+            <label style={labelStyle}>Scale</label>
+            <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
+              {SCALE_OPTIONS.map(s => (
+                <label key={s} style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '8px 18px', borderRadius: 8, cursor: 'pointer',
+                  border: `1px solid ${form.scale === s ? '#c9a84c' : '#e8e0d5'}`,
+                  background: form.scale === s ? '#fdf6e3' : '#f7f5f2',
+                  color: form.scale === s ? '#8a5a00' : '#5a4a36',
+                  fontSize: 13, fontWeight: form.scale === s ? 600 : 400,
+                  transition: 'all 0.15s', userSelect: 'none',
+                }}>
+                  <input type="radio" name="scale" value={s} checked={form.scale === s}
+                    onChange={set('scale')} style={{ display: 'none' }} />
+                  {s}
+                </label>
+              ))}
+            </div>
           </div>
         </div>
 
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: '#9e8e7a', display: 'block', marginBottom: 6 }}>Tags (comma separated, up to 5)</label>
-          <input value={form.tags} onChange={e => setForm({ ...form, tags: e.target.value })} placeholder="e.g. Outdoor, Floral, Luxury, Evening, Candid"
-            style={{ width: '100%', padding: '9px 12px', border: '1px solid #e8e0d5', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
+        {/* Row 3: Event Date + Price */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+          <div>
+            <label style={labelStyle}>Event Date</label>
+            <input type="date" value={form.event_date} onChange={set('event_date')} style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Price (₹)</label>
+            <input type="number" value={form.price} onChange={set('price')} placeholder="e.g. 50000" style={inputStyle} />
+          </div>
         </div>
 
+        {/* Tags */}
         <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: '#9e8e7a', display: 'block', marginBottom: 6 }}>Description</label>
-          <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Brief description..." rows={2}
-            style={{ width: '100%', padding: '9px 12px', border: '1px solid #e8e0d5', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', resize: 'vertical' }} />
+          <label style={labelStyle}>Tags (comma separated, up to 5)</label>
+          <input value={form.tags} onChange={set('tags')} placeholder="e.g. Outdoor, Floral, Luxury, Evening, Candid" style={inputStyle} />
         </div>
 
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: '#9e8e7a', display: 'block', marginBottom: 6 }}>Image</label>
+        {/* Description */}
+        <div style={{ marginBottom: 20 }}>
+          <label style={labelStyle}>Description</label>
+          <textarea value={form.description} onChange={set('description')} placeholder="Brief description..." rows={2}
+            style={{ ...inputStyle, resize: 'vertical' }} />
+        </div>
+
+        {/* Image picker */}
+        <div style={{ marginBottom: 20 }}>
+          <label style={labelStyle}>Image</label>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <label style={{ padding: '9px 18px', background: '#f7f5f2', border: '1px solid #e8e0d5', borderRadius: 8, fontSize: 13, cursor: 'pointer', color: '#5a4a36' }}>
               Choose File
@@ -150,30 +202,28 @@ export default function AdminGallery() {
 
         <button onClick={handleUpload} disabled={!file || uploading}
           style={{ padding: '10px 24px', background: '#1a1008', color: '#ffa01e', border: 'none', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', fontWeight: 500, cursor: !file || uploading ? 'not-allowed' : 'pointer', opacity: !file || uploading ? 0.6 : 1 }}>
-          {uploading ? 'Uploading...' : 'Upload Image'}
+          {uploading ? 'Uploading…' : 'Upload Image'}
         </button>
       </div>
 
-      {/* Filter by event type */}
+      {/* ── Filter pills ── */}
       <div style={{ marginBottom: 20, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button onClick={() => setFilterType('')} style={{ padding: '6px 14px', borderRadius: 20, border: '1px solid #e8e0d5', background: filterType === '' ? '#1a1008' : '#f7f5f2', color: filterType === '' ? '#ffa01e' : '#5a4a36', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
-          All
-        </button>
-        {EVENT_TYPES.map(t => (
-          <button key={t} onClick={() => setFilterType(t)} style={{ padding: '6px 14px', borderRadius: 20, border: '1px solid #e8e0d5', background: filterType === t ? '#1a1008' : '#f7f5f2', color: filterType === t ? '#ffa01e' : '#5a4a36', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
-            {t}
+        {['', ...EVENT_TYPES].map(t => (
+          <button key={t} onClick={() => setFilterType(t)}
+            style={{ padding: '6px 14px', borderRadius: 20, border: '1px solid #e8e0d5', background: filterType === t ? '#1a1008' : '#f7f5f2', color: filterType === t ? '#ffa01e' : '#5a4a36', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+            {t === '' ? 'All' : t}
           </button>
         ))}
       </div>
 
-      {/* Image Grid */}
+      {/* ── Image Grid ── */}
       <div>
         <h3 style={{ fontSize: 15, fontWeight: 500, color: '#1a1008', marginBottom: 16 }}>
           {filterType ? `${filterType} Events` : 'All Images'} ({images.length})
         </h3>
 
         {loading ? (
-          <p style={{ color: '#9e8e7a', fontSize: 13 }}>Loading...</p>
+          <p style={{ color: '#9e8e7a', fontSize: 13 }}>Loading…</p>
         ) : images.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px 20px', background: '#fff', borderRadius: 12, border: '1px solid #e8e0d5' }}>
             <p style={{ color: '#9e8e7a', fontSize: 13 }}>No images found.</p>
@@ -182,28 +232,60 @@ export default function AdminGallery() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
             {images.map(img => (
               <div key={img.id} style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8e0d5', overflow: 'hidden' }}>
+
+                {/* Image + badges */}
                 <div style={{ position: 'relative' }}>
                   <img src={img.image_url} alt={img.title} style={{ width: '100%', height: 180, objectFit: 'cover', display: 'block' }} />
                   {img.event_type && (
-                    <span style={{ position: 'absolute', top: 10, left: 10, fontSize: 10, padding: '3px 9px', borderRadius: 20, background: 'rgba(26,16,8,0.7)', color: '#ffa01e', fontWeight: 500 }}>
+                    <span style={{ position: 'absolute', top: 10, left: 10, fontSize: 10, padding: '3px 9px', borderRadius: 20, background: 'rgba(26,16,8,0.75)', color: '#ffa01e', fontWeight: 500 }}>
                       {img.event_type}
                     </span>
                   )}
-                </div>
-                <div style={{ padding: '12px 14px' }}>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: '#371616', marginBottom: 4 }}>{img.title || 'Untitled'}</div>
-                  <div style={{ fontSize: 11, color: '#9e8e7a', marginBottom: 8 }}>{img.event_date ? new Date(img.event_date).toLocaleDateString() : 'No date'}</div>
-                  {img.price > 0 && (
-                    <div style={{ fontSize: 13, fontWeight: 500, color: '#ffa01e', marginBottom: 8 }}>₹{Number(img.price).toLocaleString('en-IN')}</div>
+                  {img.scale && (
+                    <span style={{ position: 'absolute', top: 10, right: 10, fontSize: 10, padding: '3px 9px', borderRadius: 20, background: 'rgba(26,16,8,0.75)', color: '#e8c97a', fontWeight: 500 }}>
+                      {img.scale}
+                    </span>
                   )}
+                </div>
+
+                {/* Card body */}
+                <div style={{ padding: '12px 14px' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1008', marginBottom: 5 }}>{img.title || 'Untitled'}</div>
+
+                  {/* Venue + Date row */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 11, color: '#9e8e7a', marginBottom: 8 }}>
+                    {img.venue && (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                          <path d="M8 1.5C5.5 1.5 3.5 3.5 3.5 6c0 3.5 4.5 8.5 4.5 8.5s4.5-5 4.5-8.5c0-2.5-2-4.5-4.5-4.5z"/>
+                          <circle cx="8" cy="6" r="1.5"/>
+                        </svg>
+                        {img.venue}
+                      </span>
+                    )}
+                    <span>
+                      {img.event_date
+                        ? new Date(img.event_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                        : 'No date'}
+                    </span>
+                  </div>
+
+                  {img.price > 0 && (
+                    <div style={{ fontSize: 13, fontWeight: 500, color: '#c9a84c', marginBottom: 8 }}>
+                      ₹{Number(img.price).toLocaleString('en-IN')}
+                    </div>
+                  )}
+
                   {img.tags && img.tags.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
                       {img.tags.slice(0, 3).map((t, i) => (
                         <span key={i} style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, background: '#f0e8d8', color: '#8a5a00', border: '1px solid #e8d0a0' }}>{t}</span>
                       ))}
                     </div>
                   )}
-                  <button onClick={() => handleDelete(img.id)} style={{ fontSize: 11, color: '#b91c1c', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: 'inherit' }}>
+
+                  <button onClick={() => handleDelete(img.id)}
+                    style={{ fontSize: 11, color: '#b91c1c', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: 'inherit' }}>
                     Delete
                   </button>
                 </div>

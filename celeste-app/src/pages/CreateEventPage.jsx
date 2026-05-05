@@ -183,13 +183,12 @@ export default function CreateEventPage() {
 
   const calculateBudget = () => {
     setCalcStep(true);
-    const vendorTotal  = Object.values(vendors).reduce((a, b) => a + b, 0);
-    const refEventCost = refEvent?.price ?? refEvent?.cost ?? refEvent?.budget ?? refEvent?.avg_cost ?? 0;
-    const extrasCost   = extras.size * 3500;
-    const subtotal     = vendorTotal + refEventCost + extrasCost;
-    const buffer       = Math.round(subtotal * 0.05);
-    const grand        = subtotal + buffer;
-    setTimeout(() => { setBudget({ vendorTotal, refEventCost, extrasCost, buffer, grand }); setCalcStep(false); setStep(3); }, 2200);
+    const vendorTotal = Object.values(vendors).reduce((a, b) => a + b, 0);
+    const cateringEst = capacity * 180;
+    const extrasCost  = extras.size * 3500;
+    const buffer      = Math.round((vendorTotal + cateringEst + extrasCost) * 0.05);
+    const grand       = vendorTotal + cateringEst + extrasCost + buffer;
+    setTimeout(() => { setBudget({ vendorTotal, cateringEst, extrasCost, buffer, grand }); setCalcStep(false); setStep(3); }, 2200);
   };
 
   const handleCreateEvent = useCallback(async () => {
@@ -205,37 +204,13 @@ export default function CreateEventPage() {
       const res  = await fetch(`${API}/bookings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_name: user?.name || 'Guest', email: user?.email || '', phone: '', event_type: evType, event_date: date, message: msg }) });
       const data = await res.json();
 if (data.success) {
-  navigate("/payments/checkout", {
-    state: {
-      event: {
-        id:      data.bookingId || data.id || "NEW",
-        name,
-        type:    evType,
-        venue:   location_,
-        guests:  capacity,
-        vendors: Object.keys(vendors).length,
-        date,
-        time,
-        breakdown: [
-          ...Object.entries(vendors).map(([label, amount]) => ({
-            label,
-            sub: "Vendor service",
-            amount,
-          })),
-          ...(budget.refEventCost > 0 ? [{ label: refEvent?.title ? `Reference: ${refEvent.title}` : 'Reference event package', sub: "Based on selected event", amount: budget.refEventCost }] : []),
-          ...(extras.size > 0 ? [{ label: "Extra requirements", sub: `${extras.size} items`, amount: budget.extrasCost }] : []),
-          { label: "Contingency buffer (5%)", sub: "Applied on subtotal", amount: budget.buffer },
-        ],
-        gst: 0.18,
-      }
-    }
-  });
+  navigate("/my-events", { state: { bookingSuccess: true } });
 } else {
   setSubmitError('Something went wrong. Please try again.');
 }    
 } catch { setSubmitError('Could not connect to server.'); }
     setSubmitting(false);
-  }, [user, name, evType, date, time, location_, capacity, vendors, extras, extraNote, budget, refEvent]);
+  }, [user, name, evType, date, time, location_, capacity, vendors, extras, extraNote, budget]);
 
   const revenue = ticketPrice && ticketQty ? Math.round(parseFloat(ticketPrice) * parseFloat(ticketQty)) : null;
   const goNext  = () => setStep(s => Math.min(s + 1, 3));
@@ -274,7 +249,7 @@ if (data.success) {
         {step === 0 && <StepBasics name={name} setName={setName} evType={evType} setEvType={setEvType} date={date} setDate={setDate} time={time} setTime={setTime} location_={location_} setLocation={setLocation} capacity={capacity} setCapacity={setCapacity} refEvent={refEvent} setRefEvent={setRefEvent} availability={availability} onNext={goNext} />}
         {step === 1 && <StepVendors vendors={vendors} toggleVendor={toggleVendor} onNext={goNext} onBack={goBack} />}
         {step === 2 && <StepExtras extras={extras} toggleExtra={toggleExtra} extraNote={extraNote} setExtraNote={setExtraNote} onCalc={calculateBudget} onBack={goBack} />}
-        {step === 3 && budget && <StepBudget budget={budget} vendors={vendors} capacity={capacity} extras={extras} refEvent={refEvent} submitting={submitting} submitError={submitError} onBack={goBack} onDone={handleCreateEvent} />}
+        {step === 3 && budget && <StepBudget budget={budget} vendors={vendors} capacity={capacity} extras={extras} submitting={submitting} submitError={submitError} onBack={goBack} onDone={handleCreateEvent} />}
       </main>
     </div>
   );
@@ -336,15 +311,6 @@ function StepBasics({ name, setName, evType, setEvType, date, setDate, time, set
                   : <span style={{ fontSize: 56 }}>{getEmoji(refEvent.type)}</span>
                 }
               </div>
-              {/* Cost badge shown directly below the image */}
-              {(refEvent.price ?? refEvent.cost ?? refEvent.budget ?? refEvent.avg_cost) != null && (
-                <div className={styles.refPanelCostBar}>
-                  <span className={styles.refPanelCostLabel}>Estimated package cost</span>
-                  <span className={styles.refPanelCostAmt}>
-                    ₹{(refEvent.price ?? refEvent.cost ?? refEvent.budget ?? refEvent.avg_cost).toLocaleString('en-IN')}
-                  </span>
-                </div>
-              )}
               <div className={styles.refPanelInfo}>
                 <div className={styles.refName}>{refEvent.title}</div>
                 <div className={styles.refMeta}>{refEvent.type} · {refEvent.venue} · {refEvent.month} {refEvent.year}</div>
@@ -420,15 +386,8 @@ function StepExtras({ extras, toggleExtra, extraNote, setExtraNote, onCalc, onBa
 }
 
 // ── Step 4 ────────────────────────────────────────────────────────────────────
-function StepBudget({ budget, vendors, capacity, extras, refEvent, submitting, submitError, onBack, onDone }) {
-  const rows = [
-    ...Object.entries(vendors).map(([n, cost]) => ({ label: n, amt: cost })),
-    ...(budget.refEventCost > 0
-      ? [{ label: refEvent?.title ? `Reference: ${refEvent.title}` : 'Reference event package', amt: budget.refEventCost }]
-      : []),
-    ...(extras.size > 0 ? [{ label: `Extra requirements (${extras.size} items)`, amt: budget.extrasCost }] : []),
-    { label: 'Contingency buffer (5%)', amt: budget.buffer },
-  ];
+function StepBudget({ budget, vendors, capacity, extras, submitting, submitError, onBack, onDone }) {
+  const rows = [...Object.entries(vendors).map(([n,cost]) => ({ label: n, amt: cost })), { label: `Per-head catering (${capacity} × ₹180)`, amt: budget.cateringEst }, ...(extras.size > 0 ? [{ label: `Extra requirements (${extras.size} items)`, amt: budget.extrasCost }] : []), { label: 'Contingency buffer (5%)', amt: budget.buffer }];
   return (
     <div className={styles.stepWrap}>
       <div className={styles.budgetCard}>

@@ -18,7 +18,7 @@ function mapVendorToCard(vendor, portfolio, tags) {
   const portfolioTags = [...new Set(portfolio.flatMap(p => p.tags || []))].slice(0, 3);
   return {
     id: `db_${vendor.id}`, _dbId: vendor.id, name: vendor.name,
-    location: 'Lucknow', rating: 5.0, reviews: 0, pricePerDay: 0,
+    location: 'Lucknow', rating: 5.0, reviews: 0, pricePerDay: vendor.price_per_day ? Number(vendor.price_per_day) : 0,
     type: typeFromSpecialty, media: ['Photo'],
     year: new Date(vendor.created_at).getFullYear(),
     month: new Date(vendor.created_at).getMonth() + 1,
@@ -340,10 +340,18 @@ function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark,
           <div className="vendor-bottom-row">
             {vendor.isDbItem ? (
               <>
-                <div style={{ fontSize:12, color:'var(--text-muted)', maxWidth:'60%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                  {vendor.contact || 'Contact for pricing'}
+                <div className="vendor-price">
+                  {vendor.pricePerDay > 0 ? (
+                    <>
+                      <span className="price-symbol">₹</span>
+                      <span className="price-val">{vendor.pricePerDay.toLocaleString('en-IN')}</span>
+                      <span className="price-unit">/ day</span>
+                    </>
+                  ) : (
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Price on request</span>
+                  )}
                 </div>
-<button className="vendor-cta" style={{ color:'#D4860A', borderColor:'rgba(212,134,10,0.4)' }} onClick={e => { e.stopPropagation(); navigate(`/services/photography/${vendor._dbId}`); }}>View Profile</button>
+                <button className="vendor-cta" style={{ color:'#D4860A', borderColor:'rgba(212,134,10,0.4)' }} onClick={e => { e.stopPropagation(); navigate(`/services/photography/${vendor._dbId}`); }}>View Profile</button>
               </>
             ) : (
               <>

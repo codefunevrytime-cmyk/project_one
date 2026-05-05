@@ -4,7 +4,6 @@ import { THEME_GRADIENTS, EVENT_CATEGORIES } from "../context/data/events";
 import styles from "./EventCard.module.css";
 import { useNavigate } from "react-router-dom";
 
-
 // ── helpers ───────────────────────────────────────────────────────────────
 function getGradient(type) {
   const g = THEME_GRADIENTS[type] || ["#f5f5f5", "#e0e0e0"];
@@ -41,10 +40,17 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
   const related = getRelated(event, allEvents);
   const navigate = useNavigate();
 
-  // Build description from DB data; fall back to auto-generated only if truly empty
-  const description = event.planner && event.planner.trim()
-    ? event.planner.trim()   // event.planner holds the raw description text (see mapGalleryToEvent in ExplorePage)
-    : null;
+  // Pull directly from DB fields (set by admin)
+  const venue       = event.venue       || "—";
+  const scale       = event.scale       || "—";
+  const description = event.description || event.planner || null;
+
+  // Build pills from DB data
+  const pills = [
+    event.type,
+    venue !== "—" ? venue : null,
+    scale !== "—" ? `${scale} scale` : null,
+  ].filter(Boolean);
 
   return (
     <div style={{
@@ -70,17 +76,19 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
       {/* top: image | details */}
       <div style={{ display: "grid", gridTemplateColumns: "42% 1fr", minHeight: 420 }}>
 
-        {/* image col — real photo from DB, or gradient fallback */}
+        {/* ── image col ── */}
         <div style={{
           position: "relative",
           display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 108,
-          overflow: "hidden",
+          fontSize: 108, overflow: "hidden",
           background: event.image_url ? "#1a1008" : getGradient(event.type),
         }}>
           {event.image_url
-            ? <img src={event.image_url} alt={event.title} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", position:"absolute", inset:0 }} />
-            : <span style={{ zIndex:1, position:"relative", filter:"drop-shadow(0 6px 16px rgba(0,0,0,0.18))" }}>{getEmoji(event.type)}</span>
+            ? <img src={event.image_url} alt={event.title}
+                style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", position:"absolute", inset:0 }} />
+            : <span style={{ zIndex:1, position:"relative", filter:"drop-shadow(0 6px 16px rgba(0,0,0,0.18))" }}>
+                {getEmoji(event.type)}
+              </span>
           }
 
           <div style={{ position:"absolute", inset:0, background:"linear-gradient(to top,rgba(0,0,0,0.22) 0%,transparent 55%)", pointerEvents:"none", zIndex:2 }} />
@@ -92,6 +100,16 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
             borderRadius:20, color:"#fff", background:"rgba(0,0,0,0.30)", backdropFilter:"blur(6px)", zIndex:3,
           }}>{event.type}</span>
 
+          {/* scale badge — top right of image */}
+          {event.scale && (
+            <span style={{
+              position:"absolute", top:16, right:52, fontSize:10, fontWeight:600,
+              padding:"4px 10px", borderRadius:20, color:"#e8c97a",
+              background:"rgba(0,0,0,0.45)", backdropFilter:"blur(6px)",
+              border:"0.5px solid rgba(232,201,122,0.3)", zIndex:3,
+            }}>{event.scale}</span>
+          )}
+
           {/* close */}
           <button className="ep-close" onClick={onClose} style={{
             position:"absolute", top:14, right:14, width:32, height:32,
@@ -101,7 +119,7 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
             transition:"background 0.18s", zIndex:3,
           }}>✕</button>
 
-          {/* bookmark — bottom right of image */}
+          {/* bookmark */}
           <button className="ep-bm" onClick={onBookmark} style={{
             position:"absolute", bottom:16, right:16, width:40, height:40,
             borderRadius:"50%",
@@ -115,9 +133,27 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
           }}>
             <BookmarkIcon filled={isBookmarked} size={20} color="#fff" />
           </button>
+
+          {/* location pin — bottom left of image */}
+          {event.venue && (
+            <div style={{
+              position:"absolute", bottom:16, left:16,
+              display:"flex", alignItems:"center", gap:5,
+              background:"rgba(0,0,0,0.45)", backdropFilter:"blur(6px)",
+              border:"0.5px solid rgba(255,255,255,0.15)",
+              borderRadius:20, padding:"4px 11px", zIndex:3,
+              fontSize:11, color:"rgba(255,255,255,0.9)",
+            }}>
+              <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+                <path d="M8 1.5C5.5 1.5 3.5 3.5 3.5 6c0 3.5 4.5 8.5 4.5 8.5s4.5-5 4.5-8.5c0-2.5-2-4.5-4.5-4.5z"/>
+                <circle cx="8" cy="6" r="1.5"/>
+              </svg>
+              {event.venue}
+            </div>
+          )}
         </div>
 
-        {/* details col */}
+        {/* ── details col ── */}
         <div style={{ padding:"28px 32px", display:"flex", flexDirection:"column", justifyContent:"space-between", background:"var(--cream, #FBF6EE)" }}>
           <div>
             <div style={{ fontSize:11, letterSpacing:1.6, textTransform:"uppercase", color:"#c4a060", marginBottom:8, fontWeight:600 }}>
@@ -127,12 +163,12 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
               {event.title}
             </div>
 
-            {/* meta grid — 2×2 */}
+            {/* meta grid — 2×2, all from DB */}
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:18 }}>
               {[
-                ["Date",    `${event.month} ${event.year}`],
-                ["Venue",   event.venue],
-                ["Scale",   event.scale],
+                ["Date",     `${event.month} ${event.year}`],
+                ["Location", venue],
+                ["Scale",    scale],
                 ...(event.price ? [["Price", `₹${Number(event.price).toLocaleString("en-IN")}`]] : []),
               ].map(([label, val]) => (
                 <div key={label} style={{ background:"rgba(232,221,208,0.35)", borderRadius:10, padding:"11px 13px", border:"1px solid #e8ddd0" }}>
@@ -142,7 +178,7 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
               ))}
             </div>
 
-            {/* pills — DB tags first, then fallbacks */}
+            {/* pills — DB tags first, then type/venue/scale fallbacks */}
             <div style={{ display:"flex", flexWrap:"wrap", gap:7, marginBottom:20 }}>
               {event.tags && event.tags.length > 0
                 ? event.tags.map((tag) => (
@@ -150,7 +186,7 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
                       {tag}
                     </span>
                   ))
-                : [event.type, event.venue, `${event.scale} scale`].map((pill) => (
+                : pills.map((pill) => (
                     <span key={pill} style={{ fontSize:12, padding:"5px 14px", borderRadius:20, border:"1px solid #e8ddd0", color:"#7a6248", background:"#f5f0ea", fontWeight:500 }}>
                       {pill}
                     </span>
@@ -158,15 +194,20 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
               }
             </div>
 
-            {/* Description — from DB (event.planner holds raw description text after mapGalleryToEvent strips the meta prefix) */}
-            {description && (
-              <div style={{ fontSize:14, color:"#8a7060", lineHeight:1.78 }}>
-                {description}
-              </div>
-            )}
+            {/* Description — from DB; falls back to auto-generated sentence */}
+            <div style={{ fontSize:14, color:"#8a7060", lineHeight:1.78 }}>
+              {description
+                ? description
+                : <>
+                    A {scale.toLowerCase()}-scale {event.type.toLowerCase()} event held at{" "}
+                    <strong style={{ color:"#2E1C10" }}>{venue}</strong> in {event.month} {event.year}.
+                    Every detail thoughtfully curated for an unforgettable experience.
+                  </>
+              }
+            </div>
           </div>
 
-          {/* footer — no planner avatar since planner field is now repurposed as description */}
+          {/* footer */}
           <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", marginTop:24 }}>
             <button className="ep-cta" onClick={() => { onClose(); navigate("/create-event", { state: { referenceEvent: event } }); }} style={{
               background:"#2E1C10", color:"#FBF6EE", border:"none",
@@ -174,7 +215,7 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
               fontWeight:600, cursor:"pointer", transition:"background 0.18s",
               letterSpacing:0.3, fontFamily:"inherit",
             }}>
-              Add to Your Event 
+              Add to Your Event
             </button>
           </div>
         </div>
@@ -208,9 +249,9 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
   );
 }
 
-// ── EventCard ─────────────────────────────────────────────────────────────
+// ── EventCard (minimized) ─────────────────────────────────────────────────
 export function EventCard({ event, isBookmarked, onBookmarkToggle, allEvents = [], openId, onOpen, onClose }) {
-  const [hovered, setHovered] = useState(false);
+  const [hovered, setHovered]   = useState(false);
   const [bmHovered, setBmHovered] = useState(false);
   const isOpen = openId === event.id;
 
@@ -236,13 +277,11 @@ export function EventCard({ event, isBookmarked, onBookmarkToggle, allEvents = [
         {/* ── Image area ── */}
         <div className={styles.imgArea}>
 
-          {/* Real photo from DB, or gradient fallback */}
           {event.image_url
             ? <img src={event.image_url} alt={event.title} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", transition:"transform 0.4s", transform: hovered ? "scale(1.05)" : "scale(1)" }} />
             : <div style={{ width:"100%", height:"100%", background: getGradient(event.type), display:"flex", alignItems:"center", justifyContent:"center", fontSize:54 }}>{getEmoji(event.type)}</div>
           }
 
-          {/* Dark gradient overlay */}
           <div style={{ position:"absolute", inset:0, background:"linear-gradient(to top, rgba(0,0,0,0.45) 0%, transparent 50%)", pointerEvents:"none" }} />
 
           {/* Verified badge — top right */}
@@ -256,7 +295,14 @@ export function EventCard({ event, isBookmarked, onBookmarkToggle, allEvents = [
             </div>
           )}
 
-          {/* Media/type badge — bottom left */}
+          {/* Scale badge — top left (only if scale exists in DB) */}
+          {event.scale && (
+            <div style={{ position:"absolute", top:10, left:10, background:"rgba(15,13,10,0.75)", backdropFilter:"blur(6px)", color:"#e8c97a", fontSize:10, fontWeight:600, padding:"3px 9px", borderRadius:20, border:"0.5px solid rgba(232,201,122,0.3)", zIndex:5 }}>
+              {event.scale}
+            </div>
+          )}
+
+          {/* Type badge — bottom left */}
           <div style={{ position:"absolute", bottom:10, left:10, background:"rgba(15,13,10,0.75)", backdropFilter:"blur(6px)", color:"#c9a84c", fontSize:10, fontWeight:500, letterSpacing:"0.4px", padding:"3px 9px", borderRadius:20, border:"0.5px solid rgba(201,168,76,0.28)", zIndex:5 }}>
             {event.type}
           </div>
@@ -289,30 +335,30 @@ export function EventCard({ event, isBookmarked, onBookmarkToggle, allEvents = [
             }
           </div>
 
-          {/* Title */}
-          <div className={styles.title}>{event.title}</div>
+        {/* Title + Price on same row */}
+<div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
+  <div className={styles.title} style={{ marginBottom: 0 }}>{event.title}</div>
+  {event.price && (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 1, flexShrink: 0 }}>
+      <span className={styles.priceSym}>₹</span>
+      <span className={styles.priceVal} style={{ fontSize: 25 }}>{Number(event.price).toLocaleString("en-IN")}</span>
+    </div>
+  )}
+</div>
 
-          {/* Location + date */}
+          {/* Location pin + date */}
           <div className={styles.meta} style={{ marginBottom: 8 }}>
             <span className={styles.location}>
               <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M8 1.5C5.5 1.5 3.5 3.5 3.5 6c0 3.5 4.5 8.5 4.5 8.5s4.5-5 4.5-8.5c0-2.5-2-4.5-4.5-4.5z"/>
                 <circle cx="8" cy="6" r="1.5"/>
               </svg>
-              {event.venue}
+              {event.venue || "—"}
             </span>
             <span className={styles.planner}>{event.month} {event.year}</span>
           </div>
 
-          {/* Price */}
-          {event.price && (
-            <div className={styles.vendorPrice}>
-              <span className={styles.priceSym}>₹</span>
-              <span className={styles.priceVal}>{Number(event.price).toLocaleString("en-IN")}</span>
-            </div>
-          )}
-
-          {/* ── REMOVED: "by {event.planner}" line ── */}
+          
         </div>
       </div>
 

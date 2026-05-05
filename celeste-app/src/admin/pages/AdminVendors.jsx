@@ -12,7 +12,7 @@ export default function AdminVendors() {
   const [activeTab, setActiveTab] = useState('vendors');
 
   // Add vendor form
-  const [vendorForm, setVendorForm] = useState({ name: '', specialty: '', contact: '', service_id: '' });
+  const [vendorForm, setVendorForm] = useState({ name: '', specialty: '', contact: '', service_id: '', price_per_day: '' });
   const [vendorPhoto, setVendorPhoto] = useState(null);
 
   // Portfolio upload form
@@ -67,6 +67,7 @@ export default function AdminVendors() {
   formData.append('specialty', vendorForm.specialty);
   formData.append('contact', vendorForm.contact);
   formData.append('service_id', vendorForm.service_id);
+  formData.append('price_per_day', vendorForm.price_per_day);
   if (vendorPhoto) formData.append('photo', vendorPhoto);
 
   await fetch(`${API}/vendors`, {
@@ -74,7 +75,7 @@ export default function AdminVendors() {
     headers: { Authorization: `Bearer ${token()}` },
     body: formData,
   });
-  setVendorForm({ name: '', specialty: '', contact: '', service_id: '' });
+  setVendorForm({ name: '', specialty: '', contact: '', service_id: '', price_per_day: '' });
   setVendorPhoto(null);
   showSuccess('Vendor added!');
   setActiveTab('vendors'); // ← switch to vendors tab
@@ -190,7 +191,10 @@ export default function AdminVendors() {
                     {!v.photo_url && <div style={{ width: '100%', height: 140, background: '#f7f5f2', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>📷</div>}
                     <div style={{ padding: 14 }}>
                       <div style={{ fontSize: 14, fontWeight: 500, color: '#1a1008', marginBottom: 4 }}>{v.name}</div>
-                      <div style={{ fontSize: 12, color: '#9e8e7a', marginBottom: 12 }}>{v.specialty} · {v.contact}</div>
+                      <div style={{ fontSize: 12, color: '#9e8e7a', marginBottom: 4 }}>{v.specialty} · {v.contact}</div>
+                      <div style={{ fontSize: 12, color: '#c9a84c', fontWeight: 600, marginBottom: 12 }}>
+                        {v.price_per_day ? `₹${Number(v.price_per_day).toLocaleString('en-IN')} / day` : 'No price set'}
+                      </div>
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button onClick={() => selectVendor(v)} style={{ flex: 1, padding: '6px 10px', background: '#f7f5f2', border: '1px solid #e8e0d5', borderRadius: 6, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#1a1008' }}>
                           Manage
@@ -212,10 +216,10 @@ export default function AdminVendors() {
         <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8e0d5', padding: 24 }}>
           <h3 style={{ fontSize: 15, fontWeight: 500, color: '#1a1008', marginBottom: 20 }}>Add New Vendor</h3>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-            {[['Name', 'name', 'e.g. Golden Hour Studios'], ['Specialty', 'specialty', 'e.g. Wedding Photography'], ['Contact', 'contact', 'Phone or email'], ['Service ID', 'service_id', 'Leave blank if none']].map(([label, key, placeholder]) => (
+            {[['Name', 'name', 'e.g. Golden Hour Studios', 'text'], ['Specialty', 'specialty', 'e.g. Wedding Photography', 'text'], ['Contact', 'contact', 'Phone or email', 'text'], ['Service ID', 'service_id', 'Leave blank if none', 'text'], ['Price per Day (₹)', 'price_per_day', 'e.g. 25000', 'number']].map(([label, key, placeholder, type]) => (
               <div key={key}>
                 <label style={{ fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: '#9e8e7a', display: 'block', marginBottom: 6 }}>{label}</label>
-                <input value={vendorForm[key]} onChange={e => setVendorForm({ ...vendorForm, [key]: e.target.value })} placeholder={placeholder}
+                <input type={type} value={vendorForm[key]} onChange={e => setVendorForm({ ...vendorForm, [key]: e.target.value })} placeholder={placeholder}
                   style={{ width: '100%', padding: '9px 12px', border: '1px solid #e8e0d5', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
               </div>
             ))}

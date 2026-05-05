@@ -14,47 +14,32 @@ function cloneFilters(f) {
 
 // Map DB gallery row → EventCard shape
 function mapGalleryToEvent(item) {
-  const date = item.event_date ? new Date(item.event_date) : null;
+  const date  = item.event_date ? new Date(item.event_date) : null;
   const month = date ? date.toLocaleString('en-IN', { month: 'long' }) : 'January';
-  const year = date ? date.getFullYear() : new Date().getFullYear();
+  const year  = date ? date.getFullYear() : new Date().getFullYear();
 
-  // ── FIXED: Read event_type directly from the DB column the admin sets ──
-  // Fall back to parsing description prefix "[Type|Venue|Scale]" only if
-  // event_type is missing, then finally default to 'Wedding'.
-  let type = '';
-  let venue = 'Lawn';
-  let scale = 'Large';
-  let planner = item.description || '';
+  // event_type — from dedicated DB column, fallback to 'Wedding'
+  const type = (item.event_type && item.event_type.trim()) ? item.event_type.trim() : 'Wedding';
 
-  // 1. Pull type from the dedicated DB column (set by admin in dashboard)
-  if (item.event_type && item.event_type.trim()) {
-    type = item.event_type.trim();
-  }
+  // venue — directly from DB column (admin-entered free text e.g. "Taj Hotel, Lucknow")
+  const venue = (item.venue && item.venue.trim()) ? item.venue.trim() : '';
 
-  // 2. Parse optional "[Type|Venue|Scale] planner text" from description
-  //    This can still supply venue/scale even when event_type column is used.
-  const metaMatch = item.description && item.description.match(/^\[([^\]]+)\]/);
-  if (metaMatch) {
-    const parts = metaMatch[1].split('|');
-    // Only override type from description if DB column was empty
-    if (!type && parts[0]) type = parts[0].trim();
-    if (parts[1]) venue = parts[1].trim();
-    if (parts[2]) scale = parts[2].trim();
-    planner = item.description.replace(/^\[[^\]]+\]\s*/, '');
-  }
+  // scale — directly from DB column (Small / Medium / Large)
+  const scale = (item.scale && item.scale.trim()) ? item.scale.trim() : '';
 
-  // 3. Final fallback
-  if (!type) type = 'Wedding';
+  // description — raw description text from DB (shown in expand panel)
+  const description = item.description || '';
 
   return {
     id: item.id,
     title: item.title || 'Untitled',
-    type,       // ← now correctly reflects admin-assigned event type
+    type,
     venue,
     scale,
     month,
     year,
-    planner,
+    description,   // ← shown as-is in expand panel
+    planner: '',   // no longer used for description; kept for compatibility
     image_url: item.image_url,
     price: item.price && Number(item.price) > 0 ? Number(item.price) : null,
     tags: Array.isArray(item.tags) ? item.tags : [],
