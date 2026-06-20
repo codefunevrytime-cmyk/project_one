@@ -1,5 +1,5 @@
 // src/pages/PhotographyPage.jsx
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PHOTOGRAPHERS, EVENT_TYPES, MEDIA_TYPES, YEARS } from "../context/data/photographyData";
 import PriceSlider from "../components/PriceSlider";
@@ -77,7 +77,7 @@ function CheckChip({ label, checked, onChange }) {
 }
 
 const EP_STYLES = `
-  .ep-wrap { grid-column:1/-1; background:#fff; border-radius:16px; border:0.5px solid rgba(0,0,0,0.08); overflow:hidden; margin-bottom:4px; animation:epIn 0.28s cubic-bezier(0.22,1,0.36,1); box-shadow:0 8px 40px rgba(0,0,0,0.10); }
+  .ep-wrap { background:#fff; border-radius:16px; border:0.5px solid rgba(0,0,0,0.08); overflow:hidden; margin-bottom:20px; animation:epIn 0.28s cubic-bezier(0.22,1,0.36,1); box-shadow:0 8px 40px rgba(0,0,0,0.10); scroll-margin-top:96px; }
   @keyframes epIn { from{opacity:0;transform:translateY(-12px)} to{opacity:1;transform:translateY(0)} }
   .ep-img-col { position:relative; overflow:hidden; min-height:520px; }
   .ep-img-col img { width:100%; height:100%; object-fit:cover; display:block; position:absolute; inset:0; transition:opacity 0.3s; }
@@ -258,7 +258,7 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
   );
 }
 
-function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark, allVendors }) {
+function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark }) {
   const [hovered, setHovered]     = useState(false);
   const [bmHovered, setBmHovered] = useState(false);
   const navigate = useNavigate();
@@ -371,16 +371,13 @@ function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark,
         </div>
       </div>
 
-      {isOpen && (
-        <ExpandPanel vendor={vendor} allVendors={allVendors} onClose={onClose}
-          onRelatedClick={r => onOpen(r.id)} isBookmarked={isBookmarked}
-          onBookmark={() => onBookmark(vendor.id)} navigate={navigate} />
-      )}
     </>
   );
 }
 
 export default function PhotographyPage({ bookmarks, onBookmarkToggle }) {
+  const navigate = useNavigate();
+  const expandPanelRef                    = useRef(null);
   const [priceRange, setPriceRange]       = useState([0, 120000]);
   const [selectedTypes, setSelectedTypes] = useState([]);
   const [selectedMedia, setSelectedMedia] = useState([]);
@@ -423,6 +420,13 @@ export default function PhotographyPage({ bookmarks, onBookmarkToggle }) {
 
   const handleOpen  = (id) => setOpenId(id);
   const handleClose = ()   => setOpenId(null);
+
+  useEffect(() => {
+    if (openId && expandPanelRef.current) {
+      expandPanelRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [openId]);
+
   const toggleArr   = (arr, setArr, val) => setArr(arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val]);
   const clearAll    = () => { setPriceRange([0,120000]); setSelectedTypes([]); setSelectedMedia([]); setSelectedYears([]); setMinRating(0); setSearchQuery(''); setOpenId(null); };
 
@@ -507,6 +511,24 @@ export default function PhotographyPage({ bookmarks, onBookmarkToggle }) {
         </aside>
 
         <main className="results-area">
+          {openId && (() => {
+            const openVendor = filtered.find(v => v.id === openId) || allVendors.find(v => v.id === openId);
+            if (!openVendor) return null;
+            return (
+              <div ref={expandPanelRef}>
+                <ExpandPanel
+                  vendor={openVendor}
+                  allVendors={filtered}
+                  onClose={handleClose}
+                  onRelatedClick={r => handleOpen(r.id)}
+                  isBookmarked={!!bookmarks[openVendor.id]}
+                  onBookmark={() => toggleBookmark(openVendor.id)}
+                  navigate={navigate}
+                />
+              </div>
+            );
+          })()}
+
           {filtered.length === 0 ? (
             <div className="empty-state">
               <div className="empty-icon">📷</div>
@@ -518,8 +540,7 @@ export default function PhotographyPage({ bookmarks, onBookmarkToggle }) {
               {filtered.map(v => (
                 <VendorCard key={v.id} vendor={v} isOpen={openId===v.id}
                   onOpen={handleOpen} onClose={handleClose}
-                  isBookmarked={!!bookmarks[v.id]} onBookmark={toggleBookmark}
-                  allVendors={filtered} />
+                  isBookmarked={!!bookmarks[v.id]} onBookmark={toggleBookmark} />
               ))}
             </div>
           )}
