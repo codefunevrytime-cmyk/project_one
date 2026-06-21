@@ -1,5 +1,5 @@
 // src/pages/PhotographyPage.jsx
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PHOTOGRAPHERS, EVENT_TYPES, MEDIA_TYPES, YEARS } from "../context/data/photographyData";
 import PriceSlider from "../components/PriceSlider";
@@ -77,7 +77,7 @@ function CheckChip({ label, checked, onChange }) {
 }
 
 const EP_STYLES = `
-  .ep-wrap { background:#fff; border-radius:16px; border:0.5px solid rgba(0,0,0,0.08); overflow:hidden; margin-bottom:20px; animation:epIn 0.28s cubic-bezier(0.22,1,0.36,1); box-shadow:0 8px 40px rgba(0,0,0,0.10); scroll-margin-top:96px; }
+  .ep-wrap { background:#fff; border-radius:16px; border:0.5px solid rgba(0,0,0,0.08); overflow:hidden; margin-bottom:24px; animation:epIn 0.28s cubic-bezier(0.22,1,0.36,1); box-shadow:0 8px 40px rgba(0,0,0,0.10); }
   @keyframes epIn { from{opacity:0;transform:translateY(-12px)} to{opacity:1;transform:translateY(0)} }
   .ep-img-col { position:relative; overflow:hidden; min-height:520px; }
   .ep-img-col img { width:100%; height:100%; object-fit:cover; display:block; position:absolute; inset:0; transition:opacity 0.3s; }
@@ -124,6 +124,7 @@ const EP_STYLES = `
   .ep-photo-count { position:absolute; top:14px; left:14px; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); color:#fff; font-size:11px; padding:4px 10px; border-radius:20px; border:0.5px solid rgba(255,255,255,0.2); z-index:10; }
 `;
 
+// ── ExpandPanel — now rendered ABOVE the grid, not inside VendorCard ─────────
 function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked, onBookmark, navigate }) {
   const related = getRelated(vendor, allVendors);
   const [activeIdx, setActiveIdx] = useState(0);
@@ -258,126 +259,121 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
   );
 }
 
-function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark }) {
+// ── VendorCard — no longer renders ExpandPanel inline ─────────────────────
+function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark, allVendors }) {
   const [hovered, setHovered]     = useState(false);
   const [bmHovered, setBmHovered] = useState(false);
   const navigate = useNavigate();
   const handleBookmark = (e) => { e.stopPropagation(); onBookmark(vendor.id); };
 
   return (
-    <>
-      <div
-        className="vendor-card"
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        onClick={() => isOpen ? onClose() : onOpen(vendor.id)}
-        style={{ outline: isOpen ? '2px solid #534AB7' : 'none', outlineOffset: 2, display: isOpen ? 'none' : undefined }}
-      >
-        <div className="vendor-img-wrap">
-          <img src={vendor.cover} alt={vendor.name} className="vendor-img" />
+    <div
+      className="vendor-card"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onClick={() => isOpen ? onClose() : onOpen(vendor.id)}
+      style={{
+        outline: isOpen ? '2px solid #534AB7' : 'none',
+        outlineOffset: 2,
+        // Don't hide — just highlight the active card
+      }}
+    >
+      <div className="vendor-img-wrap">
+        <img src={vendor.cover} alt={vendor.name} className="vendor-img" />
 
-          <div className="vendor-media-badge">
-            {vendor.isDbItem ? `📸 ${vendor.specialty || 'Gallery'}` : vendor.media.join(' + ')}
-          </div>
-
-          {!vendor.isDbItem && vendor.verified && (
-            <div className="vendor-verified">
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-                <circle cx="8" cy="8" r="7" fill="#534AB7"/>
-                <path d="M5 8l2 2 4-4" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              Verified
-            </div>
-          )}
-
-          {vendor.isDbItem && vendor.portfolio?.length > 1 && (
-            <div style={{ position:'absolute', top:10, right:10, background:'rgba(0,0,0,0.55)', backdropFilter:'blur(4px)', color:'#fff', fontSize:10, fontWeight:500, padding:'3px 8px', borderRadius:20, border:'0.5px solid rgba(255,255,255,0.2)' }}>
-              +{vendor.portfolio.length} photos
-            </div>
-          )}
-
-          
-
-          <button
-            style={{ position:'absolute', bottom:10, right:10, width:32, height:32, borderRadius:'50%', border:'none', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', opacity:hovered||isBookmarked?1:0, background:isBookmarked?'rgba(83,74,183,0.88)':bmHovered?'rgba(0,0,0,0.70)':'rgba(0,0,0,0.45)', color:'#fff', transition:'opacity 0.15s,background 0.15s,transform 0.15s', zIndex:5 }}
-            onClick={handleBookmark} onMouseEnter={() => setBmHovered(true)} onMouseLeave={() => setBmHovered(false)}
-          >
-            <BookmarkIcon filled={isBookmarked} size={15} color="#fff" />
-          </button>
+        <div className="vendor-media-badge">
+          {vendor.isDbItem ? `📸 ${vendor.specialty || 'Gallery'}` : vendor.media.join(' + ')}
         </div>
 
-        <div className="vendor-info">
-          <div className="vendor-top-row">
-            <h3 className="vendor-name">{vendor.name}</h3>
-            {
-             (
-              <div className="vendor-rating">
-                <RatingStars rating={vendor.rating} />
-                <span className="vendor-rating-val">{vendor.rating.toFixed(1)}</span>
-                <span className="vendor-reviews">({vendor.reviews})</span>
-              </div>
-            )}
+        {!vendor.isDbItem && vendor.verified && (
+          <div className="vendor-verified">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+              <circle cx="8" cy="8" r="7" fill="#534AB7"/>
+              <path d="M5 8l2 2 4-4" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Verified
           </div>
+        )}
 
-          <div className="vendor-meta">
-            <span className="vendor-location">
-              <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M8 1.5C5.5 1.5 3.5 3.5 3.5 6c0 3.5 4.5 8.5 4.5 8.5s4.5-5 4.5-8.5c0-2.5-2-4.5-4.5-4.5z"/>
-                <circle cx="8" cy="6" r="1.5"/>
-              </svg>
-              {vendor.location}
-            </span>
-            <span className="vendor-date">{MONTH_NAMES[vendor.month]} {vendor.year}</span>
+        {vendor.isDbItem && vendor.portfolio?.length > 1 && (
+          <div style={{ position:'absolute', top:10, right:10, background:'rgba(0,0,0,0.55)', backdropFilter:'blur(4px)', color:'#fff', fontSize:10, fontWeight:500, padding:'3px 8px', borderRadius:20, border:'0.5px solid rgba(255,255,255,0.2)' }}>
+            +{vendor.portfolio.length} photos
           </div>
+        )}
 
-         <div className="vendor-types">
-  {vendor.isDbItem
-    ? vendor.portfolioTags?.map((t, i) => <span key={i} className="type-tag">{t}</span>)
-    : vendor.type.map(t => <span key={t} className="type-tag">{t}</span>)
-  }
-</div>
-
-          <div className="vendor-bottom-row">
-            {vendor.isDbItem ? (
-              <>
-                <div className="vendor-price">
-                  {vendor.pricePerDay > 0 ? (
-                    <>
-                      <span className="price-symbol">₹</span>
-                      <span className="price-val">{vendor.pricePerDay.toLocaleString('en-IN')}</span>
-                      <span className="price-unit">/ day</span>
-                    </>
-                  ) : (
-                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Price on request</span>
-                  )}
-                </div>
-                <button className="vendor-cta" style={{ color:'#D4860A', borderColor:'rgba(212,134,10,0.4)' }} onClick={e => { e.stopPropagation(); navigate(`/services/photography/${vendor._dbId}`); }}>View Profile</button>
-              </>
-            ) : (
-              <>
-                <div className="vendor-price">
-                  <span className="price-symbol">₹</span>
-                  <span className="price-val">{vendor.pricePerDay.toLocaleString('en-IN')}</span>
-                  <span className="price-unit">/ day</span>
-                </div>
-                <button className="vendor-cta" onClick={e => { e.stopPropagation(); navigate(`/services/photography/${vendor.id}`); }}>View Profile</button>
-              </>
-            )}
-          </div>
-
-          <div className="vendor-tags">
-            {vendor.tags.slice(0, 2).map(t => <span key={t} className="award-tag">{t}</span>)}
-          </div>
-        </div>
+        <button
+          style={{ position:'absolute', bottom:10, right:10, width:32, height:32, borderRadius:'50%', border:'none', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', opacity:hovered||isBookmarked?1:0, background:isBookmarked?'rgba(83,74,183,0.88)':bmHovered?'rgba(0,0,0,0.70)':'rgba(0,0,0,0.45)', color:'#fff', transition:'opacity 0.15s,background 0.15s,transform 0.15s', zIndex:5 }}
+          onClick={handleBookmark} onMouseEnter={() => setBmHovered(true)} onMouseLeave={() => setBmHovered(false)}
+        >
+          <BookmarkIcon filled={isBookmarked} size={15} color="#fff" />
+        </button>
       </div>
 
-    </>
+      <div className="vendor-info">
+        <div className="vendor-top-row">
+          <h3 className="vendor-name">{vendor.name}</h3>
+          <div className="vendor-rating">
+            <RatingStars rating={vendor.rating} />
+            <span className="vendor-rating-val">{vendor.rating.toFixed(1)}</span>
+            <span className="vendor-reviews">({vendor.reviews})</span>
+          </div>
+        </div>
+
+        <div className="vendor-meta">
+          <span className="vendor-location">
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M8 1.5C5.5 1.5 3.5 3.5 3.5 6c0 3.5 4.5 8.5 4.5 8.5s4.5-5 4.5-8.5c0-2.5-2-4.5-4.5-4.5z"/>
+              <circle cx="8" cy="6" r="1.5"/>
+            </svg>
+            {vendor.location}
+          </span>
+          <span className="vendor-date">{MONTH_NAMES[vendor.month]} {vendor.year}</span>
+        </div>
+
+        <div className="vendor-types">
+          {vendor.isDbItem
+            ? vendor.portfolioTags?.map((t, i) => <span key={i} className="type-tag">{t}</span>)
+            : vendor.type.map(t => <span key={t} className="type-tag">{t}</span>)
+          }
+        </div>
+
+        <div className="vendor-bottom-row">
+          {vendor.isDbItem ? (
+            <>
+              <div className="vendor-price">
+                {vendor.pricePerDay > 0 ? (
+                  <>
+                    <span className="price-symbol">₹</span>
+                    <span className="price-val">{vendor.pricePerDay.toLocaleString('en-IN')}</span>
+                    <span className="price-unit">/ day</span>
+                  </>
+                ) : (
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Price on request</span>
+                )}
+              </div>
+              <button className="vendor-cta" style={{ color:'#D4860A', borderColor:'rgba(212,134,10,0.4)' }} onClick={e => { e.stopPropagation(); navigate(`/services/photography/${vendor._dbId}`); }}>View Profile</button>
+            </>
+          ) : (
+            <>
+              <div className="vendor-price">
+                <span className="price-symbol">₹</span>
+                <span className="price-val">{vendor.pricePerDay.toLocaleString('en-IN')}</span>
+                <span className="price-unit">/ day</span>
+              </div>
+              <button className="vendor-cta" onClick={e => { e.stopPropagation(); navigate(`/services/photography/${vendor.id}`); }}>View Profile</button>
+            </>
+          )}
+        </div>
+
+        <div className="vendor-tags">
+          {vendor.tags.slice(0, 2).map(t => <span key={t} className="award-tag">{t}</span>)}
+        </div>
+      </div>
+    </div>
   );
 }
 
 export default function PhotographyPage({ bookmarks, onBookmarkToggle }) {
-  const navigate = useNavigate();
-  const expandPanelRef                    = useRef(null);
   const [priceRange, setPriceRange]       = useState([0, 120000]);
   const [selectedTypes, setSelectedTypes] = useState([]);
   const [selectedMedia, setSelectedMedia] = useState([]);
@@ -388,6 +384,7 @@ export default function PhotographyPage({ bookmarks, onBookmarkToggle }) {
   const [view, setView]                   = useState('grid');
   const [openId, setOpenId]               = useState(null);
   const [dbVendors, setDbVendors]         = useState([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchVendors = async () => {
@@ -412,6 +409,9 @@ export default function PhotographyPage({ bookmarks, onBookmarkToggle }) {
 
   const allVendors = useMemo(() => [...PHOTOGRAPHERS, ...dbVendors], [dbVendors]);
 
+  // The currently open vendor object (for rendering the panel above grid)
+  const openVendor = useMemo(() => allVendors.find(v => v.id === openId) || null, [allVendors, openId]);
+
   const toggleBookmark = (id) => {
     const vendor = allVendors.find(p => p.id === id);
     if (!vendor) return;
@@ -420,13 +420,6 @@ export default function PhotographyPage({ bookmarks, onBookmarkToggle }) {
 
   const handleOpen  = (id) => setOpenId(id);
   const handleClose = ()   => setOpenId(null);
-
-  useEffect(() => {
-    if (openId && expandPanelRef.current) {
-      expandPanelRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, [openId]);
-
   const toggleArr   = (arr, setArr, val) => setArr(arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val]);
   const clearAll    = () => { setPriceRange([0,120000]); setSelectedTypes([]); setSelectedMedia([]); setSelectedYears([]); setMinRating(0); setSearchQuery(''); setOpenId(null); };
 
@@ -511,23 +504,18 @@ export default function PhotographyPage({ bookmarks, onBookmarkToggle }) {
         </aside>
 
         <main className="results-area">
-          {openId && (() => {
-            const openVendor = filtered.find(v => v.id === openId) || allVendors.find(v => v.id === openId);
-            if (!openVendor) return null;
-            return (
-              <div ref={expandPanelRef}>
-                <ExpandPanel
-                  vendor={openVendor}
-                  allVendors={filtered}
-                  onClose={handleClose}
-                  onRelatedClick={r => handleOpen(r.id)}
-                  isBookmarked={!!bookmarks[openVendor.id]}
-                  onBookmark={() => toggleBookmark(openVendor.id)}
-                  navigate={navigate}
-                />
-              </div>
-            );
-          })()}
+          {/* ── Expand panel renders HERE, above the grid ── */}
+          {openVendor && (
+            <ExpandPanel
+              vendor={openVendor}
+              allVendors={filtered}
+              onClose={handleClose}
+              onRelatedClick={(r) => handleOpen(r.id)}
+              isBookmarked={!!bookmarks[openVendor.id]}
+              onBookmark={() => toggleBookmark(openVendor.id)}
+              navigate={navigate}
+            />
+          )}
 
           {filtered.length === 0 ? (
             <div className="empty-state">
@@ -540,7 +528,8 @@ export default function PhotographyPage({ bookmarks, onBookmarkToggle }) {
               {filtered.map(v => (
                 <VendorCard key={v.id} vendor={v} isOpen={openId===v.id}
                   onOpen={handleOpen} onClose={handleClose}
-                  isBookmarked={!!bookmarks[v.id]} onBookmark={toggleBookmark} />
+                  isBookmarked={!!bookmarks[v.id]} onBookmark={toggleBookmark}
+                  allVendors={filtered} />
               ))}
             </div>
           )}

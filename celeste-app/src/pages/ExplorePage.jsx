@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { MONTH_IDX } from "../context/data/events";
 import { EventCard } from "../components/EventCard";
 import { Sidebar } from "../components/Sidebar";
@@ -12,22 +12,13 @@ function cloneFilters(f) {
   return { type: new Set(f.type), venue: new Set(f.venue), year: new Set(f.year), scale: new Set(f.scale) };
 }
 
-// Map DB gallery row → EventCard shape
 function mapGalleryToEvent(item) {
   const date  = item.event_date ? new Date(item.event_date) : null;
   const month = date ? date.toLocaleString('en-IN', { month: 'long' }) : 'January';
   const year  = date ? date.getFullYear() : new Date().getFullYear();
-
-  // event_type — from dedicated DB column, fallback to 'Wedding'
   const type = (item.event_type && item.event_type.trim()) ? item.event_type.trim() : 'Wedding';
-
-  // venue — directly from DB column (admin-entered free text e.g. "Taj Hotel, Lucknow")
   const venue = (item.venue && item.venue.trim()) ? item.venue.trim() : '';
-
-  // scale — directly from DB column (Small / Medium / Large)
   const scale = (item.scale && item.scale.trim()) ? item.scale.trim() : '';
-
-  // description — raw description text from DB (shown in expand panel)
   const description = item.description || '';
 
   return {
@@ -38,8 +29,8 @@ function mapGalleryToEvent(item) {
     scale,
     month,
     year,
-    description,   // ← shown as-is in expand panel
-    planner: '',   // no longer used for description; kept for compatibility
+    description,
+    planner: '',
     image_url: item.image_url,
     price: item.price && Number(item.price) > 0 ? Number(item.price) : null,
     tags: Array.isArray(item.tags) ? item.tags : [],
@@ -58,12 +49,31 @@ export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClear
   });
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("latest");
-
   const [openId, setOpenId] = useState(null);
-  const handleOpen = (id) => setOpenId(id);
+
+  // Ref on the expand panel so we can scroll to it
+  const expandPanelRef = useRef(null);
+
+  const handleOpen = (id) => {
+    setOpenId(id);
+  };
+
   const handleClose = () => setOpenId(null);
 
-  // Fetch from DB
+  // Auto-scroll to the expand panel whenever it opens
+  useEffect(() => {
+    if (openId && expandPanelRef.current) {
+      // Small delay so the panel has rendered before scrolling
+      const timer = setTimeout(() => {
+        expandPanelRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start',
+        });
+      }, 60);
+      return () => clearTimeout(timer);
+    }
+  }, [openId]);
+
   useEffect(() => {
     fetch(`${API}/gallery`)
       .then(res => res.json())
@@ -75,7 +85,6 @@ export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClear
       .catch(() => setLoading(false));
   }, []);
 
-  // sync selectedType from navbar — use useEffect not useMemo (side-effect)
   useEffect(() => {
     if (selectedType) {
       setFilters((prev) => { const f = cloneFilters(prev); f.type = new Set([selectedType]); return f; });
@@ -122,8 +131,7 @@ export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClear
     if (q) evs = evs.filter((e) =>
       e.title.toLowerCase().includes(q) ||
       e.type.toLowerCase().includes(q) ||
-      e.venue.toLowerCase().includes(q) ||
-      e.planner.toLowerCase().includes(q)
+      e.venue.toLowerCase().includes(q)
     );
     if (filters.type.size) evs = evs.filter((e) => filters.type.has(e.type));
     if (filters.venue.size) evs = evs.filter((e) => filters.venue.has(e.venue));
@@ -135,6 +143,12 @@ export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClear
       return sort === "latest" ? bv - av : av - bv;
     });
   }, [filters, search, sort, allEvents]);
+
+  // The currently open event object
+  const openEvent = useMemo(
+    () => filtered.find((e) => e.id === openId) || null,
+    [filtered, openId]
+  );
 
   return (
     <div className={styles.layout}>
@@ -190,20 +204,40 @@ export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClear
                 <div className={styles.emptySub}>Try adjusting filters or search term</div>
               </div>
             ) : (
-              <div className={styles.grid}>
-                {filtered.map((event) => (
-                  <EventCard
-                    key={event.id}
-                    event={event}
-                    isBookmarked={!!bookmarks[event.id]}
-                    onBookmarkToggle={onBookmarkToggle}
-                    allEvents={allEvents}
-                    openId={openId}
-                    onOpen={handleOpen}
-                    onClose={handleClose}
-                  />
-                ))}
-              </div>
+              <>
+                {/* ── Expand panel renders HERE, above the grid, with ref for scroll ── */}
+                {openEvent && (
+                  <div ref={expandPanelRef}>
+                    <EventCard
+                      key={`expand-${openEvent.id}`}
+                      event={openEvent}
+                      isBookmarked={!!bookmarks[openEvent.id]}
+                      onBookmarkToggle={onBookmarkToggle}
+                      allEvents={allEvents}
+                      openId={openId}
+                      onOpen={handleOpen}
+                      onClose={handleClose}
+                      forceExpanded
+                    />
+                  </div>
+                )}
+
+                {/* ── Card grid ── */}
+                <div className={styles.grid}>
+                  {filtered.map((event) => (
+                    <EventCard
+                      key={event.id}
+                      event={event}
+                      isBookmarked={!!bookmarks[event.id]}
+                      onBookmarkToggle={onBookmarkToggle}
+                      allEvents={allEvents}
+                      openId={openId}
+                      onOpen={handleOpen}
+                      onClose={handleClose}
+                    />
+                  ))}
+                </div>
+              </>
             )}
           </>
         )}
