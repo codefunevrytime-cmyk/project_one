@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { featuredEventTypes } from '../context/data/eventsData';
+import { getVendorServiceConfig } from '../context/data/vendorServiceConfig';
 import { useAuth } from '../hooks/useAuth';
 
 
@@ -23,7 +24,7 @@ const SERVICES = [
     iconBg: '#E1F5EE',
     items: [
       { name: 'Entertainment booking', desc: 'Live acts, DJs, performers', tag: null },
-      { name: 'Custom invitations', desc: 'Digital & printed stationery', tag: null },
+      { name: 'Custom invitations', desc: 'Digital & printed stationery', tag: null, path: getVendorServiceConfig('custom-invitations').path },
       { name: 'Guest experience design', desc: 'Arrivals, gifts, flow', tag: null },
       { name: 'Photography direction', desc: 'Shoot brief & vendor liaison', tag: { label: 'popular', type: 'teal' }, path: '/services/photography' },     
       { name: 'Catering coordination', desc: 'Menu curation & vendor tie-up', tag: null },
@@ -116,7 +117,7 @@ export default function Navbar({ bookmarkCount }) {
 
   const isRouteActive = (path) => location.pathname === path;
   const isExploreRoute = location.pathname === '/events' || location.pathname === '/gallery';
-  const isServicesRoute = location.pathname === '/services';
+  const isServicesRoute = location.pathname.startsWith('/services');
 
 
   useEffect(() => {

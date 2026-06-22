@@ -17,6 +17,7 @@ import ProductPage from "./pages/ProductPage";
 import SignupPage from "./pages/SignupPage";
 import PhotographyPage from "./pages/PhotographyPage";
 import PhotographerProfilePage from "./pages/PhotographerProfilePage";
+import { getVendorServiceConfig } from "./context/data/vendorServiceConfig";
 import MyEvents from "./pages/MyEvents";
 import AdminApp from "./admin/AdminApp";
 import CreateEventPage from "./pages/CreateEventPage";
@@ -84,7 +85,7 @@ function MainApp({ bm }) {
           }
         />
 
-        {/* ── Photography ── */}
+        {/* ── Vendor services ── */}
         <Route
           path="/services/photography"
           element={
@@ -95,9 +96,29 @@ function MainApp({ bm }) {
           }
         />
         <Route
+          path="/services/custom-invitations"
+          element={
+            <PhotographyPage
+              serviceConfig={getVendorServiceConfig('custom-invitations')}
+              bookmarks={bm.bookmarks}
+              onBookmarkToggle={bm.toggle}
+            />
+          }
+        />
+        <Route
           path="/services/photography/:id"
           element={
             <PhotographerProfilePage
+              bookmarks={bm.bookmarks}
+              onBookmarkToggle={bm.toggle}
+            />
+          }
+        />
+        <Route
+          path="/services/custom-invitations/:id"
+          element={
+            <PhotographerProfilePage
+              serviceConfig={getVendorServiceConfig('custom-invitations')}
               bookmarks={bm.bookmarks}
               onBookmarkToggle={bm.toggle}
             />

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { DEFAULT_VENDOR_SERVICE, VENDOR_SERVICE_CONFIGS, getVendorServiceConfig } from '../../context/data/vendorServiceConfig';
 
 const API = 'http://localhost:5000/api';
 const token = () => localStorage.getItem('adminToken');
@@ -12,7 +13,7 @@ export default function AdminVendors() {
   const [activeTab, setActiveTab] = useState('vendors');
 
   // Add vendor form
-  const [vendorForm, setVendorForm] = useState({ name: '', specialty: '', contact: '', service_id: '', price_per_day: '' });
+  const [vendorForm, setVendorForm] = useState({ name: '', specialty: '', contact: '', service_id: String(DEFAULT_VENDOR_SERVICE.serviceId), price_per_day: '' });
   const [vendorPhoto, setVendorPhoto] = useState(null);
 
   // Portfolio upload form
@@ -26,6 +27,7 @@ export default function AdminVendors() {
   const [tagType, setTagType] = useState('specialty');
 
   const [success, setSuccess] = useState('');
+  const selectedServiceConfig = getVendorServiceConfig(vendorForm.service_id);
 
   const fetchVendors = async () => {
     try {
@@ -75,7 +77,7 @@ export default function AdminVendors() {
     headers: { Authorization: `Bearer ${token()}` },
     body: formData,
   });
-  setVendorForm({ name: '', specialty: '', contact: '', service_id: '', price_per_day: '' });
+  setVendorForm({ name: '', specialty: '', contact: '', service_id: vendorForm.service_id || String(DEFAULT_VENDOR_SERVICE.serviceId), price_per_day: '' });
   setVendorPhoto(null);
   showSuccess('Vendor added!');
   setActiveTab('vendors'); // ← switch to vendors tab
@@ -146,6 +148,7 @@ export default function AdminVendors() {
 
   const specialtyTags = tags.filter(t => t.tag_type === 'specialty');
   const workTags = tags.filter(t => t.tag_type === 'work');
+  const vendorServiceLabel = (serviceId) => getVendorServiceConfig(serviceId || DEFAULT_VENDOR_SERVICE.serviceId).title;
 
   return (
     <div>
@@ -191,6 +194,7 @@ export default function AdminVendors() {
                     {!v.photo_url && <div style={{ width: '100%', height: 140, background: '#f7f5f2', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>📷</div>}
                     <div style={{ padding: 14 }}>
                       <div style={{ fontSize: 14, fontWeight: 500, color: '#1a1008', marginBottom: 4 }}>{v.name}</div>
+                      <div style={{ fontSize: 11, color: '#c9a84c', fontWeight: 600, marginBottom: 4 }}>{vendorServiceLabel(v.service_id)}</div>
                       <div style={{ fontSize: 12, color: '#9e8e7a', marginBottom: 4 }}>{v.specialty} · {v.contact}</div>
                       <div style={{ fontSize: 12, color: '#c9a84c', fontWeight: 600, marginBottom: 12 }}>
                         {v.price_per_day ? `₹${Number(v.price_per_day).toLocaleString('en-IN')} / day` : 'No price set'}
@@ -215,8 +219,25 @@ export default function AdminVendors() {
       {activeTab === 'add' && (
         <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8e0d5', padding: 24 }}>
           <h3 style={{ fontSize: 15, fontWeight: 500, color: '#1a1008', marginBottom: 20 }}>Add New Vendor</h3>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: '#9e8e7a', display: 'block', marginBottom: 6 }}>Vendor Service</label>
+            <select
+              value={vendorForm.service_id}
+              onChange={e => setVendorForm({ ...vendorForm, service_id: e.target.value, specialty: '' })}
+              style={{ width: '100%', padding: '9px 12px', border: '1px solid #e8e0d5', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: '#fff' }}
+            >
+              {VENDOR_SERVICE_CONFIGS.map(service => (
+                <option key={service.id} value={service.serviceId}>{service.title}</option>
+              ))}
+            </select>
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-            {[['Name', 'name', 'e.g. Golden Hour Studios', 'text'], ['Specialty', 'specialty', 'e.g. Wedding Photography', 'text'], ['Contact', 'contact', 'Phone or email', 'text'], ['Service ID', 'service_id', 'Leave blank if none', 'text'], ['Price per Day (₹)', 'price_per_day', 'e.g. 25000', 'number']].map(([label, key, placeholder, type]) => (
+            {[
+              ['Name', 'name', selectedServiceConfig.id === 'custom-invitations' ? 'e.g. Ivory Paper Co.' : 'e.g. Golden Hour Studios', 'text'],
+              [selectedServiceConfig.admin.specialtyLabel, 'specialty', selectedServiceConfig.admin.specialtyPlaceholder, 'text'],
+              ['Contact', 'contact', 'Phone or email', 'text'],
+              [selectedServiceConfig.admin.priceLabel, 'price_per_day', selectedServiceConfig.admin.pricePlaceholder, 'number'],
+            ].map(([label, key, placeholder, type]) => (
               <div key={key}>
                 <label style={{ fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: '#9e8e7a', display: 'block', marginBottom: 6 }}>{label}</label>
                 <input type={type} value={vendorForm[key]} onChange={e => setVendorForm({ ...vendorForm, [key]: e.target.value })} placeholder={placeholder}
@@ -244,7 +265,7 @@ export default function AdminVendors() {
         <div>
           {/* Upload */}
           <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8e0d5', padding: 24, marginBottom: 24 }}>
-            <h3 style={{ fontSize: 15, fontWeight: 500, color: '#1a1008', marginBottom: 16 }}>Upload Work Image</h3>
+            <h3 style={{ fontSize: 15, fontWeight: 500, color: '#1a1008', marginBottom: 16 }}>{getVendorServiceConfig(selectedVendor.service_id).admin.portfolioTitle}</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
               <div>
                 <label style={{ fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: '#9e8e7a', display: 'block', marginBottom: 6 }}>Caption</label>
@@ -253,7 +274,7 @@ export default function AdminVendors() {
               </div>
               <div>
                 <label style={{ fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: '#9e8e7a', display: 'block', marginBottom: 6 }}>Tags (comma separated, max 3)</label>
-                <input value={portfolioTags} onChange={e => setPortfolioTags(e.target.value)} placeholder="e.g. Award Winning, Featured, Premium"
+                <input value={portfolioTags} onChange={e => setPortfolioTags(e.target.value)} placeholder={getVendorServiceConfig(selectedVendor.service_id).admin.tagsPlaceholder}
                   style={{ width: '100%', padding: '9px 12px', border: '1px solid #e8e0d5', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
               </div>
             </div>

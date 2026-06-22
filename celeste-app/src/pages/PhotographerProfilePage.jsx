@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { PHOTOGRAPHERS } from '../context/data/photographyData';
+import { DEFAULT_VENDOR_SERVICE } from '../context/data/vendorServiceConfig';
 import { BookmarkIcon } from '../components/BookmarkIcon';
 import { useAuth } from '../hooks/useAuth';
 import './PhotographerProfilePage.css';
@@ -213,12 +214,14 @@ function PortfolioCarousel({ images }) {
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────
-export default function PhotographerProfilePage({ bookmarks, onBookmarkToggle }) {
+export default function PhotographerProfilePage({ bookmarks, onBookmarkToggle, serviceConfig = DEFAULT_VENDOR_SERVICE }) {
   const { id }       = useParams();
   const navigate     = useNavigate();
   const { user }     = useAuth();
 
-  const staticPhotographer = PHOTOGRAPHERS.find(p => p.id === parseInt(id));
+  const staticPhotographer = serviceConfig.id === 'photography'
+    ? PHOTOGRAPHERS.find(p => p.id === parseInt(id))
+    : null;
 
   const [activeSection, setActiveSection] = useState('projects');
   const [activeTab, setActiveTab]         = useState('portfolio');
@@ -281,7 +284,12 @@ export default function PhotographerProfilePage({ bookmarks, onBookmarkToggle })
       try {
         const res     = await fetch(`${API}/vendors`);
         const vendors = await res.json();
-        const match   = Array.isArray(vendors) ? vendors.find(v => v.id === parseInt(id)) : null;
+        const match   = Array.isArray(vendors)
+          ? vendors.find(v => {
+              const serviceId = String(v.service_id || '').trim();
+              return v.id === parseInt(id) && (serviceId === String(serviceConfig.serviceId) || (serviceConfig.includeUnassigned && !serviceId));
+            })
+          : null;
 
         if (!match) { if (!cancelled) setDbLoading(false); return; }
 
@@ -304,7 +312,7 @@ export default function PhotographerProfilePage({ bookmarks, onBookmarkToggle })
     })();
 
     return () => { cancelled = true; };
-  }, [id]);
+  }, [id, serviceConfig, staticPhotographer]);
 
   // Intersection observer for sticky nav
   useEffect(() => {
@@ -328,8 +336,8 @@ export default function PhotographerProfilePage({ bookmarks, onBookmarkToggle })
     }
     return (
       <div className="pp-not-found">
-        <h2>Photographer not found</h2>
-        <button onClick={() => navigate('/services/photography')} className="pp-back-btn">← Back to Photography</button>
+        <h2>{serviceConfig.singular} not found</h2>
+        <button onClick={() => navigate(serviceConfig.path)} className="pp-back-btn">← Back to {serviceConfig.title}</button>
       </div>
     );
   }
@@ -341,9 +349,12 @@ export default function PhotographerProfilePage({ bookmarks, onBookmarkToggle })
   const heroCover     = photographer.cover || portfolioImages[0]?.url || '';
   const totalReviews  = reviews.length;
   const avgRating     = totalReviews > 0 ? reviews.reduce((s, r) => s + Number(r.rating), 0) / totalReviews : photographer.rating;
+  const servicesOffered = serviceConfig.id === 'photography'
+    ? SERVICES_OFFERED
+    : [...new Set([...photographer.type, ...photographer.tags, serviceConfig.defaultSpecialty])];
 
   const handleBookmark = () => {
-    onBookmarkToggle({ id: photographer.bookmarkId ?? photographer.id, name: photographer.name, image: heroCover, type: "Photography" });
+    onBookmarkToggle({ id: photographer.bookmarkId ?? photographer.id, name: photographer.name, image: heroCover, type: serviceConfig.bookmarkType });
   };
 
   // Submit review → POST /api/reviews
@@ -388,7 +399,7 @@ export default function PhotographerProfilePage({ bookmarks, onBookmarkToggle })
       client_name: contactForm.name,
       email:       contactForm.email || '',
       phone:       contactForm.phone,
-      message:     `[Photographer: ${photographer.name}]\nDate: ${contactForm.date || 'Not specified'}\n${contactForm.details}`,
+      message:     `[${serviceConfig.singular}: ${photographer.name}]\nDate: ${contactForm.date || 'Not specified'}\n${contactForm.details}`,
     };
 
     try {
@@ -420,11 +431,11 @@ export default function PhotographerProfilePage({ bookmarks, onBookmarkToggle })
           <div className="pp-hero-overlay" />
         </div>
         <div className="pp-hero-content">
-          <button className="pp-breadcrumb-btn" onClick={() => navigate('/services/photography')}>
+          <button className="pp-breadcrumb-btn" onClick={() => navigate(serviceConfig.path)}>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M10 3L5 8l5 5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            Back to Photography
+            Back to {serviceConfig.title}
           </button>
           <div className="pp-hero-info">
             <div className="pp-hero-name-row">
@@ -529,12 +540,12 @@ export default function PhotographerProfilePage({ bookmarks, onBookmarkToggle })
           {/* ── ABOUT ── */}
           <section id="about" ref={aboutRef} className="pp-section">
             <h2 className="pp-section-title">About {photographer.name}</h2>
-            <p className="pp-about-text">{photographer.name} is a Lucknow-based wedding photography and videography studio specialising in capturing the most authentic moments of your special day. From the quiet glances between the bride and groom to the joyous celebrations with family — every frame tells a story that lasts a lifetime.</p>
-            <p className="pp-about-text">With a deep passion for storytelling through visuals, {photographer.name} brings a blend of cinematic technique and candid spontaneity to every event. Their work spans bridal ceremonies, pre-wedding shoots, and grand receptions across Lucknow and beyond.</p>
+            <p className="pp-about-text">{photographer.name} is a Lucknow-based {serviceConfig.defaultSpecialty.toLowerCase()} vendor for weddings and celebrations. Their portfolio, contact details, pricing, and service tags are managed from your admin vendor section.</p>
+            <p className="pp-about-text">Use this profile to review their uploaded work, compare styles, and contact the vendor for availability and package details.</p>
 
             <h3 className="pp-subsection-title">Services Offered</h3>
             <ul className="pp-services-list">
-              {SERVICES_OFFERED.map(s => (
+              {servicesOffered.map(s => (
                 <li key={s} className="pp-service-item">
                   <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#F59E0B" strokeWidth="2"><path d="M3 8l3 3 7-7" strokeLinecap="round" strokeLinejoin="round" /></svg>
                   {s}

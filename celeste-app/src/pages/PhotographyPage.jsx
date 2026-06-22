@@ -1,7 +1,8 @@
 // src/pages/PhotographyPage.jsx
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PHOTOGRAPHERS, EVENT_TYPES, MEDIA_TYPES, YEARS } from "../context/data/photographyData";
+import { PHOTOGRAPHERS, YEARS } from "../context/data/photographyData";
+import { DEFAULT_VENDOR_SERVICE } from "../context/data/vendorServiceConfig";
 import PriceSlider from "../components/PriceSlider";
 import { BookmarkIcon } from "../components/BookmarkIcon";
 import './PhotographyPage.css';
@@ -9,17 +10,17 @@ import './PhotographyPage.css';
 const API = 'http://localhost:5000/api';
 const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-function mapVendorToCard(vendor, portfolio, tags) {
+function mapVendorToCard(vendor, portfolio, tags, serviceConfig) {
   const coverImg = portfolio[0]?.image_url || vendor.photo_url || '';
   const allTags  = tags.map(t => t.tag);
   const typeFromSpecialty = vendor.specialty
     ? vendor.specialty.split(',').map(s => s.trim()).filter(Boolean)
-    : ['Photography'];
+    : [serviceConfig.defaultSpecialty];
   const portfolioTags = [...new Set(portfolio.flatMap(p => p.tags || []))].slice(0, 3);
   return {
     id: `db_${vendor.id}`, _dbId: vendor.id, name: vendor.name,
     location: 'Lucknow', rating: 5.0, reviews: 0, pricePerDay: vendor.price_per_day ? Number(vendor.price_per_day) : 0,
-    type: typeFromSpecialty, media: ['Photo'],
+    type: typeFromSpecialty, media: [serviceConfig.filters.mediaOptions[0]],
     year: new Date(vendor.created_at).getFullYear(),
     month: new Date(vendor.created_at).getMonth() + 1,
     verified: false, tags: allTags, portfolioTags,
@@ -41,6 +42,12 @@ function StarIcon({ filled }) {
       <path d="M6 1l1.5 3 3.2.5-2.3 2.2.5 3.3L6 8.5l-2.9 1.5.5-3.3L1.3 4.5l3.2-.5z" />
     </svg>
   );
+}
+
+function isVendorForService(vendor, serviceConfig) {
+  const serviceId = String(vendor.service_id || '').trim();
+  if (serviceId === String(serviceConfig.serviceId)) return true;
+  return serviceConfig.includeUnassigned && !serviceId;
 }
 
 function RatingStars({ rating }) {
@@ -130,7 +137,7 @@ const EP_STYLES = `
 `;
 
 // ── ExpandPanel with image carousel ──────────────────────────────────────────
-function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked, onBookmark, navigate }) {
+function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked, onBookmark, navigate, serviceConfig }) {
   const related = getRelated(vendor, allVendors);
   const [activeIdx, setActiveIdx] = useState(0);
   const [sliding, setSliding] = useState(false);
@@ -222,7 +229,7 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
             <div className="ep-name">{vendor.name}</div>
             <div className="ep-meta-row">
               {vendor.isDbItem ? (
-                <span className="ep-specialty-badge">📸 {vendor.specialty || 'Photography'}</span>
+                <span className="ep-specialty-badge">{serviceConfig.cardIcon} {vendor.specialty || serviceConfig.defaultSpecialty}</span>
               ) : (
                 <>
                   <RatingStars rating={vendor.rating} />
@@ -245,7 +252,7 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
               {vendor.isDbItem ? (
                 <>
                   <div className="ep-cell"><div className="ep-cell-label">Vendor</div><div className="ep-cell-val">{vendor.name}</div></div>
-                  <div className="ep-cell"><div className="ep-cell-label">Specialty</div><div className="ep-cell-val">{vendor.specialty || 'Photography'}</div></div>
+                  <div className="ep-cell"><div className="ep-cell-label">Specialty</div><div className="ep-cell-val">{vendor.specialty || serviceConfig.defaultSpecialty}</div></div>
                   <div className="ep-cell"><div className="ep-cell-label">Location</div><div className="ep-cell-val">{vendor.location}</div></div>
                   <div className="ep-cell"><div className="ep-cell-label">Contact</div><div className="ep-cell-val" style={{ fontSize:12 }}>{vendor.contact || 'N/A'}</div></div>
                   {currentImg.caption && (
@@ -292,7 +299,7 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
                   <span className="ep-price-val">{vendor.pricePerDay.toLocaleString('en-IN')}</span>
                   <span className="ep-price-unit">/ day</span>
                 </div>
-                <button className="ep-cta" onClick={() => navigate(`/services/photography/${vendor.id}`)}>View Profile</button>
+                <button className="ep-cta" onClick={() => navigate(`${serviceConfig.path}/${vendor.id}`)}>View Profile</button>
                 <button className="ep-cta">Add to Your Event</button>
               </>
             )}
@@ -318,7 +325,7 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
 }
 
 // ── VendorCard ────────────────────────────────────────────────────────────────
-function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark, allVendors }) {
+function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark, serviceConfig }) {
   const [hovered, setHovered]     = useState(false);
   const [bmHovered, setBmHovered] = useState(false);
   const navigate = useNavigate();
@@ -339,7 +346,7 @@ function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark,
         <img src={vendor.cover} alt={vendor.name} className="vendor-img" />
 
         <div className="vendor-media-badge">
-          {vendor.isDbItem ? `📸 ${vendor.specialty || 'Gallery'}` : vendor.media.join(' + ')}
+          {vendor.isDbItem ? `${serviceConfig.cardIcon} ${vendor.specialty || 'Gallery'}` : vendor.media.join(' + ')}
         </div>
 
         {!vendor.isDbItem && vendor.verified && (
@@ -408,7 +415,7 @@ function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark,
                   <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Price on request</span>
                 )}
               </div>
-              <button className="vendor-cta" style={{ color:'#D4860A', borderColor:'rgba(212,134,10,0.4)' }} onClick={e => { e.stopPropagation(); navigate(`/services/photography/${vendor._dbId}`); }}>View Profile</button>
+              <button className="vendor-cta" style={{ color:'#D4860A', borderColor:'rgba(212,134,10,0.4)' }} onClick={e => { e.stopPropagation(); navigate(`${serviceConfig.path}/${vendor._dbId}`); }}>View Profile</button>
             </>
           ) : (
             <>
@@ -417,7 +424,7 @@ function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark,
                 <span className="price-val">{vendor.pricePerDay.toLocaleString('en-IN')}</span>
                 <span className="price-unit">/ day</span>
               </div>
-              <button className="vendor-cta" onClick={e => { e.stopPropagation(); navigate(`/services/photography/${vendor.id}`); }}>View Profile</button>
+              <button className="vendor-cta" onClick={e => { e.stopPropagation(); navigate(`${serviceConfig.path}/${vendor.id}`); }}>View Profile</button>
             </>
           )}
         </div>
@@ -430,7 +437,7 @@ function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark,
   );
 }
 
-export default function PhotographyPage({ bookmarks, onBookmarkToggle }) {
+export default function PhotographyPage({ bookmarks, onBookmarkToggle, serviceConfig = DEFAULT_VENDOR_SERVICE }) {
   const [priceRange, setPriceRange]       = useState([0, 120000]);
   const [selectedTypes, setSelectedTypes] = useState([]);
   const [selectedMedia, setSelectedMedia] = useState([]);
@@ -448,7 +455,7 @@ export default function PhotographyPage({ bookmarks, onBookmarkToggle }) {
       try {
         const res     = await fetch(`${API}/vendors`);
         const vendors = await res.json();
-        const active  = vendors.filter(v => v.is_active);
+        const active  = vendors.filter(v => v.is_active && isVendorForService(v, serviceConfig));
         const enriched = await Promise.all(active.map(async (vendor) => {
           const [portRes, tagsRes] = await Promise.all([
             fetch(`${API}/vendors/${vendor.id}/portfolio`),
@@ -456,21 +463,24 @@ export default function PhotographyPage({ bookmarks, onBookmarkToggle }) {
           ]);
           const portfolio = await portRes.json();
           const tags      = await tagsRes.json();
-          return mapVendorToCard(vendor, Array.isArray(portfolio) ? portfolio : [], Array.isArray(tags) ? tags : []);
+          return mapVendorToCard(vendor, Array.isArray(portfolio) ? portfolio : [], Array.isArray(tags) ? tags : [], serviceConfig);
         }));
         setDbVendors(enriched);
       } catch (err) { console.error('Failed to fetch vendors:', err); }
     };
     fetchVendors();
-  }, []);
+  }, [serviceConfig]);
 
-  const allVendors = useMemo(() => [...PHOTOGRAPHERS, ...dbVendors], [dbVendors]);
+  const allVendors = useMemo(() => {
+    const staticVendors = serviceConfig.id === 'photography' ? PHOTOGRAPHERS : [];
+    return [...staticVendors, ...dbVendors];
+  }, [serviceConfig.id, dbVendors]);
   const openVendor = useMemo(() => allVendors.find(v => v.id === openId) || null, [allVendors, openId]);
 
   const toggleBookmark = (id) => {
     const vendor = allVendors.find(p => p.id === id);
     if (!vendor) return;
-    onBookmarkToggle({ id: vendor.id, name: vendor.name, image: vendor.cover, type: 'Photography' });
+    onBookmarkToggle({ id: vendor.id, name: vendor.name, image: vendor.cover, type: serviceConfig.bookmarkType });
   };
 
   const expandPanelRef = useRef(null);
@@ -514,14 +524,14 @@ export default function PhotographyPage({ bookmarks, onBookmarkToggle }) {
       <div className="photo-page-header">
         <div className="photo-page-header-inner">
           <div>
-            <p className="page-breadcrumb">Services → Photography</p>
-            <h1 className="page-title">Photography & Videography</h1>
-            <p className="page-subtitle"><strong>{filtered.length}</strong> vendors in Lucknow</p>
+            <p className="page-breadcrumb">{serviceConfig.breadcrumb}</p>
+            <h1 className="page-title">{serviceConfig.title}</h1>
+            <p className="page-subtitle"><strong>{filtered.length}</strong> {serviceConfig.plural} in Lucknow</p>
           </div>
           <div className="photo-page-header-right">
             <div className="search-box">
               <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="6.5" cy="6.5" r="5"/><path d="M11 11l3 3" strokeLinecap="round"/></svg>
-              <input type="text" placeholder="Search photographers..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="search-input" />
+              <input type="text" placeholder={serviceConfig.searchPlaceholder} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="search-input" />
             </div>
             <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="sort-select">
               <option value="latest">Latest First</option>
@@ -550,8 +560,8 @@ export default function PhotographyPage({ bookmarks, onBookmarkToggle }) {
             {activeFilterCount > 0 && <button className="clear-all-btn" onClick={clearAll}>Clear all</button>}
           </div>
           <FilterSection title="Price Range"><PriceSlider min={0} max={120000} value={priceRange} onChange={setPriceRange} /></FilterSection>
-          <FilterSection title="Media Type"><div className="chip-group">{MEDIA_TYPES.map(m => <CheckChip key={m} label={m} checked={selectedMedia.includes(m)} onChange={() => toggleArr(selectedMedia, setSelectedMedia, m)} />)}</div></FilterSection>
-          <FilterSection title="Event Type"><div className="chip-group">{EVENT_TYPES.map(t => <CheckChip key={t} label={t} checked={selectedTypes.includes(t)} onChange={() => toggleArr(selectedTypes, setSelectedTypes, t)} />)}</div></FilterSection>
+          <FilterSection title={serviceConfig.filters.mediaLabel}><div className="chip-group">{serviceConfig.filters.mediaOptions.map(m => <CheckChip key={m} label={m} checked={selectedMedia.includes(m)} onChange={() => toggleArr(selectedMedia, setSelectedMedia, m)} />)}</div></FilterSection>
+          <FilterSection title={serviceConfig.filters.typeLabel}><div className="chip-group">{serviceConfig.filters.typeOptions.map(t => <CheckChip key={t} label={t} checked={selectedTypes.includes(t)} onChange={() => toggleArr(selectedTypes, setSelectedTypes, t)} />)}</div></FilterSection>
           <FilterSection title="Year"><div className="chip-group">{YEARS.map(y => <CheckChip key={y} label={String(y)} checked={selectedYears.includes(y)} onChange={() => toggleArr(selectedYears, setSelectedYears, y)} />)}</div></FilterSection>
           <FilterSection title="Minimum Rating">
             <div className="rating-options">
@@ -576,14 +586,15 @@ export default function PhotographyPage({ bookmarks, onBookmarkToggle }) {
                 isBookmarked={!!bookmarks[openVendor.id]}
                 onBookmark={() => toggleBookmark(openVendor.id)}
                 navigate={navigate}
+                serviceConfig={serviceConfig}
               />
             )}
           </div>
 
           {filtered.length === 0 ? (
             <div className="empty-state">
-              <div className="empty-icon">📷</div>
-              <h3>No photographers match your filters</h3>
+              <div className="empty-icon">{serviceConfig.cardIcon}</div>
+              <h3>{serviceConfig.emptyTitle}</h3>
               <p>Try adjusting or <button onClick={clearAll} className="link-btn">clear all</button></p>
             </div>
           ) : (
@@ -592,7 +603,7 @@ export default function PhotographyPage({ bookmarks, onBookmarkToggle }) {
                 <VendorCard key={v.id} vendor={v} isOpen={openId===v.id}
                   onOpen={handleOpen} onClose={handleClose}
                   isBookmarked={!!bookmarks[v.id]} onBookmark={toggleBookmark}
-                  allVendors={filtered} />
+                  serviceConfig={serviceConfig} />
               ))}
             </div>
           )}
