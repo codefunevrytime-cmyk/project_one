@@ -21,6 +21,11 @@ function getRelated(event, allEvents) {
     .slice(0, 5);
 }
 
+function getImages(event) {
+  if (Array.isArray(event.images) && event.images.length > 0) return event.images;
+  return event.image_url ? [event.image_url] : [];
+}
+
 // ── Expand Panel ──────────────────────────────────────────────────────────
 function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, onBookmark }) {
   const related = getRelated(event, allEvents);
@@ -35,6 +40,23 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
     venue !== "—" ? venue : null,
     scale !== "—" ? `${scale} scale` : null,
   ].filter(Boolean);
+
+  const images = getImages(event);
+  const total  = images.length;
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [sliding, setSliding] = useState(false);
+
+  const goTo = (idx) => {
+    if (total === 0 || idx === activeIdx || sliding) return;
+    setSliding(true);
+    setTimeout(() => {
+      setActiveIdx(idx);
+      setSliding(false);
+    }, 280);
+  };
+  const prevImg = () => goTo((activeIdx - 1 + total) % total);
+  const nextImg = () => goTo((activeIdx + 1) % total);
+  const currentImg = images[activeIdx] || null;
 
   return (
     <div style={{
@@ -55,6 +77,14 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
         .ep-bm:hover    { transform: scale(1.12) !important; }
         .ep-cta:hover   { background: #3a2a10 !important; }
         .ep-rel:hover   { transform: scale(1.05) !important; }
+        .ep-carousel-nav { position:absolute; top:50%; transform:translateY(-50%); z-index:4; width:34px; height:34px; border-radius:50%; background:rgba(0,0,0,0.45); backdrop-filter:blur(4px); border:1px solid rgba(255,255,255,0.2); color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.18s, transform 0.15s; }
+        .ep-carousel-nav:hover { background:rgba(0,0,0,0.72); transform:translateY(-50%) scale(1.1); }
+        .ep-carousel-prev { left:14px; }
+        .ep-carousel-next { right:14px; }
+        .ep-carousel-dots { position:absolute; bottom:14px; left:50%; transform:translateX(-50%); display:flex; gap:6px; z-index:4; }
+        .ep-carousel-dot { width:6px; height:6px; border-radius:50%; background:rgba(255,255,255,0.4); cursor:pointer; transition:background 0.2s, transform 0.2s; border:none; padding:0; }
+        .ep-carousel-dot.active { background:#fff; transform:scale(1.3); }
+        .ep-carousel-counter { position:absolute; top:14px; right:52px; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); color:#fff; font-size:11px; padding:4px 10px; border-radius:20px; border:0.5px solid rgba(255,255,255,0.2); z-index:4; }
       `}</style>
 
       {/* top: image | details */}
@@ -65,11 +95,11 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
           position: "relative",
           display: "flex", alignItems: "center", justifyContent: "center",
           fontSize: 108, overflow: "hidden",
-          background: event.image_url ? "#1a1008" : getGradient(event.type),
+          background: currentImg ? "#1a1008" : getGradient(event.type),
         }}>
-          {event.image_url
-            ? <img src={event.image_url} alt={event.title}
-                style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", position:"absolute", inset:0 }} />
+          {currentImg
+            ? <img src={currentImg} alt={event.title} key={currentImg}
+                style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", position:"absolute", inset:0, transition:"opacity 0.35s ease, transform 0.35s ease", opacity: sliding ? 0 : 1, transform: sliding ? "scale(1.03)" : "scale(1)" }} />
             : <span style={{ zIndex:1, position:"relative", filter:"drop-shadow(0 6px 16px rgba(0,0,0,0.18))" }}>
                 {getEmoji(event.type)}
               </span>
@@ -94,6 +124,9 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
             }}>{event.scale}</span>
           )}
 
+          {/* photo counter */}
+          {total > 1 && <div className="ep-carousel-counter">{activeIdx + 1} / {total}</div>}
+
           {/* close */}
           <button className="ep-close" onClick={onClose} style={{
             position:"absolute", top:14, right:14, width:32, height:32,
@@ -102,6 +135,22 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
             display:"flex", alignItems:"center", justifyContent:"center",
             transition:"background 0.18s", zIndex:3,
           }}>✕</button>
+
+          {/* prev / next arrows */}
+          {total > 1 && (
+            <>
+              <button className="ep-carousel-nav ep-carousel-prev" onClick={prevImg} title="Previous">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M10 3L5 8l5 5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+              <button className="ep-carousel-nav ep-carousel-next" onClick={nextImg} title="Next">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M6 3l5 5-5 5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            </>
+          )}
 
           {/* bookmark */}
           <button className="ep-bm" onClick={onBookmark} style={{
@@ -133,6 +182,20 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
                 <circle cx="8" cy="6" r="1.5"/>
               </svg>
               {event.venue}
+            </div>
+          )}
+
+          {/* dot indicators */}
+          {total > 1 && (
+            <div className="ep-carousel-dots">
+              {images.map((_, i) => (
+                <button
+                  key={i}
+                  className={`ep-carousel-dot${i === activeIdx ? ' active' : ''}`}
+                  onClick={() => goTo(i)}
+                  title={`Photo ${i + 1}`}
+                />
+              ))}
             </div>
           )}
         </div>
@@ -239,7 +302,14 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
 export function EventCard({ event, isBookmarked, onBookmarkToggle, allEvents = [], openId, onOpen, onClose, forceExpanded = false }) {
   const [hovered, setHovered] = useState(false);
   const [bmHovered, setBmHovered] = useState(false);
+  const [imgIdx, setImgIdx] = useState(0);
   const isOpen = openId === event.id;
+  const images = getImages(event);
+  const total  = images.length;
+
+  const prevImg = (e) => { e.stopPropagation(); setImgIdx(i => (i - 1 + total) % total); };
+  const nextImg = (e) => { e.stopPropagation(); setImgIdx(i => (i + 1) % total); };
+  const goImg   = (i, e) => { e.stopPropagation(); setImgIdx(i); };
 
   const handleBookmark = (e) => {
     e.stopPropagation();
@@ -277,12 +347,44 @@ export function EventCard({ event, isBookmarked, onBookmarkToggle, allEvents = [
       >
         {/* ── Image area ── */}
         <div className={styles.imgArea}>
-          {event.image_url
-            ? <img src={event.image_url} alt={event.title} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", transition:"transform 0.4s", transform: hovered ? "scale(1.05)" : "scale(1)" }} />
+          {images.length > 0
+            ? <img key={images[imgIdx]} src={images[imgIdx]} alt={event.title} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", transition:"transform 0.4s, opacity 0.2s", transform: hovered ? "scale(1.05)" : "scale(1)" }} />
             : <div style={{ width:"100%", height:"100%", background: getGradient(event.type), display:"flex", alignItems:"center", justifyContent:"center", fontSize:54 }}>{getEmoji(event.type)}</div>
           }
 
           <div style={{ position:"absolute", inset:0, background:"linear-gradient(to top, rgba(0,0,0,0.45) 0%, transparent 50%)", pointerEvents:"none" }} />
+
+          {/* Carousel arrows — only when multiple images, revealed on hover */}
+          {total > 1 && (
+            <>
+              <button onClick={prevImg} title="Previous photo" style={{
+                position:"absolute", top:"50%", left:8, transform:"translateY(-50%)",
+                width:26, height:26, borderRadius:"50%", border:"none", cursor:"pointer",
+                background:"rgba(0,0,0,0.45)", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center",
+                opacity: hovered ? 1 : 0, transition:"opacity 0.15s, background 0.15s", zIndex:6,
+              }}>
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 3L5 8l5 5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </button>
+              <button onClick={nextImg} title="Next photo" style={{
+                position:"absolute", top:"50%", right:8, transform:"translateY(-50%)",
+                width:26, height:26, borderRadius:"50%", border:"none", cursor:"pointer",
+                background:"rgba(0,0,0,0.45)", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center",
+                opacity: hovered ? 1 : 0, transition:"opacity 0.15s, background 0.15s", zIndex:6,
+              }}>
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 3l5 5-5 5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </button>
+              <div style={{ position:"absolute", bottom:10, left:"50%", transform:"translateX(-50%)", display:"flex", gap:4, zIndex:6 }}>
+                {images.map((_, i) => (
+                  <span key={i} onClick={(e) => goImg(i, e)} style={{
+                    width:5, height:5, borderRadius:"50%", cursor:"pointer",
+                    background: i === imgIdx ? "#fff" : "rgba(255,255,255,0.4)",
+                    transform: i === imgIdx ? "scale(1.3)" : "scale(1)",
+                    transition:"background 0.2s, transform 0.2s",
+                  }} />
+                ))}
+              </div>
+            </>
+          )}
 
           {/* Verified badge */}
           {event.verified && (

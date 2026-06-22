@@ -25,7 +25,7 @@ const VENDOR_CATALOGUE = [
 
 const EXTRA_PILLS = ["Accessibility ramps", "Valet parking", "Live translation", "Prayer / quiet room", "Kids zone", "Merchandise stall", "First aid station", "Green room / backstage", "Permit / license help", "Guest gifting", "Halal / Jain menu", "Live social media wall"];
 const EVENT_TYPES = ["Wedding", "Birthday", "Corporate", "Concert", "Festival", "Sports", "Outdoor", "Expo", "Cultural", "Charity", "Food", "Other"];
-const STEPS = ["Basics", "Vendors", "Extras", "Budget"];
+const STEPS = ["Basics", "Vendors",  "Budget"];
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DAY_NAMES = ["Su","Mo","Tu","We","Th","Fr","Sa"];
 
@@ -182,14 +182,15 @@ export default function CreateEventPage() {
   const toggleExtra  = (pill)    => setExtras(prev  => { const next = new Set(prev); next.has(pill) ? next.delete(pill) : next.add(pill); return next; });
 
   const calculateBudget = () => {
-    setCalcStep(true);
-    const vendorTotal = Object.values(vendors).reduce((a, b) => a + b, 0);
-    const cateringEst = capacity * 180;
-    const extrasCost  = extras.size * 3500;
-    const buffer      = Math.round((vendorTotal + cateringEst + extrasCost) * 0.05);
-    const grand       = vendorTotal + cateringEst + extrasCost + buffer;
-    setTimeout(() => { setBudget({ vendorTotal, cateringEst, extrasCost, buffer, grand }); setCalcStep(false); setStep(3); }, 2200);
-  };
+  setCalcStep(true);
+  const vendorTotal = Object.values(vendors).reduce((a, b) => a + b, 0);
+  const grand = vendorTotal;
+  setTimeout(() => {
+    setBudget({ vendorTotal, grand });
+    setCalcStep(false);
+    setStep(2);
+  }, 2200);
+};
 
   const handleCreateEvent = useCallback(async () => {
     setSubmitting(true); setSubmitError('');
@@ -213,7 +214,7 @@ if (data.success) {
   }, [user, name, evType, date, time, location_, capacity, vendors, extras, extraNote, budget]);
 
   const revenue = ticketPrice && ticketQty ? Math.round(parseFloat(ticketPrice) * parseFloat(ticketQty)) : null;
-  const goNext  = () => setStep(s => Math.min(s + 1, 3));
+  const goNext  = () => setStep(s => Math.min(s + 1, 2));
   const goBack  = () => setStep(s => Math.max(s - 1, 0));
 
   // if (done)     return <DoneScreen name={name} evType={evType} location_={location_} capacity={capacity} vendors={vendors} navigate={navigate} />;
@@ -247,9 +248,8 @@ if (data.success) {
 
       <main className={styles.body}>
         {step === 0 && <StepBasics name={name} setName={setName} evType={evType} setEvType={setEvType} date={date} setDate={setDate} time={time} setTime={setTime} location_={location_} setLocation={setLocation} capacity={capacity} setCapacity={setCapacity} refEvent={refEvent} setRefEvent={setRefEvent} availability={availability} onNext={goNext} />}
-        {step === 1 && <StepVendors vendors={vendors} toggleVendor={toggleVendor} onNext={goNext} onBack={goBack} />}
-        {step === 2 && <StepExtras extras={extras} toggleExtra={toggleExtra} extraNote={extraNote} setExtraNote={setExtraNote} onCalc={calculateBudget} onBack={goBack} />}
-        {step === 3 && budget && <StepBudget budget={budget} vendors={vendors} capacity={capacity} extras={extras} submitting={submitting} submitError={submitError} onBack={goBack} onDone={handleCreateEvent} />}
+        {step === 1 && <StepVendors vendors={vendors} toggleVendor={toggleVendor} onNext={calculateBudget} onBack={goBack} />}
+        {step === 2 && budget && <StepBudget budget={budget} vendors={vendors} capacity={capacity} extras={extras} submitting={submitting} submitError={submitError} onBack={goBack} onDone={handleCreateEvent} />}
       </main>
     </div>
   );
@@ -360,7 +360,7 @@ function StepVendors({ vendors, toggleVendor, onNext, onBack }) {
       <p className={styles.vCount}>Selected: <strong>{count} vendor{count !== 1 ? 's' : ''}</strong>{count > 0 && ` · Est. ₹${Object.values(vendors).reduce((a,b)=>a+b,0).toLocaleString('en-IN')}`}</p>
       <div className={styles.btnRow}>
         <button className={styles.btnSecondary} onClick={onBack}>Back</button>
-        <button className={styles.btnPrimary} onClick={onNext}>Next — Extra requirements</button>
+<button className={styles.btnPrimary} onClick={onNext}>Calculate avg budget</button>
       </div>
     </div>
   );
@@ -387,7 +387,9 @@ function StepExtras({ extras, toggleExtra, extraNote, setExtraNote, onCalc, onBa
 
 // ── Step 4 ────────────────────────────────────────────────────────────────────
 function StepBudget({ budget, vendors, capacity, extras, submitting, submitError, onBack, onDone }) {
-  const rows = [...Object.entries(vendors).map(([n,cost]) => ({ label: n, amt: cost })), { label: `Per-head catering (${capacity} × ₹180)`, amt: budget.cateringEst }, ...(extras.size > 0 ? [{ label: `Extra requirements (${extras.size} items)`, amt: budget.extrasCost }] : []), { label: 'Contingency buffer (5%)', amt: budget.buffer }];
+const rows = [
+  ...Object.entries(vendors).map(([n, cost]) => ({ label: n, amt: cost })),
+];
   return (
     <div className={styles.stepWrap}>
       <div className={styles.budgetCard}>
@@ -407,7 +409,7 @@ function StepBudget({ budget, vendors, capacity, extras, submitting, submitError
 // ── Calc ──────────────────────────────────────────────────────────────────────
 function CalcScreen() {
   const [widths, setWidths] = useState([0,0,0,0,0]);
-  const labels = ["Vendors","Venue","Catering","Extras","Buffer"];
+  const labels = ["Vendors","Venue","Catering",];
   const msgs   = ["Analysing vendor rates...","Factoring in capacity...","Applying regional pricing...","Adding extras buffer...","Finalising estimate..."];
   const [msgIdx, setMsgIdx] = useState(0);
   useEffect(() => { labels.forEach((_,i) => setTimeout(() => { setWidths(p => { const n=[...p]; n[i]=55+Math.random()*38; return n; }); setMsgIdx(i); }, i*400+100)); }, []);

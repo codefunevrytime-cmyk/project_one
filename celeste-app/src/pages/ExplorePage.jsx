@@ -21,6 +21,10 @@ function mapGalleryToEvent(item) {
   const scale = (item.scale && item.scale.trim()) ? item.scale.trim() : '';
   const description = item.description || '';
 
+  const images = Array.isArray(item.images) && item.images.length > 0
+    ? item.images
+    : (item.image_url ? [item.image_url] : []);
+
   return {
     id: item.id,
     title: item.title || 'Untitled',
@@ -31,7 +35,8 @@ function mapGalleryToEvent(item) {
     year,
     description,
     planner: '',
-    image_url: item.image_url,
+    image_url: item.image_url || images[0] || null,
+    images,
     price: item.price && Number(item.price) > 0 ? Number(item.price) : null,
     tags: Array.isArray(item.tags) ? item.tags : [],
     verified: true,

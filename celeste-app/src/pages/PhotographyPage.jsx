@@ -1,5 +1,5 @@
 // src/pages/PhotographyPage.jsx
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PHOTOGRAPHERS, EVENT_TYPES, MEDIA_TYPES, YEARS } from "../context/data/photographyData";
 import PriceSlider from "../components/PriceSlider";
@@ -80,12 +80,13 @@ const EP_STYLES = `
   .ep-wrap { background:#fff; border-radius:16px; border:0.5px solid rgba(0,0,0,0.08); overflow:hidden; margin-bottom:24px; animation:epIn 0.28s cubic-bezier(0.22,1,0.36,1); box-shadow:0 8px 40px rgba(0,0,0,0.10); }
   @keyframes epIn { from{opacity:0;transform:translateY(-12px)} to{opacity:1;transform:translateY(0)} }
   .ep-img-col { position:relative; overflow:hidden; min-height:520px; }
-  .ep-img-col img { width:100%; height:100%; object-fit:cover; display:block; position:absolute; inset:0; transition:opacity 0.3s; }
-  .ep-img-overlay { position:absolute; inset:0; background:linear-gradient(to top,rgba(0,0,0,0.30) 0%,transparent 50%); pointer-events:none; }
+  .ep-img-col img.ep-main-img { width:100%; height:100%; object-fit:cover; display:block; position:absolute; inset:0; transition:opacity 0.35s ease, transform 0.35s ease; }
+  .ep-img-col img.ep-main-img.ep-slide-enter { opacity:0; transform:scale(1.03); }
+  .ep-img-overlay { position:absolute; inset:0; background:linear-gradient(to top,rgba(0,0,0,0.30) 0%,transparent 50%); pointer-events:none; z-index:2; }
   .ep-top { display:grid; grid-template-columns:44% 1fr; min-height:520px; }
   .ep-close { position:absolute; top:14px; right:14px; width:32px; height:32px; border-radius:50%; background:rgba(0,0,0,0.35); border:none; cursor:pointer; color:#fff; font-size:16px; display:flex; align-items:center; justify-content:center; transition:background 0.18s; z-index:10; }
   .ep-close:hover { background:rgba(0,0,0,0.6); }
-  .ep-bm { position:absolute; bottom:16px; right:16px; width:40px; height:40px; border-radius:50%; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px); transition:background 0.18s,transform 0.15s; z-index:10; }
+  .ep-bm { position:absolute; top:14px; left:14px; width:40px; height:40px; border-radius:50%; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px); transition:background 0.18s,transform 0.15s; z-index:10; }
   .ep-bm:hover { transform:scale(1.12); }
   .ep-right { padding:28px 32px; display:flex; flex-direction:column; justify-content:space-between; background:#fff; overflow-y:auto; }
   .ep-name { font-family:'Cormorant Garamond',serif; font-size:30px; font-weight:400; color:#1A1714; margin-bottom:6px; line-height:1.2; }
@@ -115,50 +116,107 @@ const EP_STYLES = `
   .ep-rel-title { position:absolute; bottom:0; left:0; right:0; padding:18px 8px 7px; background:linear-gradient(to top,rgba(0,0,0,0.60),transparent); font-size:11px; color:#fff; font-weight:500; line-height:1.3; }
   .ep-verified-badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:500; color:#534AB7; background:#EEEDFE; padding:3px 9px; border-radius:20px; }
   .ep-specialty-badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:500; color:#D4860A; background:rgba(212,134,10,0.10); padding:3px 9px; border-radius:20px; border:0.5px solid rgba(212,134,10,0.25); }
-  .ep-thumbs { position:absolute; bottom:14px; left:14px; display:flex; gap:6px; z-index:10; flex-wrap:wrap; max-width:80%; }
-  .ep-thumb { width:46px; height:46px; border-radius:7px; overflow:hidden; cursor:pointer; border:2px solid rgba(255,255,255,0.3); transition:border-color 0.15s,transform 0.15s; flex-shrink:0; }
-  .ep-thumb:hover { transform:scale(1.08); border-color:rgba(255,255,255,0.7); }
-  .ep-thumb.ep-thumb-active { border-color:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.4); }
-  .ep-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+
+  /* ── Carousel styles ── */
+  .ep-carousel-nav { position:absolute; bottom:50%; transform:translateY(50%); z-index:10; width:36px; height:36px; border-radius:50%; background:rgba(0,0,0,0.45); backdrop-filter:blur(4px); border:1px solid rgba(255,255,255,0.2); color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.18s, transform 0.15s; }
+  .ep-carousel-nav:hover { background:rgba(0,0,0,0.72); transform:translateY(50%) scale(1.1); }
+  .ep-carousel-prev { left:12px; }
+  .ep-carousel-next { right:12px; }
+  .ep-carousel-dots { position:absolute; bottom:14px; left:50%; transform:translateX(-50%); display:flex; gap:6px; z-index:10; }
+  .ep-carousel-dot { width:6px; height:6px; border-radius:50%; background:rgba(255,255,255,0.4); cursor:pointer; transition:background 0.2s, transform 0.2s; border:none; padding:0; }
+  .ep-carousel-dot.active { background:#fff; transform:scale(1.3); }
+  .ep-carousel-counter { position:absolute; top:14px; right:52px; background:rgba(0,0,0,0.50); backdrop-filter:blur(4px); color:#fff; font-size:11px; padding:4px 10px; border-radius:20px; border:0.5px solid rgba(255,255,255,0.2); z-index:10; }
   .ep-ptag { font-size:11px; padding:4px 12px; border-radius:20px; background:rgba(212,134,10,0.1); color:#D4860A; border:0.5px solid rgba(212,134,10,0.25); }
-  .ep-photo-count { position:absolute; top:14px; left:14px; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); color:#fff; font-size:11px; padding:4px 10px; border-radius:20px; border:0.5px solid rgba(255,255,255,0.2); z-index:10; }
 `;
 
-// ── ExpandPanel — now rendered ABOVE the grid, not inside VendorCard ─────────
+// ── ExpandPanel with image carousel ──────────────────────────────────────────
 function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked, onBookmark, navigate }) {
   const related = getRelated(vendor, allVendors);
   const [activeIdx, setActiveIdx] = useState(0);
-  const displayImg = vendor.isDbItem && vendor.portfolio?.length > 0
-    ? vendor.portfolio[activeIdx]?.image_url
-    : vendor.cover;
-  const currentPortfolio = vendor.isDbItem ? vendor.portfolio?.[activeIdx] : null;
+  const [sliding, setSliding] = useState(false);
+
+  // Build image list: DB portfolio or just the cover
+  const images = vendor.isDbItem && vendor.portfolio?.length > 0
+    ? vendor.portfolio.map(p => ({ url: p.image_url, caption: p.caption, tags: p.tags }))
+    : [{ url: vendor.cover, caption: null, tags: [] }];
+
+  const total = images.length;
+
+  const goTo = (idx) => {
+    if (idx === activeIdx || sliding) return;
+    setSliding(true);
+    setTimeout(() => {
+      setActiveIdx(idx);
+      setSliding(false);
+    }, 280);
+  };
+
+  const prev = () => goTo((activeIdx - 1 + total) % total);
+  const next = () => goTo((activeIdx + 1) % total);
+
+  const currentImg = images[activeIdx];
 
   return (
     <div className="ep-wrap">
       <style>{EP_STYLES}</style>
       <div className="ep-top">
+
+        {/* ── Image carousel column ── */}
         <div className="ep-img-col">
-          <img src={displayImg} alt={vendor.name} key={displayImg} />
+          <img
+            src={currentImg.url}
+            alt={vendor.name}
+            key={currentImg.url}
+            className={`ep-main-img${sliding ? ' ep-slide-enter' : ''}`}
+          />
           <div className="ep-img-overlay" />
-          <button className="ep-close" onClick={onClose}>✕</button>
+
+          {/* Bookmark — top left */}
           <button className="ep-bm" onClick={onBookmark}
             style={{ background: isBookmarked ? 'rgba(83,74,183,0.88)' : 'rgba(0,0,0,0.38)', color: '#fff', boxShadow: isBookmarked ? '0 2px 12px rgba(83,74,183,0.4)' : 'none' }}>
             <BookmarkIcon filled={isBookmarked} size={20} color="#fff" />
           </button>
-          {vendor.isDbItem && vendor.portfolio?.length > 1 && (
+
+          {/* Close — top right */}
+          <button className="ep-close" onClick={onClose}>✕</button>
+
+          {/* Photo counter */}
+          {total > 1 && (
+            <div className="ep-carousel-counter">{activeIdx + 1} / {total}</div>
+          )}
+
+          {/* Prev / Next arrows */}
+          {total > 1 && (
             <>
-              <div className="ep-photo-count">📸 {vendor.portfolio.length} photos</div>
-              <div className="ep-thumbs">
-                {vendor.portfolio.map((p, i) => (
-                  <div key={p.id} className={`ep-thumb ${i === activeIdx ? 'ep-thumb-active' : ''}`} onClick={() => setActiveIdx(i)}>
-                    <img src={p.image_url} alt={p.caption || `Photo ${i+1}`} />
-                  </div>
-                ))}
-              </div>
+              <button className="ep-carousel-nav ep-carousel-prev" onClick={prev} title="Previous">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M10 3L5 8l5 5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+              <button className="ep-carousel-nav ep-carousel-next" onClick={next} title="Next">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M6 3l5 5-5 5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
             </>
+          )}
+
+          {/* Dot indicators */}
+          {total > 1 && (
+            <div className="ep-carousel-dots">
+              {images.map((_, i) => (
+                <button
+                  key={i}
+                  className={`ep-carousel-dot${i === activeIdx ? ' active' : ''}`}
+                  onClick={() => goTo(i)}
+                  title={`Photo ${i + 1}`}
+                />
+              ))}
+            </div>
           )}
         </div>
 
+        {/* ── Details column ── */}
         <div className="ep-right">
           <div>
             <div className="ep-name">{vendor.name}</div>
@@ -190,10 +248,10 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
                   <div className="ep-cell"><div className="ep-cell-label">Specialty</div><div className="ep-cell-val">{vendor.specialty || 'Photography'}</div></div>
                   <div className="ep-cell"><div className="ep-cell-label">Location</div><div className="ep-cell-val">{vendor.location}</div></div>
                   <div className="ep-cell"><div className="ep-cell-label">Contact</div><div className="ep-cell-val" style={{ fontSize:12 }}>{vendor.contact || 'N/A'}</div></div>
-                  {currentPortfolio?.caption && (
+                  {currentImg.caption && (
                     <div className="ep-cell" style={{ gridColumn:'1/-1' }}>
-                      <div className="ep-cell-label">About this work</div>
-                      <div className="ep-cell-val" style={{ fontSize:13, fontWeight:400 }}>{currentPortfolio.caption}</div>
+                      <div className="ep-cell-label">About this photo</div>
+                      <div className="ep-cell-val" style={{ fontSize:13, fontWeight:400 }}>{currentImg.caption}</div>
                     </div>
                   )}
                 </>
@@ -214,9 +272,9 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
               </div>
             )}
 
-            {vendor.isDbItem && currentPortfolio?.tags?.length > 0 && (
+            {vendor.isDbItem && currentImg.tags?.length > 0 && (
               <div className="ep-tags">
-                {currentPortfolio.tags.map((t, i) => <span key={i} className="ep-ptag">{t}</span>)}
+                {currentImg.tags.map((t, i) => <span key={i} className="ep-ptag">{t}</span>)}
               </div>
             )}
           </div>
@@ -224,7 +282,7 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
           <div className="ep-footer">
             {vendor.isDbItem ? (
               <>
-                <div style={{ fontSize:12, color:'#9e8e7a' }}>{vendor.portfolio?.length || 0} portfolio image{vendor.portfolio?.length !== 1 ? 's' : ''}</div>
+                <div style={{ fontSize:12, color:'#9e8e7a' }}>{total} portfolio image{total !== 1 ? 's' : ''}</div>
                 <button className="ep-cta ep-cta-amber">Enquire Now</button>
               </>
             ) : (
@@ -259,7 +317,7 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
   );
 }
 
-// ── VendorCard — no longer renders ExpandPanel inline ─────────────────────
+// ── VendorCard ────────────────────────────────────────────────────────────────
 function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark, allVendors }) {
   const [hovered, setHovered]     = useState(false);
   const [bmHovered, setBmHovered] = useState(false);
@@ -275,7 +333,6 @@ function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark,
       style={{
         outline: isOpen ? '2px solid #534AB7' : 'none',
         outlineOffset: 2,
-        // Don't hide — just highlight the active card
       }}
     >
       <div className="vendor-img-wrap">
@@ -408,8 +465,6 @@ export default function PhotographyPage({ bookmarks, onBookmarkToggle }) {
   }, []);
 
   const allVendors = useMemo(() => [...PHOTOGRAPHERS, ...dbVendors], [dbVendors]);
-
-  // The currently open vendor object (for rendering the panel above grid)
   const openVendor = useMemo(() => allVendors.find(v => v.id === openId) || null, [allVendors, openId]);
 
   const toggleBookmark = (id) => {
@@ -418,8 +473,15 @@ export default function PhotographyPage({ bookmarks, onBookmarkToggle }) {
     onBookmarkToggle({ id: vendor.id, name: vendor.name, image: vendor.cover, type: 'Photography' });
   };
 
-  const handleOpen  = (id) => setOpenId(id);
-  const handleClose = ()   => setOpenId(null);
+  const expandPanelRef = useRef(null);
+
+  const handleOpen = (id) => {
+    setOpenId(id);
+    setTimeout(() => {
+      expandPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  };
+  const handleClose = () => setOpenId(null);
   const toggleArr   = (arr, setArr, val) => setArr(arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val]);
   const clearAll    = () => { setPriceRange([0,120000]); setSelectedTypes([]); setSelectedMedia([]); setSelectedYears([]); setMinRating(0); setSearchQuery(''); setOpenId(null); };
 
@@ -504,18 +566,19 @@ export default function PhotographyPage({ bookmarks, onBookmarkToggle }) {
         </aside>
 
         <main className="results-area">
-          {/* ── Expand panel renders HERE, above the grid ── */}
-          {openVendor && (
-            <ExpandPanel
-              vendor={openVendor}
-              allVendors={filtered}
-              onClose={handleClose}
-              onRelatedClick={(r) => handleOpen(r.id)}
-              isBookmarked={!!bookmarks[openVendor.id]}
-              onBookmark={() => toggleBookmark(openVendor.id)}
-              navigate={navigate}
-            />
-          )}
+          <div ref={expandPanelRef}>
+            {openVendor && (
+              <ExpandPanel
+                vendor={openVendor}
+                allVendors={filtered}
+                onClose={handleClose}
+                onRelatedClick={(r) => handleOpen(r.id)}
+                isBookmarked={!!bookmarks[openVendor.id]}
+                onBookmark={() => toggleBookmark(openVendor.id)}
+                navigate={navigate}
+              />
+            )}
+          </div>
 
           {filtered.length === 0 ? (
             <div className="empty-state">

@@ -48,6 +48,31 @@ const SERVICES_OFFERED = [
   "Drone Shots", "Photo Booth", "Live Screening", "Albums",
 ];
 
+// Maps a DB vendor row + its tags into the same shape the static PHOTOGRAPHERS
+// entries use, so the rest of the page doesn't need to branch on data source.
+// Mirrors mapVendorToCard() in PhotographyPage.jsx.
+function mapDbVendorToProfile(vendor, tags) {
+  const typeFromSpecialty = vendor.specialty
+    ? vendor.specialty.split(',').map(s => s.trim()).filter(Boolean)
+    : ['Photography'];
+  return {
+    id: vendor.id,
+    bookmarkId: `db_${vendor.id}`, // matches the id format used on the listing page
+    name: vendor.name,
+    location: 'Lucknow',
+    rating: 5.0,
+    pricePerDay: vendor.price_per_day ? Number(vendor.price_per_day) : 0,
+    type: typeFromSpecialty,
+    media: ['Photo'],
+    verified: false,
+    tags: tags.map(t => t.tag),
+    cover: vendor.photo_url || '',
+    contact: vendor.contact || '',
+    specialty: vendor.specialty || '',
+    isDbItem: true,
+  };
+}
+
 // ── Sub-components ─────────────────────────────────────────────────────────
 function ReviewCard({ review }) {
   const name = review.client_name || review.name || 'Anonymous';
@@ -87,15 +112,122 @@ function RatingBar({ stars, count, total }) {
   );
 }
 
+const PP_CAROUSEL_STYLES = `
+  .pp-carousel { position:relative; border-radius:14px; overflow:hidden; background:#000; margin-bottom:20px; border:0.5px solid var(--border-soft, rgba(255,255,255,0.08)); }
+  .pp-carousel-stage { position:relative; width:100%; height:460px; overflow:hidden; background:#15120D; }
+  .pp-carousel-stage img { width:100%; height:100%; object-fit:cover; display:block; position:absolute; inset:0; transition:opacity .35s ease, transform .35s ease; }
+  .pp-carousel-stage img.pp-carousel-enter { opacity:0; transform:scale(1.03); }
+  .pp-carousel-overlay { position:absolute; inset:0; background:linear-gradient(to top, rgba(0,0,0,.6) 0%, transparent 42%); pointer-events:none; }
+  .pp-carousel-counter { position:absolute; top:14px; right:14px; background:rgba(15,13,10,.65); backdrop-filter:blur(6px); color:#F0A020; font-size:11px; padding:4px 11px; border-radius:20px; border:.5px solid rgba(212,134,10,.3); z-index:5; }
+  .pp-carousel-nav { position:absolute; top:50%; transform:translateY(-50%); width:38px; height:38px; border-radius:50%; background:rgba(15,13,10,.55); backdrop-filter:blur(6px); border:.5px solid rgba(212,134,10,.3); color:#F5EDD8; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .18s, transform .15s; z-index:5; }
+  .pp-carousel-nav:hover { background:rgba(212,134,10,.55); transform:translateY(-50%) scale(1.08); }
+  .pp-carousel-prev { left:14px; }
+  .pp-carousel-next { right:14px; }
+  .pp-carousel-caption { position:absolute; left:16px; bottom:16px; right:96px; color:#F5EDD8; font-size:13px; z-index:5; text-shadow:0 1px 4px rgba(0,0,0,.6); }
+  .pp-carousel-ptags { position:absolute; left:16px; bottom:44px; display:flex; gap:6px; flex-wrap:wrap; z-index:5; }
+  .pp-carousel-ptag { font-size:10px; padding:3px 10px; border-radius:20px; background:rgba(212,134,10,.2); color:#F0A020; border:.5px solid rgba(212,134,10,.35); backdrop-filter:blur(4px); }
+  .pp-carousel-thumbs { display:flex; gap:8px; padding:10px; overflow-x:auto; background:#15120D; }
+  .pp-carousel-thumb { flex:0 0 auto; width:76px; height:54px; border-radius:8px; overflow:hidden; cursor:pointer; opacity:.5; border:1.5px solid transparent; transition:opacity .15s, border-color .15s; }
+  .pp-carousel-thumb:hover { opacity:.8; }
+  .pp-carousel-thumb.active { opacity:1; border-color:#D4860A; }
+  .pp-carousel-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+  .pp-carousel-empty { display:flex; align-items:center; justify-content:center; height:280px; color:#7A6E5C; font-size:13px; background:#1A1610; border-radius:14px; border:0.5px dashed rgba(255,255,255,0.1); margin-bottom:20px; }
+`;
+
+// Image carousel for the Portfolio tab — pulls from vendor_portfolio (DB) or
+// the static PORTFOLIO_SETS fallback, both normalised to { url, caption, tags }.
+function PortfolioCarousel({ images }) {
+  const [idx, setIdx]         = useState(0);
+  const [sliding, setSliding] = useState(false);
+
+  useEffect(() => { setIdx(0); }, [images]);
+
+  if (!images || images.length === 0) {
+    return (
+      <div className="pp-carousel-empty">
+        <style>{PP_CAROUSEL_STYLES}</style>
+        No portfolio images yet.
+      </div>
+    );
+  }
+
+  const total   = images.length;
+  const current = images[idx];
+
+  const goTo = (i) => {
+    if (i === idx || sliding) return;
+    setSliding(true);
+    setTimeout(() => { setIdx(i); setSliding(false); }, 280);
+  };
+  const prev = () => goTo((idx - 1 + total) % total);
+  const next = () => goTo((idx + 1) % total);
+
+  return (
+    <div className="pp-carousel">
+      <style>{PP_CAROUSEL_STYLES}</style>
+      <div className="pp-carousel-stage">
+        <img
+          key={current.url}
+          src={current.url}
+          alt={`Portfolio ${idx + 1}`}
+          className={sliding ? 'pp-carousel-enter' : ''}
+        />
+        <div className="pp-carousel-overlay" />
+
+        {total > 1 && <div className="pp-carousel-counter">{idx + 1} / {total}</div>}
+
+        {current.tags?.length > 0 && (
+          <div className="pp-carousel-ptags">
+            {current.tags.map((t, i) => <span key={i} className="pp-carousel-ptag">{t}</span>)}
+          </div>
+        )}
+        {current.caption && <div className="pp-carousel-caption">{current.caption}</div>}
+
+        {total > 1 && (
+          <>
+            <button className="pp-carousel-nav pp-carousel-prev" onClick={prev} title="Previous">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M10 3L5 8l5 5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            <button className="pp-carousel-nav pp-carousel-next" onClick={next} title="Next">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M6 3l5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          </>
+        )}
+      </div>
+
+      {total > 1 && (
+        <div className="pp-carousel-thumbs">
+          {images.map((img, i) => (
+            <div key={i} className={`pp-carousel-thumb${i === idx ? ' active' : ''}`} onClick={() => goTo(i)}>
+              <img src={img.url} alt={`Thumbnail ${i + 1}`} loading="lazy" />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Component ─────────────────────────────────────────────────────────
 export default function PhotographerProfilePage({ bookmarks, onBookmarkToggle }) {
   const { id }       = useParams();
   const navigate     = useNavigate();
   const { user }     = useAuth();
-  const photographer = PHOTOGRAPHERS.find(p => p.id === parseInt(id));
+
+  const staticPhotographer = PHOTOGRAPHERS.find(p => p.id === parseInt(id));
 
   const [activeSection, setActiveSection] = useState('projects');
   const [activeTab, setActiveTab]         = useState('portfolio');
+
+  // DB-backed vendor (used when the id isn't one of the static demo photographers)
+  const [dbVendor, setDbVendor]           = useState(null);
+  const [dbPortfolio, setDbPortfolio]     = useState([]);
+  const [dbTags, setDbTags]               = useState([]);
+  const [dbLoading, setDbLoading]         = useState(!staticPhotographer);
 
   // Reviews from DB
   const [reviews, setReviews]             = useState([]);
@@ -137,6 +269,43 @@ export default function PhotographerProfilePage({ bookmarks, onBookmarkToggle })
 
   useEffect(() => { fetchReviews(); }, []);
 
+  // Fetch the vendor + its portfolio images + tags from the DB when the id
+  // doesn't match one of the static demo photographers.
+  useEffect(() => {
+    if (staticPhotographer) { setDbLoading(false); return; }
+
+    let cancelled = false;
+    setDbLoading(true);
+
+    (async () => {
+      try {
+        const res     = await fetch(`${API}/vendors`);
+        const vendors = await res.json();
+        const match   = Array.isArray(vendors) ? vendors.find(v => v.id === parseInt(id)) : null;
+
+        if (!match) { if (!cancelled) setDbLoading(false); return; }
+
+        const [portRes, tagsRes] = await Promise.all([
+          fetch(`${API}/vendors/${match.id}/portfolio`),
+          fetch(`${API}/vendors/${match.id}/tags`),
+        ]);
+        const portfolio = await portRes.json();
+        const tags      = await tagsRes.json();
+
+        if (!cancelled) {
+          setDbVendor(match);
+          setDbPortfolio(Array.isArray(portfolio) ? portfolio : []);
+          setDbTags(Array.isArray(tags) ? tags : []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch vendor:', err);
+      }
+      if (!cancelled) setDbLoading(false);
+    })();
+
+    return () => { cancelled = true; };
+  }, [id]);
+
   // Intersection observer for sticky nav
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -147,7 +316,16 @@ export default function PhotographerProfilePage({ bookmarks, onBookmarkToggle })
     return () => observer.disconnect();
   }, []);
 
+  const photographer = staticPhotographer || (dbVendor ? mapDbVendorToProfile(dbVendor, dbTags) : null);
+
   if (!photographer) {
+    if (dbLoading) {
+      return (
+        <div className="pp-not-found">
+          <h2>Loading…</h2>
+        </div>
+      );
+    }
     return (
       <div className="pp-not-found">
         <h2>Photographer not found</h2>
@@ -156,13 +334,16 @@ export default function PhotographerProfilePage({ bookmarks, onBookmarkToggle })
     );
   }
 
-  const isBookmarked = !!(bookmarks && bookmarks[photographer.id]);
-  const portfolio    = PORTFOLIO_SETS[photographer.id] || PORTFOLIO_SETS[1];
-  const totalReviews = reviews.length;
-  const avgRating    = totalReviews > 0 ? reviews.reduce((s, r) => s + Number(r.rating), 0) / totalReviews : photographer.rating;
+  const isBookmarked   = !!(bookmarks && bookmarks[photographer.bookmarkId ?? photographer.id]);
+  const portfolioImages = photographer.isDbItem
+    ? dbPortfolio.map(p => ({ url: p.image_url, caption: p.caption, tags: p.tags || [] }))
+    : (PORTFOLIO_SETS[photographer.id] || PORTFOLIO_SETS[1]).map(url => ({ url, caption: null, tags: [] }));
+  const heroCover     = photographer.cover || portfolioImages[0]?.url || '';
+  const totalReviews  = reviews.length;
+  const avgRating     = totalReviews > 0 ? reviews.reduce((s, r) => s + Number(r.rating), 0) / totalReviews : photographer.rating;
 
   const handleBookmark = () => {
-    onBookmarkToggle({ id: photographer.id, name: photographer.name, image: photographer.cover, type: "Photography" });
+    onBookmarkToggle({ id: photographer.bookmarkId ?? photographer.id, name: photographer.name, image: heroCover, type: "Photography" });
   };
 
   // Submit review → POST /api/reviews
@@ -235,7 +416,7 @@ export default function PhotographerProfilePage({ bookmarks, onBookmarkToggle })
       {/* ── Hero ── */}
       <div className="pp-hero">
         <div className="pp-hero-img-wrap">
-          <img src={photographer.cover} alt={photographer.name} className="pp-hero-img" />
+          <img src={heroCover} alt={photographer.name} className="pp-hero-img" />
           <div className="pp-hero-overlay" />
         </div>
         <div className="pp-hero-content">
@@ -313,28 +494,30 @@ export default function PhotographerProfilePage({ bookmarks, onBookmarkToggle })
             <div className="pp-tabs">
               {['portfolio', 'albums', 'videos'].map(tab => (
                 <button key={tab} className={`pp-tab ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>
-                  {tab === 'portfolio' ? `Portfolio (${portfolio.length})` : tab === 'albums' ? 'Albums (5)' : 'Videos (3)'}
+                  {tab === 'portfolio' ? `Portfolio (${portfolioImages.length})` : tab === 'albums' ? 'Albums (5)' : 'Videos (3)'}
                 </button>
               ))}
             </div>
 
             {activeTab === 'portfolio' && (
-              <div className="pp-portfolio-grid">
-                {portfolio.map((img, i) => <div key={i} className="pp-portfolio-item"><img src={img} alt={`Portfolio ${i+1}`} loading="lazy" /></div>)}
-              </div>
+              dbLoading && photographer.isDbItem ? (
+                <p style={{ color: '#7A6E5C', fontSize: 13 }}>Loading portfolio…</p>
+              ) : (
+                <PortfolioCarousel images={portfolioImages} />
+              )
             )}
             {activeTab === 'albums' && (
               <div className="pp-albums-grid">
-                {portfolio.slice(0, 5).map((img, i) => (
-                  <div key={i} className="pp-album-card"><img src={img} alt={`Album ${i+1}`} loading="lazy" /><div className="pp-album-label">Wedding Album {i+1}</div></div>
+                {portfolioImages.slice(0, 5).map((img, i) => (
+                  <div key={i} className="pp-album-card"><img src={img.url} alt={`Album ${i+1}`} loading="lazy" /><div className="pp-album-label">Wedding Album {i+1}</div></div>
                 ))}
               </div>
             )}
             {activeTab === 'videos' && (
               <div className="pp-videos-grid">
-                {portfolio.slice(0, 3).map((img, i) => (
+                {portfolioImages.slice(0, 3).map((img, i) => (
                   <div key={i} className="pp-video-card">
-                    <img src={img} alt={`Video ${i+1}`} loading="lazy" />
+                    <img src={img.url} alt={`Video ${i+1}`} loading="lazy" />
                     <div className="pp-video-play"><svg width="28" height="28" viewBox="0 0 32 32" fill="currentColor"><circle cx="16" cy="16" r="15" fill="rgba(0,0,0,0.5)" /><polygon points="13,10 24,16 13,22" fill="white" /></svg></div>
                     <div className="pp-video-label">Highlight Reel {i+1}</div>
                   </div>
@@ -503,4 +686,4 @@ export default function PhotographerProfilePage({ bookmarks, onBookmarkToggle })
       </div>
     </div>
   );
-}
+} 
