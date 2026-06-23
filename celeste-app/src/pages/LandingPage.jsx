@@ -14,71 +14,79 @@ const heroSlides = [
   { tag: 'Wildlife Edition', title: 'Moments Frozen in Time', sub: 'Rare wildlife encounters, beautifully preserved in every frame.', btnText: 'Book a Session', btnLink: '#contact' },
 ];
 
-/* Hardcoded Gallery Data — independent from the database/Explore Events gallery */
+/* ── Complete 9-image hardcoded gallery (3×3 grid) ── */
 const hardcodedGallery = [
   {
     id: 'hc-1',
-    image_url: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=600&q=80',
+    image_url: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&q=80',
     title: 'Mountain Lake',
     tag: 'Landscape',
-    location: 'Scenic View',
-    description: 'A serene mountain lake reflecting the peaks above.',
+    location: 'Himalayas, India',
+    description: 'A serene mountain lake reflecting the peaks above at dawn.',
   },
   {
     id: 'hc-2',
-    image_url: 'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?w=600&q=80',
+    image_url: 'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?w=800&q=80',
     title: 'Forest Path',
     tag: 'Nature',
-    location: 'Woodland Trail',
-    description: 'A winding path through an ancient forest.',
+    location: 'Black Forest, Germany',
+    description: 'A winding path through an ancient forest shrouded in morning mist.',
   },
   {
     id: 'hc-3',
-    image_url: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=600&q=80',
+    image_url: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=800&q=80',
     title: 'Golden Hills',
     tag: 'Sunrise',
-    location: 'Dawn Light',
-    description: 'Rolling hills bathed in the golden light of dawn.',
+    location: 'California, USA',
+    description: 'Rolling hills bathed in the warm golden glow of sunrise.',
   },
   {
     id: 'hc-4',
-    image_url: 'https://images.unsplash.com/photo-1501854140801-50d01698950b?w=600&q=80',
+    image_url: 'https://images.unsplash.com/photo-1501854140801-50d01698950b?w=800&q=80',
     title: 'Panoramic Vista',
     tag: 'Valley',
-    location: 'Mountain Range',
-    description: 'A sweeping panorama of valleys and distant peaks.',
+    location: 'Swiss Alps, Switzerland',
+    description: 'A sweeping panorama of valleys carved by ancient glaciers.',
   },
   {
     id: 'hc-5',
-    image_url: 'https://images.unsplash.com/photo-1426604966848-d7adac402bff?w=600&q=80',
+    image_url: 'https://images.unsplash.com/photo-1426604966848-d7adac402bff?w=800&q=80',
     title: 'Golden Foliage',
     tag: 'Autumn',
-    location: 'Seasonal Colors',
-    description: 'Autumn trees ablaze with warm golden hues.',
+    location: 'Vermont, USA',
+    description: 'Autumn trees ablaze with warm golden and crimson hues.',
   },
   {
     id: 'hc-6',
-    image_url: 'https://images.unsplash.com/photo-1518020382113-a7e8fc38eac9?w=600&q=80',
+    image_url: 'https://images.unsplash.com/photo-1518020382113-a7e8fc38eac9?w=800&q=80',
     title: "Nature's Beauty",
     tag: 'Wildlife',
-    location: 'Animal Kingdom',
-    description: 'Wildlife captured in its natural habitat.',
+    location: 'Serengeti, Tanzania',
+    description: 'Wildlife captured in perfect harmony with its natural habitat.',
   },
   {
     id: 'hc-7',
-    image_url: 'https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?w=600&q=80',
+    image_url: 'https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?w=800&q=80',
     title: 'Pine Forest',
     tag: 'Forest',
-    location: 'Evergreen',
-    description: 'Tall pine trees stretching toward a clear sky.',
+    location: 'Black Hills, USA',
+    description: 'Towering pines standing sentinel in cathedral-like silence.',
   },
   {
     id: 'hc-8',
-    image_url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=600&q=80',
+    image_url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80',
     title: 'Mountain Peak',
     tag: 'Summit',
-    location: 'High Altitude',
-    description: 'A dramatic summit rising above the clouds.',
+    location: 'Mount Fuji, Japan',
+    description: "Standing atop one of Japan's most sacred mountains at sunrise.",
+  },
+  {
+    id: 'hc-9',
+    image_url: 'https://images.unsplash.com/photo-1505118380757-91f5f5632de0?w=800&q=80',
+    title: 'Ocean Cliffs',
+    tag: 'Coastal',
+    location: 'Big Sur, California',
+    description: 'Sheer cliffs meeting the relentless power of the Pacific Ocean.',
   },
 ];
 
@@ -92,7 +100,7 @@ function GalleryModal({ isOpen, onClose, item, onPrev, onNext }) {
           <img src={item.image_url} alt={item.title} />
         </div>
         <div className="modal-content">
-          <button className="modal-close" onClick={onClose}>x</button>
+          <button className="modal-close" onClick={onClose}>✕</button>
           {item.tag && <div className="modal-tag">{item.tag}</div>}
           <div className="modal-title">{item.title || 'Untitled'}</div>
           {item.description && <div className="modal-desc">{item.description}</div>}
@@ -147,7 +155,7 @@ function TestimonialCarousel() {
   );
 }
 
-/* Contact Section — connected to /api/queries */
+/* Contact Section */
 function ContactSection() {
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -157,7 +165,6 @@ function ContactSection() {
     e.preventDefault();
     setLoading(true);
     setError('');
-
     const formData = new FormData(e.target);
     const payload = {
       client_name: `${formData.get('firstName')} ${formData.get('lastName')}`.trim(),
@@ -165,7 +172,6 @@ function ContactSection() {
       phone: formData.get('phone') || '',
       message: `[${formData.get('projectType') || 'General'}] ${formData.get('message')}`,
     };
-
     try {
       const res = await fetch(`${API}/queries`, {
         method: 'POST',
@@ -180,7 +186,7 @@ function ContactSection() {
       } else {
         setError('Something went wrong. Please try again.');
       }
-    } catch (err) {
+    } catch {
       setError('Could not connect to server. Please try again.');
     }
     setLoading(false);
@@ -237,7 +243,7 @@ function ContactSection() {
   );
 }
 
-/* Landing Page */
+/* ── Landing Page ── */
 export default function LandingPage() {
   const { current: heroCurrent, goTo: goToHero } = useSlider(heroSlides.length, 4000);
   const { isOpen, open, close, navigate, currentIndex } = useModal(hardcodedGallery.length);
@@ -252,16 +258,20 @@ export default function LandingPage() {
               <span className="slide-tag">{s.tag}</span>
               <h1 className="slide-title">{s.title}</h1>
               <p className="slide-sub">{s.sub}</p>
-              {s.btnLink.startsWith('#') ? <a href={s.btnLink} className="slide-btn">{s.btnText}</a> : <Link to={s.btnLink} className="slide-btn">{s.btnText}</Link>}
+              {s.btnLink.startsWith('#')
+                ? <a href={s.btnLink} className="slide-btn">{s.btnText}</a>
+                : <Link to={s.btnLink} className="slide-btn">{s.btnText}</Link>}
             </div>
           </div>
         ))}
         <div className="slider-dots">
-          {heroSlides.map((_, i) => <div key={i} className={i === heroCurrent ? 'dot active' : 'dot'} onClick={() => goToHero(i)} />)}
+          {heroSlides.map((_, i) => (
+            <div key={i} className={i === heroCurrent ? 'dot active' : 'dot'} onClick={() => goToHero(i)} />
+          ))}
         </div>
       </section>
 
-      {/* Gallery Grid — hardcoded, fully independent from database */}
+      {/* ── Gallery Grid — 9 images, 3×3 ── */}
       <section id="gallery">
         <div className="section-label">Our Work</div>
         <h2 className="section-title">Visual Stories</h2>
@@ -269,10 +279,17 @@ export default function LandingPage() {
 
         <div className="gallery-grid">
           {hardcodedGallery.map((item, index) => (
-            <div key={item.id} className="gallery-item" onClick={() => open(index)}>
+            <div
+              key={item.id}
+              className="gallery-item"
+              onClick={() => open(index)}
+            >
               <img src={item.image_url} alt={item.title} loading="lazy" />
               <div className="eye-icon">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1 8s3-6 7-6 7 6 7 6-3 6-7 6-7-6-7-6z" stroke="white" strokeWidth="1.4" fill="none"/><circle cx="8" cy="8" r="2" stroke="white" strokeWidth="1.3" fill="none"/></svg>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                  <path d="M1 8s3-6 7-6 7 6 7 6-3 6-7 6-7-6-7-6z" stroke="white" strokeWidth="1.4" fill="none"/>
+                  <circle cx="8" cy="8" r="2" stroke="white" strokeWidth="1.3" fill="none"/>
+                </svg>
               </div>
               <div className="item-overlay">
                 <div className="item-mini">
@@ -317,3 +334,8 @@ export default function LandingPage() {
     </>
   );
 }
+
+// 223 - 47 - 2
+// 183 - 39 - 2
+// 164 - 40 - 6
+// 132 - 30 - 3
