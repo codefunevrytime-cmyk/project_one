@@ -6,10 +6,17 @@ import styles from "./ExplorePage.module.css";
 
 const API = "http://localhost:5000/api";
 
-const EMPTY_FILTERS = { type: new Set(), venue: new Set(), year: new Set(), scale: new Set() };
+const EVENT_PRICE_MAX = 120000;
+const EMPTY_FILTERS = { type: new Set(), venue: new Set(), year: new Set(), scale: new Set(), price: [0, EVENT_PRICE_MAX] };
 
 function cloneFilters(f) {
-  return { type: new Set(f.type), venue: new Set(f.venue), year: new Set(f.year), scale: new Set(f.scale) };
+  return {
+    type: new Set(f.type),
+    venue: new Set(f.venue),
+    year: new Set(f.year),
+    scale: new Set(f.scale),
+    price: [...(f.price || [0, EVENT_PRICE_MAX])],
+  };
 }
 
 function mapGalleryToEvent(item) {
@@ -49,8 +56,8 @@ export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClear
   const [loading, setLoading] = useState(true);
 
   const [filters, setFilters] = useState(() => {
-    if (selectedType) return { ...EMPTY_FILTERS, type: new Set([selectedType]) };
-    return EMPTY_FILTERS;
+    if (selectedType) return { ...cloneFilters(EMPTY_FILTERS), type: new Set([selectedType]) };
+    return cloneFilters(EMPTY_FILTERS);
   });
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("latest");
@@ -91,10 +98,14 @@ export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClear
   }, []);
 
   useEffect(() => {
-    if (selectedType) {
+    if (!selectedType) return;
+
+    const timer = window.setTimeout(() => {
       setFilters((prev) => { const f = cloneFilters(prev); f.type = new Set([selectedType]); return f; });
       setOpenId(null);
-    }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [selectedType]);
 
   const handleFilterChange = (key, val) => {
@@ -104,7 +115,7 @@ export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClear
   };
 
   const clearAll = () => {
-    setFilters(EMPTY_FILTERS);
+    setFilters(cloneFilters(EMPTY_FILTERS));
     setSearch("");
     setOpenId(null);
     onClearType?.();
@@ -116,6 +127,13 @@ export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClear
     filters.venue.forEach((v) => chips.push({ key: "venue", val: v, label: v }));
     filters.year.forEach((v) => chips.push({ key: "year", val: v, label: v }));
     filters.scale.forEach((v) => chips.push({ key: "scale", val: v, label: `${v} scale` }));
+    if (filters.price && (filters.price[0] > 0 || filters.price[1] < EVENT_PRICE_MAX)) {
+      chips.push({
+        key: "price",
+        val: "range",
+        label: `Rs ${filters.price[0].toLocaleString("en-IN")} - Rs ${filters.price[1].toLocaleString("en-IN")}`,
+      });
+    }
     return chips;
   }, [filters]);
 
@@ -123,6 +141,7 @@ export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClear
     setFilters((prev) => {
       const f = cloneFilters(prev);
       if (key === "year") f.year = new Set();
+      else if (key === "price") f.price = [0, EVENT_PRICE_MAX];
       else f[key].delete(val);
       return f;
     });
@@ -142,6 +161,12 @@ export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClear
     if (filters.venue.size) evs = evs.filter((e) => filters.venue.has(e.venue));
     if (filters.year.size) evs = evs.filter((e) => filters.year.has(String(e.year)));
     if (filters.scale.size) evs = evs.filter((e) => filters.scale.has(e.scale));
+    if (filters.price) {
+      evs = evs.filter((e) => {
+        const price = Number(e.price || 0);
+        return price === 0 || (price >= filters.price[0] && price <= filters.price[1]);
+      });
+    }
     return [...evs].sort((a, b) => {
       const av = a.year * 100 + (MONTH_IDX[a.month] ?? 0);
       const bv = b.year * 100 + (MONTH_IDX[b.month] ?? 0);

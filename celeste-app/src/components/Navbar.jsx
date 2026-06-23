@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { featuredEventTypes } from '../context/data/eventsData';
 import { getVendorServiceConfig } from '../context/data/vendorServiceConfig';
 import { useAuth } from '../hooks/useAuth';
+import { BookmarkMenuItem } from './CommonControls';
 
 
 // ── Services data ──────────────────────────────────────────────
@@ -300,11 +301,7 @@ export default function Navbar({ bookmarkCount }) {
                 <span className="cd-icon"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.3"/><path d="M8 5v6M5 8h6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg></span>
                 Create Event
               </Link>
-              <Link to="/bookmarks" className="cd-item" onClick={closeAllMenus}>
-                <span className="cd-icon"><svg viewBox="0 0 16 16" fill="none"><path d="M4 2h8a1 1 0 011 1v10l-5-3-5 3V3a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg></span>
-                Bookmarked
-                <span className="nav-count-badge">{bookmarkCount}</span>
-              </Link>
+              <BookmarkMenuItem count={bookmarkCount} className="cd-item" onClick={closeAllMenus} />
              <button type="button" className="cd-item" onClick={() => { setProfileOpen(false); navigate("/payments"); }}>
   <span className="cd-icon"><svg viewBox="0 0 16 16" fill="none"><rect x="1.5" y="4" width="13" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.3"/><path d="M1.5 7h13" stroke="currentColor" strokeWidth="1.3"/></svg></span>
   Payments
@@ -361,7 +358,7 @@ export default function Navbar({ bookmarkCount }) {
           </>
         ) : (
           <>
-            <Link to="/bookmarks" onClick={closeAllMenus}>Saved Boards ({bookmarkCount})</Link>
+            <BookmarkMenuItem count={bookmarkCount} label="Saved Boards" className="cd-item" onClick={closeAllMenus} />
             <button type="button" className="cd-item cd-danger" onClick={() => { closeAllMenus(); signOut(); }}>
               <span className="cd-icon"><svg viewBox="0 0 16 16" fill="none"><path d="M6 14H3a1 1 0 01-1-1V3a1 1 0 011-1h3M10 11l3-3-3-3M13 8H6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg></span>
               Sign Out

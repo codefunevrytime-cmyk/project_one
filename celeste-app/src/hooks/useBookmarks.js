@@ -1,9 +1,24 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
+
+const BOOKMARKS_KEY = "arc_saved_bookmarks";
+
+function readBookmarks() {
+  try {
+    const raw = localStorage.getItem(BOOKMARKS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
 
 export function useBookmarks() {
-  const [bookmarks, setBookmarks] = useState({});
+  const [bookmarks, setBookmarks] = useState(readBookmarks);
   const [toast, setToast] = useState({ visible: false, message: "" });
   const timerRef = useRef(null);
+
+  useEffect(() => {
+    localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(bookmarks));
+  }, [bookmarks]);
 
   const showToast = (msg) => {
     if (timerRef.current) clearTimeout(timerRef.current);

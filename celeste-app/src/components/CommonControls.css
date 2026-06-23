@@ -1,0 +1,98 @@
+.common-search {
+  display: flex;
+  align-items: center;
+}
+
+.common-search-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.common-search-input {
+  min-width: 0;
+}
+
+.common-search-clear {
+  font-family: inherit;
+}
+
+.common-search-hint {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.common-filter-header,
+.common-filter-title {
+  display: flex;
+  align-items: center;
+}
+
+.common-filter-header {
+  justify-content: space-between;
+}
+
+.common-filter-clear,
+.common-filter-section-toggle {
+  font-family: inherit;
+}
+
+.common-filter-section-toggle {
+  width: 100%;
+}
+
+.common-filter-section-toggle svg {
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+
+.common-filter-option {
+  user-select: none;
+}
+
+.common-filter-option-chip input,
+.common-filter-option-rating input {
+  display: none;
+}
+
+.common-bookmark-button {
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.15s, background 0.15s, transform 0.15s, box-shadow 0.15s;
+  z-index: 5;
+}
+
+.common-bookmark-button:hover {
+  transform: scale(1.1);
+}
+
+.common-bookmark-menu-item {
+  text-decoration: none;
+}
+
+.common-card-shell {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden !important;
+}
+
+.common-card-media {
+  position: relative;
+  height: 240px;
+  min-height: 220px;
+  max-height: 260px;
+  overflow: hidden;
+}
+
+.common-card-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}

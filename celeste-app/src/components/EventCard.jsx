@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BookmarkIcon } from "./BookmarkIcon";
+import { BookmarkButton } from "./CommonControls";
 import { THEME_GRADIENTS, EVENT_CATEGORIES } from "../context/data/events";
 import styles from "./EventCard.module.css";
 import { useNavigate } from "react-router-dom";
@@ -24,6 +24,20 @@ function getRelated(event, allEvents) {
 function getImages(event) {
   if (Array.isArray(event.images) && event.images.length > 0) return event.images;
   return event.image_url ? [event.image_url] : [];
+}
+
+function getBookmarkPayload(event) {
+  const images = getImages(event);
+  return {
+    ...event,
+    id: event.id,
+    title: event.title,
+    name: event.title,
+    image: event.image_url || images[0] || null,
+    image_url: event.image_url || images[0] || null,
+    images,
+    type: event.type,
+  };
 }
 
 // ── Expand Panel ──────────────────────────────────────────────────────────
@@ -153,19 +167,12 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
           )}
 
           {/* bookmark */}
-          <button className="ep-bm" onClick={onBookmark} style={{
+          <BookmarkButton className="ep-bm" active={isBookmarked} onClick={onBookmark} size={40} iconSize={20} style={{
             position:"absolute", bottom:16, right:16, width:40, height:40,
-            borderRadius:"50%",
-            background: isBookmarked ? "rgba(201,168,76,0.88)" : "rgba(255,255,255,0.22)",
-            border:"none", cursor:"pointer", color:"#fff",
-            display:"flex", alignItems:"center", justifyContent:"center",
             backdropFilter:"blur(4px)",
-            transition:"background 0.18s, transform 0.15s",
             boxShadow: isBookmarked ? "0 2px 12px rgba(201,168,76,0.4)" : "none",
             zIndex:3,
-          }}>
-            <BookmarkIcon filled={isBookmarked} size={20} color="#fff" />
-          </button>
+          }} idleColor="rgba(255,255,255,0.22)" activeColor="rgba(201,168,76,0.88)" />
 
           {/* venue pin */}
           {event.venue && (
@@ -301,7 +308,6 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
 //               above the grid in ExplorePage). The card thumbnail is skipped.
 export function EventCard({ event, isBookmarked, onBookmarkToggle, allEvents = [], openId, onOpen, onClose, forceExpanded = false }) {
   const [hovered, setHovered] = useState(false);
-  const [bmHovered, setBmHovered] = useState(false);
   const [imgIdx, setImgIdx] = useState(0);
   const isOpen = openId === event.id;
   const images = getImages(event);
@@ -313,7 +319,7 @@ export function EventCard({ event, isBookmarked, onBookmarkToggle, allEvents = [
 
   const handleBookmark = (e) => {
     e.stopPropagation();
-    onBookmarkToggle({ id: event.id, name: event.title, image: event.image_url || null, type: event.type });
+    onBookmarkToggle(getBookmarkPayload(event));
   };
 
   // When forceExpanded, only render the panel — used for the above-grid slot
@@ -325,7 +331,7 @@ export function EventCard({ event, isBookmarked, onBookmarkToggle, allEvents = [
         onClose={onClose}
         onRelatedClick={(r) => onOpen(r.id)}
         isBookmarked={isBookmarked}
-        onBookmark={() => onBookmarkToggle({ id: event.id, name: event.title, image: event.image_url || null, type: event.type })}
+        onBookmark={() => onBookmarkToggle(getBookmarkPayload(event))}
       />
     );
   }
@@ -334,7 +340,7 @@ export function EventCard({ event, isBookmarked, onBookmarkToggle, allEvents = [
     <>
       {/* Card — always visible in the grid; highlighted with outline when open */}
       <div
-        className={styles.card}
+        className={`${styles.card} common-card-shell`}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         onClick={() => isOpen ? onClose() : onOpen(event.id)}
@@ -346,7 +352,7 @@ export function EventCard({ event, isBookmarked, onBookmarkToggle, allEvents = [
         }}
       >
         {/* ── Image area ── */}
-        <div className={styles.imgArea}>
+        <div className={`${styles.imgArea} common-card-media`}>
           {images.length > 0
             ? <img key={images[imgIdx]} src={images[imgIdx]} alt={event.title} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", transition:"transform 0.4s, opacity 0.2s", transform: hovered ? "scale(1.05)" : "scale(1)" }} />
             : <div style={{ width:"100%", height:"100%", background: getGradient(event.type), display:"flex", alignItems:"center", justifyContent:"center", fontSize:54 }}>{getEmoji(event.type)}</div>
@@ -410,18 +416,15 @@ export function EventCard({ event, isBookmarked, onBookmarkToggle, allEvents = [
           </div>
 
           {/* Bookmark */}
-          <button
+          <BookmarkButton
             className={styles.bmBtn}
-            style={{
-              opacity: hovered || isBookmarked ? 1 : 0,
-              background: isBookmarked ? "rgba(201,168,76,0.88)" : bmHovered ? "rgba(0,0,0,0.72)" : "rgba(0,0,0,0.52)",
-            }}
+            active={isBookmarked}
+            visible={hovered}
             onClick={handleBookmark}
-            onMouseEnter={() => setBmHovered(true)}
-            onMouseLeave={() => setBmHovered(false)}
-          >
-            <BookmarkIcon filled={isBookmarked} size={15} color="#fff" />
-          </button>
+            activeColor="rgba(201,168,76,0.88)"
+            idleColor="rgba(0,0,0,0.52)"
+            hoverColor="rgba(0,0,0,0.72)"
+          />
         </div>
 
         {/* ── Card body ── */}

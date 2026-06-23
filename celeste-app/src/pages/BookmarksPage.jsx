@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import Footer from '../components/Footer';
 import { EventCard } from '../components/EventCard';
-import { BookmarkIcon } from '../components/BookmarkIcon';
+import { BookmarkButton } from '../components/CommonControls';
 
 const API = 'http://localhost:5000/api';
 
@@ -54,22 +54,19 @@ function VendorBookmarkCard({ vendor, onRemove }) {
         </div>
 
         {/* bookmark remove btn */}
-        <button
+        <BookmarkButton
+          active
+          iconSize={15}
+          size={34}
           onClick={() => onRemove(vendor.id)}
           style={{
             position: 'absolute', bottom: 10, right: 10,
-            width: 34, height: 34, borderRadius: '50%', border: 'none',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', opacity: hovered ? 1 : 0.7,
-            background: 'rgba(83,74,183,0.88)', color: '#fff',
-            transition: 'opacity 0.15s, transform 0.15s',
+            opacity: hovered ? 1 : 0.7,
             transform: hovered ? 'scale(1.1)' : 'scale(1)',
             zIndex: 5,
           }}
           title="Remove bookmark"
-        >
-          <BookmarkIcon filled size={15} color="#fff" />
-        </button>
+        />
       </div>
 
       {/* info */}

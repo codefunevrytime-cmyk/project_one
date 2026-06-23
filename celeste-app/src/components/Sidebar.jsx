@@ -1,5 +1,6 @@
 
 import PriceSlider from "./PriceSlider";
+import { FilterOption, FilterPanel, FilterSection } from "./CommonControls";
 import { EVENTS } from "../context/data/events";
 import styles from "./Sidebar.module.css";
 
@@ -10,11 +11,15 @@ const TYPES  = [...new Set(EVENTS.map((e) => e.type))].sort();
 const PRICE_MAX = 200000;  // ← here
 
 
-function countFor(key, val) {
-  return EVENTS.filter((e) => String(e[key]) === String(val)).length;
-}
-
 export function Sidebar({ filters, onChange, onClear }) {
+  const commonPriceMax = Math.min(PRICE_MAX, 120000);
+  const activeCount =
+    filters.type.size +
+    filters.venue.size +
+    filters.year.size +
+    filters.scale.size +
+    (filters.price && (filters.price[0] > 0 || filters.price[1] < commonPriceMax) ? 1 : 0);
+
   const toggle = (key, val, isRadio = false) => {
     const prev = filters[key];
     if (isRadio) {
@@ -27,97 +32,90 @@ export function Sidebar({ filters, onChange, onClear }) {
   };
 
   return (
-    <aside className={styles.sidebar}>
-      <div className={styles.sidebarHeader}>
-        <span className={styles.sidebarTitle}>Filters</span>
-        <button className={styles.clearBtn} onClick={onClear}>Clear all</button>
-      </div>
+    <FilterPanel
+      className={styles.sidebar}
+      headerClassName={styles.sidebarHeader}
+      titleClassName={styles.sidebarTitle}
+      clearClassName={styles.clearBtn}
+      activeCount={activeCount}
+      countClassName={styles.filterCountBadge}
+      onClear={activeCount > 0 ? onClear : undefined}
+    >
 
-      <Section title="Price Range">
+      <FilterSection title="Price Range" className={styles.section} titleClassName={styles.sectionTitle} bodyClassName={styles.filterBody}>
   <PriceSlider
     min={0}
-    max={200000}
-    value={filters.price || [0, 200000]}
+    max={commonPriceMax}
+    value={filters.price || [0, commonPriceMax]}
     onChange={(val) => onChange("price", val)}
   />
-   </Section>
+   </FilterSection>
 
-      <Section title="Event Type">
+      <FilterSection title="Event Type" className={styles.section} titleClassName={styles.sectionTitle} bodyClassName={styles.filterBody}>
+        <div className={styles.chipGroup}>
         {TYPES.map((t) => (
-          <CheckItem
+          <FilterOption
             key={t}
+            variant="chip"
             label={t}
-            count={countFor("type", t)}
             checked={filters.type.has(t)}
             onChange={() => toggle("type", t)}
+            className={styles.checkChip}
+            inputClassName={styles.check}
           />
         ))}
-      </Section>
+        </div>
+      </FilterSection>
 
-      <Section title="Venue / Setting">
+      <FilterSection title="Venue / Setting" className={styles.section} titleClassName={styles.sectionTitle} bodyClassName={styles.filterBody}>
+        <div className={styles.chipGroup}>
         {VENUES.map((v) => (
-          <CheckItem
+          <FilterOption
             key={v}
+            variant="chip"
             label={v}
-            count={countFor("venue", v)}
             checked={filters.venue.has(v)}
             onChange={() => toggle("venue", v)}
+            className={styles.checkChip}
+            inputClassName={styles.check}
           />
         ))}
-      </Section>
+        </div>
+      </FilterSection>
 
-      <Section title="Year">
+      <FilterSection title="Year" className={styles.section} titleClassName={styles.sectionTitle} bodyClassName={styles.filterBody}>
+        <div className={styles.chipGroup}>
         {YEARS.map((y) => (
-          <RadioItem
+          <FilterOption
             key={y}
+            variant="chip"
             label={String(y)}
-            count={countFor("year", y)}
             checked={filters.year.has(String(y))}
             onChange={() => toggle("year", String(y), true)}
+            type="radio"
+            name="yearFilter"
+            className={styles.checkChip}
+            inputClassName={styles.check}
           />
         ))}
-      </Section>
+        </div>
+      </FilterSection>
 
-      <Section title="Scale">
+      <FilterSection title="Scale" className={styles.section} titleClassName={styles.sectionTitle} bodyClassName={styles.filterBody}>
+        <div className={styles.chipGroup}>
         {SCALES.map((s) => (
-          <CheckItem
+          <FilterOption
             key={s}
+            variant="chip"
             label={`${s} events`}
-            count={countFor("scale", s)}
             checked={filters.scale.has(s)}
             onChange={() => toggle("scale", s)}
+            className={styles.checkChip}
+            inputClassName={styles.check}
           />
         ))}
-      </Section>
-    </aside>
-  );
-}
-
-function Section({ title, children }) {
-  return (
-    <div className={styles.section}>
-      <div className={styles.sectionTitle}>{title}</div>
-      {children}
-    </div>
-  );
-}
-
-function CheckItem({ label, count, checked, onChange }) {
-  return (
-    <label className={styles.filterLabel}>
-      <input type="checkbox" checked={checked} onChange={onChange} className={styles.check} />
-      <span className={styles.labelText}>{label}</span>
-      <span className={styles.count}>{count}</span>
-    </label>
-  );
-}
-
-function RadioItem({ label, count, checked, onChange }) {
-  return (
-    <label className={styles.filterLabel}>
-      <input type="radio" name="yearFilter" checked={checked} onChange={onChange} className={styles.check} />
-      <span className={styles.labelText}>{label}</span>
-      <span className={styles.count}>{count}</span>
-    </label>
+        </div>
+      </FilterSection>
+    </FilterPanel>
   );
 }

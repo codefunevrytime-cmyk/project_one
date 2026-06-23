@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { PHOTOGRAPHERS, YEARS } from "../context/data/photographyData";
 import { DEFAULT_VENDOR_SERVICE } from "../context/data/vendorServiceConfig";
 import PriceSlider from "../components/PriceSlider";
-import { BookmarkIcon } from "../components/BookmarkIcon";
+import { BookmarkButton, FilterOption, FilterPanel, FilterSection, SearchBar } from "../components/CommonControls";
 import './PhotographyPage.css';
 
 const API = 'http://localhost:5000/api';
@@ -55,31 +55,6 @@ function RatingStars({ rating }) {
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
       {[1, 2, 3, 4, 5].map(i => <StarIcon key={i} filled={i <= Math.round(rating)} />)}
     </span>
-  );
-}
-
-function FilterSection({ title, children, defaultOpen = true }) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="filter-section">
-      <button className="filter-section-title" onClick={() => setOpen(o => !o)}>
-        {title}
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"
-          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}>
-          <path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
-      {open && <div className="filter-body">{children}</div>}
-    </div>
-  );
-}
-
-function CheckChip({ label, checked, onChange }) {
-  return (
-    <label className={`check-chip ${checked ? 'checked' : ''}`}>
-      <input type="checkbox" checked={checked} onChange={onChange} style={{ display: 'none' }} />
-      {label}
-    </label>
   );
 }
 
@@ -179,10 +154,16 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
           <div className="ep-img-overlay" />
 
           {/* Bookmark — top left */}
-          <button className="ep-bm" onClick={onBookmark}
-            style={{ background: isBookmarked ? 'rgba(83,74,183,0.88)' : 'rgba(0,0,0,0.38)', color: '#fff', boxShadow: isBookmarked ? '0 2px 12px rgba(83,74,183,0.4)' : 'none' }}>
-            <BookmarkIcon filled={isBookmarked} size={20} color="#fff" />
-          </button>
+          <BookmarkButton
+            className="ep-bm"
+            active={isBookmarked}
+            onClick={onBookmark}
+            size={40}
+            iconSize={20}
+            activeColor="rgba(201,168,76,0.88)"
+            idleColor="rgba(0,0,0,0.38)"
+            style={{ boxShadow: isBookmarked ? '0 2px 12px rgba(201,168,76,0.4)' : 'none' }}
+          />
 
           {/* Close — top right */}
           <button className="ep-close" onClick={onClose}>✕</button>
@@ -327,13 +308,12 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
 // ── VendorCard ────────────────────────────────────────────────────────────────
 function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark, serviceConfig }) {
   const [hovered, setHovered]     = useState(false);
-  const [bmHovered, setBmHovered] = useState(false);
   const navigate = useNavigate();
   const handleBookmark = (e) => { e.stopPropagation(); onBookmark(vendor.id); };
 
   return (
     <div
-      className="vendor-card"
+      className="vendor-card common-card-shell"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={() => isOpen ? onClose() : onOpen(vendor.id)}
@@ -342,7 +322,7 @@ function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark,
         outlineOffset: 2,
       }}
     >
-      <div className="vendor-img-wrap">
+      <div className="vendor-img-wrap common-card-media">
         <img src={vendor.cover} alt={vendor.name} className="vendor-img" />
 
         <div className="vendor-media-badge">
@@ -365,12 +345,15 @@ function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark,
           </div>
         )}
 
-        <button
-          style={{ position:'absolute', bottom:10, right:10, width:32, height:32, borderRadius:'50%', border:'none', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', opacity:hovered||isBookmarked?1:0, background:isBookmarked?'rgba(83,74,183,0.88)':bmHovered?'rgba(0,0,0,0.70)':'rgba(0,0,0,0.45)', color:'#fff', transition:'opacity 0.15s,background 0.15s,transform 0.15s', zIndex:5 }}
-          onClick={handleBookmark} onMouseEnter={() => setBmHovered(true)} onMouseLeave={() => setBmHovered(false)}
-        >
-          <BookmarkIcon filled={isBookmarked} size={15} color="#fff" />
-        </button>
+        <BookmarkButton
+          active={isBookmarked}
+          visible={hovered}
+          onClick={handleBookmark}
+          activeColor="rgba(201,168,76,0.88)"
+          idleColor="rgba(0,0,0,0.45)"
+          hoverColor="rgba(0,0,0,0.70)"
+          style={{ position:'absolute', bottom:10, right:10 }}
+        />
       </div>
 
       <div className="vendor-info">
@@ -409,7 +392,7 @@ function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark,
                   <>
                     <span className="price-symbol">₹</span>
                     <span className="price-val">{vendor.pricePerDay.toLocaleString('en-IN')}</span>
-                    <span className="price-unit">/ day</span>
+                    <span className="price-unit">{serviceConfig.priceUnit}</span>
                   </>
                 ) : (
                   <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Price on request</span>
@@ -529,10 +512,14 @@ export default function PhotographyPage({ bookmarks, onBookmarkToggle, serviceCo
             <p className="page-subtitle"><strong>{filtered.length}</strong> {serviceConfig.plural} in Lucknow</p>
           </div>
           <div className="photo-page-header-right">
-            <div className="search-box">
-              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="6.5" cy="6.5" r="5"/><path d="M11 11l3 3" strokeLinecap="round"/></svg>
-              <input type="text" placeholder={serviceConfig.searchPlaceholder} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="search-input" />
-            </div>
+            <SearchBar
+              placeholder={serviceConfig.searchPlaceholder}
+              value={searchQuery}
+              onChange={setSearchQuery}
+              onClear={() => setSearchQuery('')}
+              className="search-box"
+              inputClassName="search-input"
+            />
             <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="sort-select">
               <option value="latest">Latest First</option>
               <option value="rating">Top Rated</option>
@@ -554,26 +541,29 @@ export default function PhotographyPage({ bookmarks, onBookmarkToggle, serviceCo
       </div>
 
       <div className="page-body">
-        <aside className="filter-sidebar">
-          <div className="filter-sidebar-head">
-            <span className="filter-sidebar-title">Filters {activeFilterCount > 0 && <span className="filter-count-badge">{activeFilterCount}</span>}</span>
-            {activeFilterCount > 0 && <button className="clear-all-btn" onClick={clearAll}>Clear all</button>}
-          </div>
-          <FilterSection title="Price Range"><PriceSlider min={0} max={120000} value={priceRange} onChange={setPriceRange} /></FilterSection>
-          <FilterSection title={serviceConfig.filters.mediaLabel}><div className="chip-group">{serviceConfig.filters.mediaOptions.map(m => <CheckChip key={m} label={m} checked={selectedMedia.includes(m)} onChange={() => toggleArr(selectedMedia, setSelectedMedia, m)} />)}</div></FilterSection>
-          <FilterSection title={serviceConfig.filters.typeLabel}><div className="chip-group">{serviceConfig.filters.typeOptions.map(t => <CheckChip key={t} label={t} checked={selectedTypes.includes(t)} onChange={() => toggleArr(selectedTypes, setSelectedTypes, t)} />)}</div></FilterSection>
-          <FilterSection title="Year"><div className="chip-group">{YEARS.map(y => <CheckChip key={y} label={String(y)} checked={selectedYears.includes(y)} onChange={() => toggleArr(selectedYears, setSelectedYears, y)} />)}</div></FilterSection>
-          <FilterSection title="Minimum Rating">
+        <FilterPanel
+          className="filter-sidebar"
+          headerClassName="filter-sidebar-head"
+          titleClassName="filter-sidebar-title"
+          countClassName="filter-count-badge"
+          clearClassName="clear-all-btn"
+          activeCount={activeFilterCount}
+          onClear={activeFilterCount > 0 ? clearAll : undefined}
+        >
+          <FilterSection title="Price Range" className="filter-section" titleClassName="filter-section-title" bodyClassName="filter-body"><PriceSlider min={0} max={120000} value={priceRange} onChange={setPriceRange} /></FilterSection>
+          <FilterSection title={serviceConfig.filters.mediaLabel} className="filter-section" titleClassName="filter-section-title" bodyClassName="filter-body"><div className="chip-group">{serviceConfig.filters.mediaOptions.map(m => <FilterOption key={m} variant="chip" className="check-chip" label={m} checked={selectedMedia.includes(m)} onChange={() => toggleArr(selectedMedia, setSelectedMedia, m)} />)}</div></FilterSection>
+          <FilterSection title={serviceConfig.filters.typeLabel} className="filter-section" titleClassName="filter-section-title" bodyClassName="filter-body"><div className="chip-group">{serviceConfig.filters.typeOptions.map(t => <FilterOption key={t} variant="chip" className="check-chip" label={t} checked={selectedTypes.includes(t)} onChange={() => toggleArr(selectedTypes, setSelectedTypes, t)} />)}</div></FilterSection>
+          <FilterSection title="Year" className="filter-section" titleClassName="filter-section-title" bodyClassName="filter-body"><div className="chip-group">{YEARS.map(y => <FilterOption key={y} variant="chip" className="check-chip" label={String(y)} checked={selectedYears.includes(y)} onChange={() => toggleArr(selectedYears, setSelectedYears, y)} />)}</div></FilterSection>
+          <FilterSection title="Minimum Rating" className="filter-section" titleClassName="filter-section-title" bodyClassName="filter-body">
             <div className="rating-options">
               {[4.5, 4.0, 3.5, 0].map(r => (
-                <label key={r} className={`rating-option ${minRating===r?'selected':''}`}>
-                  <input type="radio" name="rating" value={r} checked={minRating===r} onChange={() => setMinRating(r)} style={{ display:'none' }} />
+                <FilterOption key={r} type="radio" name="rating" variant="rating" className="rating-option" value={r} checked={minRating===r} onChange={() => setMinRating(r)}>
                   {r === 0 ? 'Any rating' : <span style={{ display:'flex', alignItems:'center', gap:5 }}><RatingStars rating={r} /> {r}+</span>}
-                </label>
+                </FilterOption>
               ))}
             </div>
           </FilterSection>
-        </aside>
+        </FilterPanel>
 
         <main className="results-area">
           <div ref={expandPanelRef}>

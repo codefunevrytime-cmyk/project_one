@@ -1,16 +1,4 @@
-function BookmarkIcon({ active }) {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true">
-      <path
-        d="M6 3.5h8a1 1 0 0 1 1 1v12l-5-3.2L5 16.5v-12a1 1 0 0 1 1-1Z"
-        fill={active ? 'currentColor' : 'none'}
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
+import { BookmarkIcon } from "./BookmarkIcon";
 
 function DetailRow({ label, value }) {
   return (
@@ -60,7 +48,7 @@ export default function EventModal({
             className={`event-modal-bookmark${isBookmarked ? ' active' : ''}`}
             onClick={() => onToggleBookmark(event.id)}
           >
-            <BookmarkIcon active={isBookmarked} />
+            <BookmarkIcon filled={isBookmarked} />
             {isBookmarked ? 'Saved' : 'Save'}
           </button>
 

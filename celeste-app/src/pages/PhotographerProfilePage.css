@@ -250,13 +250,13 @@
   transition: all 0.2s;
 }
 .pp-bm-btn:hover {
-  border-color: var(--pp-amber);
-  color: var(--pp-amber);
+  border-color: #c9a84c;
+  color: #c9a84c;
 }
 .pp-bm-btn.bookmarked {
-  background: var(--pp-amber-soft);
-  border-color: var(--pp-amber);
-  color: var(--pp-amber);
+  background: rgba(201,168,76,0.12);
+  border-color: #c9a84c;
+  color: #c9a84c;
 }
 
 .pp-share-btn {

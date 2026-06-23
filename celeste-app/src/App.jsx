@@ -8,7 +8,7 @@ import Navbar from "./components/Navbar";
 import LandingPage from "./pages/LandingPage";
 import AboutPage from "./pages/AboutPage";
 import BlogPage from "./pages/BlogPage";
-import BookmarksPage from "./pages/BookmarksPage";
+import SavedBookmarksPage from "./pages/SavedBookmarksPage";
 import ContactPage from "./pages/ContactPage";
 import ExploreEventPage from "./pages/ExploreEventPage";
 import GalleryPage from "./pages/GalleryPage";
@@ -66,8 +66,7 @@ function MainApp({ bm }) {
         <Route
           path="/bookmarks"
           element={
-            <BookmarksPage
-              bookmarks={bm.bookmarks}
+            <SavedBookmarksPage
               bookmarkList={bm.bookmarkList}
               onRemove={bm.remove}
             />

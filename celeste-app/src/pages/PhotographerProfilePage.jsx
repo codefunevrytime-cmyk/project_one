@@ -479,7 +479,7 @@ export default function PhotographerProfilePage({ bookmarks, onBookmarkToggle, s
           </div>
           <div className="pp-subnav-actions">
             <button className={`pp-bm-btn ${isBookmarked ? 'bookmarked' : ''}`} onClick={handleBookmark} title={isBookmarked ? 'Remove bookmark' : 'Save'}>
-              <BookmarkIcon filled={isBookmarked} size={16} color={isBookmarked ? '#F59E0B' : 'currentColor'} />
+              <BookmarkIcon filled={isBookmarked} size={16} color={isBookmarked ? '#c9a84c' : 'currentColor'} />
               {isBookmarked ? 'Saved' : 'Save'}
             </button>
             <button className="pp-share-btn" onClick={() => navigator.clipboard?.writeText(window.location.href)}>
