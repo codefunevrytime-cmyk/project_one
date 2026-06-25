@@ -4,8 +4,6 @@ const API = 'http://localhost:5000/api';
 const token = () => localStorage.getItem('adminToken');
 
 const EVENT_TYPES = ['Wedding', 'Birthday', 'Corporate', 'Concert', 'Festival', 'Sports', 'Outdoor', 'Expo', 'Cultural', 'Charity', 'Food'];
-
-
 const SCALE_OPTIONS = ['Small', 'Medium', 'Large'];
 
 const inputStyle = {
@@ -31,6 +29,14 @@ export default function AdminGallery() {
   const [success, setSuccess] = useState('');
   const [filterType, setFilterType] = useState('');
 
+  // Extra images panel
+  const [selectedGalleryItem, setSelectedGalleryItem] = useState(null);
+  const [extraImages, setExtraImages] = useState([]);
+  const [extraFile, setExtraFile] = useState(null);
+  const [extraPreview, setExtraPreview] = useState(null);
+  const [extraCaption, setExtraCaption] = useState('');
+  const [uploadingExtra, setUploadingExtra] = useState(false);
+
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }));
 
   const fetchImages = async () => {
@@ -45,6 +51,14 @@ export default function AdminGallery() {
   };
 
   useEffect(() => { fetchImages(); }, [filterType]);
+
+  const fetchExtraImages = async (galleryId) => {
+    try {
+      const res = await fetch(`${API}/gallery/${galleryId}/images`);
+      const data = await res.json();
+      setExtraImages(Array.isArray(data) ? data : []);
+    } catch (err) { console.error(err); }
+  };
 
   const handleFileChange = (e) => {
     const f = e.target.files[0];
@@ -92,8 +106,61 @@ export default function AdminGallery() {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token()}` },
       });
+      if (selectedGalleryItem?.id === id) setSelectedGalleryItem(null);
       fetchImages();
     } catch (err) { console.error(err); }
+  };
+
+  const openExtraPanel = (img) => {
+    setSelectedGalleryItem(img);
+    setExtraFile(null);
+    setExtraPreview(null);
+    setExtraCaption('');
+    fetchExtraImages(img.id);
+  };
+
+  const handleUploadExtra = async () => {
+    if (!extraFile || !selectedGalleryItem) return;
+    setUploadingExtra(true);
+    const fd = new FormData();
+    fd.append('image', extraFile);
+    fd.append('caption', extraCaption);
+    try {
+      const res = await fetch(`${API}/gallery/${selectedGalleryItem.id}/images`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token()}` },
+        body: fd,
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSuccess('Extra image added!');
+        setExtraFile(null);
+        setExtraPreview(null);
+        setExtraCaption('');
+        fetchExtraImages(selectedGalleryItem.id);
+        fetchImages();
+        setTimeout(() => setSuccess(''), 3000);
+      }
+    } catch (err) { console.error(err); }
+    setUploadingExtra(false);
+  };
+
+  const handleDeleteExtra = async (imageId) => {
+    if (!window.confirm('Delete this extra image?')) return;
+    try {
+      await fetch(`${API}/gallery/images/${imageId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+      fetchExtraImages(selectedGalleryItem.id);
+      fetchImages();
+    } catch (err) { console.error(err); }
+  };
+
+  // Count total images (primary + extras) for a gallery item
+  const totalImages = (img) => {
+    const extras = img.gallery_images?.length || 0;
+    return 1 + extras;
   };
 
   return (
@@ -101,18 +168,18 @@ export default function AdminGallery() {
       {/* ── Page header ── */}
       <div style={{ marginBottom: 32 }}>
         <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 26, color: '#1a1008', marginBottom: 4 }}>Gallery</h2>
-        <p style={{ fontSize: 13, color: '#9e8e7a' }}>Upload and manage recent event photos</p>
+        <p style={{ fontSize: 13, color: '#9e8e7a' }}>Upload and manage event photos with multi-image carousels</p>
       </div>
+
+      {success && (
+        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#15803d' }}>
+          {success}
+        </div>
+      )}
 
       {/* ── Upload Form ── */}
       <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8e0d5', padding: 24, marginBottom: 32 }}>
-        <h3 style={{ fontSize: 15, fontWeight: 500, color: '#1a1008', marginBottom: 20 }}>Upload New Image</h3>
-
-        {success && (
-          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#15803d' }}>
-            {success}
-          </div>
-        )}
+        <h3 style={{ fontSize: 15, fontWeight: 500, color: '#1a1008', marginBottom: 20 }}>Upload New Event Cover Image</h3>
 
         {/* Row 1: Title + Event Type */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
@@ -133,28 +200,21 @@ export default function AdminGallery() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
           <div>
             <label style={labelStyle}>Location / Venue</label>
-            <input
-              value={form.venue}
-              onChange={set('venue')}
-              placeholder="e.g. Taj Hotel, Lucknow"
-              style={inputStyle}
-            />
+            <input value={form.venue} onChange={set('venue')} placeholder="e.g. Taj Hotel, Lucknow" style={inputStyle} />
           </div>
           <div>
             <label style={labelStyle}>Scale</label>
             <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
               {SCALE_OPTIONS.map(s => (
                 <label key={s} style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '8px 18px', borderRadius: 8, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderRadius: 8, cursor: 'pointer',
                   border: `1px solid ${form.scale === s ? '#c9a84c' : '#e8e0d5'}`,
                   background: form.scale === s ? '#fdf6e3' : '#f7f5f2',
                   color: form.scale === s ? '#8a5a00' : '#5a4a36',
                   fontSize: 13, fontWeight: form.scale === s ? 600 : 400,
                   transition: 'all 0.15s', userSelect: 'none',
                 }}>
-                  <input type="radio" name="scale" value={s} checked={form.scale === s}
-                    onChange={set('scale')} style={{ display: 'none' }} />
+                  <input type="radio" name="scale" value={s} checked={form.scale === s} onChange={set('scale')} style={{ display: 'none' }} />
                   {s}
                 </label>
               ))}
@@ -189,7 +249,7 @@ export default function AdminGallery() {
 
         {/* Image picker */}
         <div style={{ marginBottom: 20 }}>
-          <label style={labelStyle}>Image</label>
+          <label style={labelStyle}>Cover Image</label>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <label style={{ padding: '9px 18px', background: '#f7f5f2', border: '1px solid #e8e0d5', borderRadius: 8, fontSize: 13, cursor: 'pointer', color: '#5a4a36' }}>
               Choose File
@@ -202,9 +262,76 @@ export default function AdminGallery() {
 
         <button onClick={handleUpload} disabled={!file || uploading}
           style={{ padding: '10px 24px', background: '#1a1008', color: '#ffa01e', border: 'none', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', fontWeight: 500, cursor: !file || uploading ? 'not-allowed' : 'pointer', opacity: !file || uploading ? 0.6 : 1 }}>
-          {uploading ? 'Uploading…' : 'Upload Image'}
+          {uploading ? 'Uploading…' : 'Upload Cover Image'}
         </button>
       </div>
+
+      {/* ── Extra Images Panel ── */}
+      {selectedGalleryItem && (
+        <div style={{ background: '#fffbeb', borderRadius: 12, border: '1px solid #fde68a', padding: 24, marginBottom: 32 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <div>
+              <h3 style={{ fontSize: 15, fontWeight: 500, color: '#1a1008', margin: 0 }}>
+                Add More Images — <em style={{ fontStyle: 'normal', color: '#c9a84c' }}>{selectedGalleryItem.title}</em>
+              </h3>
+              <p style={{ fontSize: 12, color: '#9e8e7a', margin: '4px 0 0' }}>These appear in the carousel after the cover image</p>
+            </div>
+            <button onClick={() => setSelectedGalleryItem(null)}
+              style={{ background: '#fff', border: '1px solid #e8e0d5', borderRadius: 8, padding: '6px 14px', fontSize: 12, cursor: 'pointer', color: '#5a4a36' }}>
+              Done
+            </button>
+          </div>
+
+          {/* Existing extra images */}
+          {extraImages.length > 0 && (
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
+              {extraImages.map(img => (
+                <div key={img.id} style={{ position: 'relative' }}>
+                  <img src={img.image_url} alt={img.caption || ''} style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid #e8e0d5', display: 'block' }} />
+                  {img.caption && <div style={{ fontSize: 10, color: '#9e8e7a', textAlign: 'center', marginTop: 2, maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{img.caption}</div>}
+                  <button onClick={() => handleDeleteExtra(img.id)} style={{
+                    position: 'absolute', top: 4, right: 4, width: 18, height: 18, borderRadius: '50%',
+                    background: 'rgba(185,28,28,0.9)', border: 'none', color: '#fff', fontSize: 10,
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Add extra image */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px', gap: 12, alignItems: 'end' }}>
+            <div>
+              <label style={labelStyle}>Caption (optional)</label>
+              <input value={extraCaption} onChange={e => setExtraCaption(e.target.value)}
+                placeholder="e.g. Ceremony setup" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Image</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <label style={{ padding: '9px 14px', background: '#fff', border: '1px solid #e8e0d5', borderRadius: 8, fontSize: 13, cursor: 'pointer', color: '#5a4a36', whiteSpace: 'nowrap' }}>
+                  Choose
+                  <input type="file" accept="image/*" onChange={e => {
+                    const f = e.target.files[0];
+                    setExtraFile(f);
+                    setExtraPreview(URL.createObjectURL(f));
+                  }} style={{ display: 'none' }} />
+                </label>
+                {extraPreview && <img src={extraPreview} alt="preview" style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 6 }} />}
+              </div>
+            </div>
+          </div>
+
+          <button onClick={handleUploadExtra} disabled={!extraFile || uploadingExtra} style={{
+            marginTop: 12, padding: '8px 20px', background: '#c9a84c', color: '#1a1008',
+            border: 'none', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', fontWeight: 500,
+            cursor: !extraFile || uploadingExtra ? 'not-allowed' : 'pointer',
+            opacity: !extraFile || uploadingExtra ? 0.6 : 1,
+          }}>
+            {uploadingExtra ? 'Adding…' : '+ Add Image to Carousel'}
+          </button>
+        </div>
+      )}
 
       {/* ── Filter pills ── */}
       <div style={{ marginBottom: 20, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -231,7 +358,7 @@ export default function AdminGallery() {
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
             {images.map(img => (
-              <div key={img.id} style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8e0d5', overflow: 'hidden' }}>
+              <div key={img.id} style={{ background: '#fff', borderRadius: 12, border: `1px solid ${selectedGalleryItem?.id === img.id ? '#c9a84c' : '#e8e0d5'}`, overflow: 'hidden' }}>
 
                 {/* Image + badges */}
                 <div style={{ position: 'relative' }}>
@@ -244,6 +371,12 @@ export default function AdminGallery() {
                   {img.scale && (
                     <span style={{ position: 'absolute', top: 10, right: 10, fontSize: 10, padding: '3px 9px', borderRadius: 20, background: 'rgba(26,16,8,0.75)', color: '#e8c97a', fontWeight: 500 }}>
                       {img.scale}
+                    </span>
+                  )}
+                  {/* Image count badge */}
+                  {totalImages(img) > 1 && (
+                    <span style={{ position: 'absolute', bottom: 10, right: 10, fontSize: 10, padding: '3px 9px', borderRadius: 20, background: 'rgba(201,168,76,0.9)', color: '#1a1008', fontWeight: 600 }}>
+                      {totalImages(img)} photos
                     </span>
                   )}
                 </div>
@@ -284,10 +417,16 @@ export default function AdminGallery() {
                     </div>
                   )}
 
-                  <button onClick={() => handleDelete(img.id)}
-                    style={{ fontSize: 11, color: '#b91c1c', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: 'inherit' }}>
-                    Delete
-                  </button>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => openExtraPanel(img)}
+                      style={{ flex: 1, fontSize: 11, color: '#c9a84c', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.35)', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontFamily: 'inherit' }}>
+                      + More Photos ({totalImages(img)})
+                    </button>
+                    <button onClick={() => handleDelete(img.id)}
+                      style={{ fontSize: 11, color: '#b91c1c', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: 'inherit' }}>
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
