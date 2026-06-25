@@ -1,8 +1,7 @@
 import { BrowserRouter as Router, Route, Routes, useLocation, Navigate } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AuthProvider } from "./context/AuthContext";
 import { useAuth } from "./hooks/useAuth";
-import { useBookmarks } from "./hooks/useBookmarks";
 import BookmarkToast from "./components/BookmarkToast_2";
 import Navbar from "./components/Navbar";
 import LandingPage from "./pages/LandingPage";
@@ -24,6 +23,8 @@ import CreateEventPage from "./pages/CreateEventPage";
 import PaymentsEmpty from "./pages/PaymentsEmpty";
 import PaymentCheckout from './pages/PaymentCheckout';
 import PaymentsHistory from './pages/PaymentsHistory';
+import ProtectedRoute from './components/ProtectedRoute';
+
 
 // ── Decides which payments page to show based on real payment history ─────────
 function PaymentsGate() {
@@ -43,9 +44,10 @@ function PaymentsGate() {
   return hasPayments ? <PaymentsHistory /> : <PaymentsEmpty />;
 }
 
+// ── Main layout — receives bm from AppWithAuth ────────────────────────────────
 function MainApp({ bm }) {
   const location = useLocation();
-  const isAdmin = location.pathname.startsWith("/admin");
+  const isAdmin  = location.pathname.startsWith("/admin");
 
   return (
     <>
@@ -125,14 +127,14 @@ function MainApp({ bm }) {
         />
 
         {/* ── Events ── */}
-        <Route path="/my-events" element={<MyEvents />} />
-        <Route path="/create-event" element={<CreateEventPage />} />
-        <Route path="/create-events" element={<CreateEventPage />} />
+        <Route path="/my-events"     element={<ProtectedRoute><MyEvents /></ProtectedRoute>} />
+        <Route path="/create-event"  element={<ProtectedRoute><CreateEventPage /></ProtectedRoute>} />
+        <Route path="/create-events" element={<ProtectedRoute><CreateEventPage /></ProtectedRoute>} />
 
         {/* ── Payments ── */}
-        <Route path="/payments"          element={<PaymentsGate />} />
-        <Route path="/payments/checkout" element={<PaymentCheckout />} />
-        <Route path="/payments/history"  element={<PaymentsHistory />} />
+        <Route path="/payments"          element={<ProtectedRoute><PaymentsGate /></ProtectedRoute>} />
+        <Route path="/payments/checkout" element={<ProtectedRoute><PaymentCheckout /></ProtectedRoute>} />
+        <Route path="/payments/history"  element={<ProtectedRoute><PaymentsHistory /></ProtectedRoute>} />
 
         {/* ── Admin ── */}
         <Route path="/admin/*" element={<AdminApp />} />
@@ -146,13 +148,44 @@ function MainApp({ bm }) {
   );
 }
 
-export default function App() {
-  const bm = useBookmarks();
+// ── Reads bookmarks from AuthContext and builds the bm object ─────────────────
+function AppWithAuth() {
+  const { bookmarkedEventIds, toggleBookmark, bookmarkCount } = useAuth();
+  const [toast, setToast] = useState({ visible: false, message: '' });
+  const timerRef = useRef(null);
 
+  const showToast = (msg) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setToast({ visible: true, message: msg });
+    timerRef.current = setTimeout(() => setToast(t => ({ ...t, visible: false })), 2200);
+  };
+
+  const toggle = (item) => {
+    const alreadySaved = bookmarkedEventIds.includes(item.id ?? item);
+    toggleBookmark(item.id ?? item);
+    showToast(alreadySaved ? 'Bookmark removed' : 'Bookmark added');
+  };
+
+  const remove = (id) => toggleBookmark(id);
+
+  const bm = {
+    bookmarks:    Object.fromEntries(bookmarkedEventIds.map(id => [id, { id }])),
+    bookmarkList: bookmarkedEventIds.map(id => ({ id })),
+    count:        bookmarkCount,
+    toggle,
+    remove,
+    toast,
+  };
+
+  return <MainApp bm={bm} />;
+}
+
+// ── Root ──────────────────────────────────────────────────────────────────────
+export default function App() {
   return (
     <AuthProvider>
       <Router>
-        <MainApp bm={bm} />
+        <AppWithAuth />
       </Router>
     </AuthProvider>
   );

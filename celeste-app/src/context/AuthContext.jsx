@@ -1,76 +1,82 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AuthContext } from './auth-context';
-import {
-  clearUserSession,
-  readStoredUser,
-  storeUserSession,
-} from './authStorage';
+import { clearUserSession } from './authStorage';
 
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
 const BOOKMARKS_KEY = 'celeste_bookmarks';
+const TOKEN_KEY     = 'celeste_token';
 
 function readBookmarkedEventIds() {
   try {
-    const rawValue = localStorage.getItem(BOOKMARKS_KEY);
-    const parsedValue = JSON.parse(rawValue || '[]');
-
-    return Array.isArray(parsedValue) ? parsedValue : [];
-  } catch {
-    return [];
-  }
+    const raw = localStorage.getItem(BOOKMARKS_KEY);
+    const parsed = JSON.parse(raw || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
 }
 
-
-
 export function AuthProvider({ children }) {
-  // Read the saved session once so the navbar knows whether a user is signed in.
-  const [user, setUser] = useState(() => readStoredUser());
-  const [bookmarkedEventIds, setBookmarkedEventIds] = useState(() => readBookmarkedEventIds());
+  const [user,   setUser]   = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [bookmarkedEventIds, setBookmarkedEventIds] = useState(readBookmarkedEventIds);
 
-  // Persist bookmarked event ids so the saved list survives refreshes.
+  // Restore session from stored JWT on mount
+  useEffect(() => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) { setLoading(false); return; }
+
+    fetch(`${API_BASE}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.user) setUser(data.user);
+        else localStorage.removeItem(TOKEN_KEY);
+      })
+      .catch(() => localStorage.removeItem(TOKEN_KEY))
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Persist bookmarks
   useEffect(() => {
     localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(bookmarkedEventIds));
   }, [bookmarkedEventIds]);
 
-  // Reuse the "store session and update state" step for both login and signup.
-  const finishAuthentication = useCallback((data) => {
-    const nextUser = {
-      name: data.name,
-      email: data.email,
-    };
-
-    storeUserSession(nextUser.name, nextUser.email);
-    setUser(nextUser);
-
+  const login = useCallback(async (email, password) => {
+    const res  = await fetch(`${API_BASE}/api/auth/login`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Login failed');
+    localStorage.setItem(TOKEN_KEY, data.token);
+    setUser(data.user);
     return data;
   }, []);
 
- const login = useCallback(async (email, password) => {
-  const users = JSON.parse(localStorage.getItem('celeste_users') || '[]');
-  const found = users.find(u => u.email === email && u.password === password);
-
-  if (!found) throw new Error('Invalid email or password');
-
-  return finishAuthentication({ name: found.name, email: found.email });
-}, [finishAuthentication]);
-
   const signup = useCallback(async (firstName, lastName, email, password) => {
-  const users = JSON.parse(localStorage.getItem('celeste_users') || '[]');
-  const exists = users.find(u => u.email === email);
+    const name = `${firstName} ${lastName}`.trim();
+    const res  = await fetch(`${API_BASE}/api/auth/signup`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ name, email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Signup failed');
+    localStorage.setItem(TOKEN_KEY, data.token);
+    setUser(data.user);
+    return data;
+  }, []);
 
-  if (exists) throw new Error('Email already registered');
-
-  const newUser = { name: `${firstName} ${lastName}`, email, password };
-  users.push(newUser);
-  localStorage.setItem('celeste_users', JSON.stringify(users));
-
-  return finishAuthentication({ name: newUser.name, email: newUser.email });
-}, [finishAuthentication]);
+  const signOut = useCallback(() => {
+    localStorage.removeItem(TOKEN_KEY);
+    clearUserSession();
+    setUser(null);
+  }, []);
 
   const getInitials = useCallback((name) => {
     if (!name) return '?';
-
     const parts = name.trim().split(/\s+/);
-
     return parts.length >= 2
       ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
       : parts[0][0].toUpperCase();
@@ -87,39 +93,25 @@ export function AuthProvider({ children }) {
       { bg: '#fef9ec', color: '#b45309' },
       { bg: '#fff3cd', color: '#9a3412' },
     ];
-
     let hash = 0;
-
-    for (let index = 0; index < str.length; index += 1) {
-      hash = str.charCodeAt(index) + ((hash << 5) - hash);
-    }
-
+    for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
     return colors[Math.abs(hash) % colors.length];
   }, []);
 
-  const signOut = useCallback(() => {
-    clearUserSession();
-    setUser(null);
-
-    // The UI can update immediately even if the backend logout request fails.
-    fetch(`${API_BASE}/api/logout`, { method: 'POST' }).catch(() => null);
-  }, []);
-
   const toggleBookmark = useCallback((eventId) => {
-    setBookmarkedEventIds((currentIds) => (
-      currentIds.includes(eventId)
-        ? currentIds.filter((id) => id !== eventId)
-        : [eventId, ...currentIds]
-    ));
+    setBookmarkedEventIds(cur =>
+      cur.includes(eventId) ? cur.filter(id => id !== eventId) : [eventId, ...cur]
+    );
   }, []);
 
   const isBookmarked = useCallback(
     (eventId) => bookmarkedEventIds.includes(eventId),
-    [bookmarkedEventIds],
+    [bookmarkedEventIds]
   );
 
   const value = {
     user,
+    loading,
     isLoggedIn: Boolean(user),
     bookmarkedEventIds,
     bookmarkCount: bookmarkedEventIds.length,
