@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { AuthProvider } from "./context/AuthContext";
 import { useAuth } from "./hooks/useAuth";
 import BookmarkToast from "./components/BookmarkToast_2";
+import LoginPromptModal from "./components/LoginPromptModal";
 import Navbar from "./components/Navbar";
 import LandingPage from "./pages/LandingPage";
 import AboutPage from "./pages/AboutPage";
@@ -48,6 +49,7 @@ function PaymentsGate() {
 function MainApp({ bm }) {
   const location = useLocation();
   const isAdmin  = location.pathname.startsWith("/admin");
+  const { loginPromptOpen, closeLoginPrompt } = useAuth();
 
   return (
     <>
@@ -144,6 +146,7 @@ function MainApp({ bm }) {
       </Routes>
 
       {!isAdmin && <BookmarkToast toast={bm.toast} />}
+      <LoginPromptModal open={loginPromptOpen} onClose={closeLoginPrompt} />
     </>
   );
 }
@@ -161,9 +164,10 @@ function AppWithAuth() {
   };
 
   const toggle = (item) => {
-    const alreadySaved = bookmarkedEventIds.includes(item.id ?? item);
-    toggleBookmark(item.id ?? item);
-    showToast(alreadySaved ? 'Bookmark removed' : 'Bookmark added');
+    const id = item.id ?? item;
+    const alreadySaved = bookmarkedEventIds.includes(id);
+    const didToggle = toggleBookmark(id);
+    if (didToggle) showToast(alreadySaved ? 'Bookmark removed' : 'Bookmark added');
   };
 
   const remove = (id) => toggleBookmark(id);
