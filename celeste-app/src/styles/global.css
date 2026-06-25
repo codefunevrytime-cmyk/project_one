@@ -2861,3 +2861,91 @@ footer .logo { color: #c9a84c; }
   .events-grid { grid-template-columns: 1fr; }
   .events-results-header { flex-direction: column; }
 }
+
+/* ── Login prompt modal (guest tries to bookmark) ───────────────────────── */
+.login-prompt {
+  position: relative;
+  background: var(--cream, #FBF6EE);
+  border: 1px solid rgba(196,113,74,0.18);
+  border-radius: 22px;
+  width: 100%;
+  max-width: 400px;
+  padding: 40px 32px 28px;
+  text-align: center;
+  box-shadow: 0 40px 100px rgba(46,28,16,0.35);
+  animation: modalIn 0.42s cubic-bezier(0.22,1,0.36,1) both;
+}
+
+.login-prompt-icon {
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--rust, #A3512E);
+  background: linear-gradient(135deg, rgba(196,113,74,0.16), rgba(201,168,76,0.16));
+}
+
+.login-prompt-title {
+  margin: 0 0 8px;
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--text, #2E1C10);
+  letter-spacing: -0.01em;
+}
+
+.login-prompt-text {
+  margin: 0 auto 24px;
+  max-width: 300px;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--muted, #8C6248);
+}
+
+.login-prompt-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.login-prompt-btn {
+  width: 100%;
+  padding: 12px 18px;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+.login-prompt-btn:active { transform: scale(0.98); }
+
+.login-prompt-btn.primary {
+  border: none;
+  color: #fff;
+  background: linear-gradient(135deg, var(--terracotta, #C4714A), var(--rust, #A3512E));
+  box-shadow: 0 10px 24px rgba(163,81,46,0.28);
+}
+.login-prompt-btn.primary:hover { box-shadow: 0 14px 30px rgba(163,81,46,0.38); }
+
+.login-prompt-btn.ghost {
+  background: transparent;
+  border: 1px solid rgba(196,113,74,0.4);
+  color: var(--rust, #A3512E);
+}
+.login-prompt-btn.ghost:hover { background: rgba(196,113,74,0.08); }
+
+.login-prompt-dismiss {
+  margin-top: 16px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.84rem;
+  color: var(--muted, #8C6248);
+  opacity: 0.8;
+  transition: opacity 0.2s ease;
+}
+.login-prompt-dismiss:hover { opacity: 1; text-decoration: underline; }

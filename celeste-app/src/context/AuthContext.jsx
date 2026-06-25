@@ -18,6 +18,7 @@ export function AuthProvider({ children }) {
   const [user,   setUser]   = useState(null);
   const [loading, setLoading] = useState(true);
   const [bookmarkedEventIds, setBookmarkedEventIds] = useState(readBookmarkedEventIds);
+  const [loginPromptOpen, setLoginPromptOpen] = useState(false);
 
   // Restore session from stored JWT on mount
   useEffect(() => {
@@ -98,11 +99,20 @@ export function AuthProvider({ children }) {
     return colors[Math.abs(hash) % colors.length];
   }, []);
 
+  // Only logged-in users can bookmark; guests get a login prompt instead.
+  // Returns true when the bookmark was toggled, false when blocked.
   const toggleBookmark = useCallback((eventId) => {
+    if (!user) {
+      setLoginPromptOpen(true);
+      return false;
+    }
     setBookmarkedEventIds(cur =>
       cur.includes(eventId) ? cur.filter(id => id !== eventId) : [eventId, ...cur]
     );
-  }, []);
+    return true;
+  }, [user]);
+
+  const closeLoginPrompt = useCallback(() => setLoginPromptOpen(false), []);
 
   const isBookmarked = useCallback(
     (eventId) => bookmarkedEventIds.includes(eventId),
@@ -120,6 +130,8 @@ export function AuthProvider({ children }) {
     signOut,
     toggleBookmark,
     isBookmarked,
+    loginPromptOpen,
+    closeLoginPrompt,
     getInitials,
     avatarColor,
   };
