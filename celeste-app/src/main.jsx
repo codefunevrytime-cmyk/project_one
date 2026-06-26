@@ -4,7 +4,7 @@ import './index.css'
 import './styles/global.css'
 import './styles/auth.css'
 import App from './App.jsx'
-import { syncUserFromUrl } from './context/authStorage'
+import { syncUserFromUrl } from './context/authStorage.js'
 
 syncUserFromUrl()
 
