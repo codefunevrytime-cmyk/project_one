@@ -34,7 +34,9 @@ export default function AdminVendors() {
       const res = await fetch(`${API}/vendors`);
       const data = await res.json();
       setVendors(data);
-    } catch (err) { console.error(err); }
+    } catch {
+      // Ignore vendor fetch errors silently.
+    }
     setLoading(false);
   };
 
@@ -43,7 +45,9 @@ export default function AdminVendors() {
       const res = await fetch(`${API}/vendors/${vendorId}/portfolio`);
       const data = await res.json();
       setPortfolio(data);
-    } catch (err) { console.error(err); }
+    } catch {
+      // Ignore portfolio fetch errors silently.
+    }
   };
 
   const fetchTags = async (vendorId) => {
@@ -51,7 +55,9 @@ export default function AdminVendors() {
       const res = await fetch(`${API}/vendors/${vendorId}/tags`);
       const data = await res.json();
       setTags(data);
-    } catch (err) { console.error(err); }
+    } catch {
+      // Ignore tag fetch errors silently.
+    }
   };
 
   useEffect(() => { fetchVendors(); }, []);

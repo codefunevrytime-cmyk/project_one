@@ -14,8 +14,8 @@ export default function AdminQueries() {
       });
       const data = await res.json();
       setQueries(data);
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // Ignore query fetch errors silently.
     }
     setLoading(false);
   };

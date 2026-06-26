@@ -21,7 +21,9 @@ export default function AdminBookings() {
       const res  = await fetch(`${API}/bookings`, { headers: { Authorization: `Bearer ${token()}` } });
       const data = await res.json();
       setBookings(data);
-    } catch (err) { console.error(err); }
+    } catch {
+      // Ignore booking fetch errors silently.
+    }
     setLoading(false);
   };
 

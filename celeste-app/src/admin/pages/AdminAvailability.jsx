@@ -15,8 +15,8 @@ export default function AdminAvailability() {
       const res = await fetch(`${API}/availability`);
       const data = await res.json();
       setAvailability(data);
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // Ignore availability fetch errors silently.
     }
   };
 

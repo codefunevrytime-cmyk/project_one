@@ -46,7 +46,9 @@ export default function AdminGallery() {
       const res  = await fetch(url);
       const data = await res.json();
       setImages(data);
-    } catch (err) { console.error(err); }
+    } catch {
+      // Ignore gallery fetch errors silently.
+    }
     setLoading(false);
   };
 
@@ -57,7 +59,9 @@ export default function AdminGallery() {
       const res = await fetch(`${API}/gallery/${galleryId}/images`);
       const data = await res.json();
       setExtraImages(Array.isArray(data) ? data : []);
-    } catch (err) { console.error(err); }
+    } catch {
+      // Ignore extra-image fetch errors silently.
+    }
   };
 
   const handleFileChange = (e) => {
@@ -95,7 +99,9 @@ export default function AdminGallery() {
         fetchImages();
         setTimeout(() => setSuccess(''), 3000);
       }
-    } catch (err) { console.error(err); }
+    } catch {
+      // Ignore upload errors silently.
+    }
     setUploading(false);
   };
 
@@ -108,7 +114,9 @@ export default function AdminGallery() {
       });
       if (selectedGalleryItem?.id === id) setSelectedGalleryItem(null);
       fetchImages();
-    } catch (err) { console.error(err); }
+    } catch {
+      // Ignore delete errors silently.
+    }
   };
 
   const openExtraPanel = (img) => {
@@ -141,7 +149,9 @@ export default function AdminGallery() {
         fetchImages();
         setTimeout(() => setSuccess(''), 3000);
       }
-    } catch (err) { console.error(err); }
+    } catch {
+      // Ignore extra upload errors silently.
+    }
     setUploadingExtra(false);
   };
 
@@ -154,7 +164,9 @@ export default function AdminGallery() {
       });
       fetchExtraImages(selectedGalleryItem.id);
       fetchImages();
-    } catch (err) { console.error(err); }
+    } catch {
+      // Ignore extra delete errors silently.
+    }
   };
 
   // Count total images (primary + extras) for a gallery item

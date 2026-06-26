@@ -449,7 +449,9 @@ export default function PhotographyPage({ bookmarks, onBookmarkToggle, serviceCo
           return mapVendorToCard(vendor, Array.isArray(portfolio) ? portfolio : [], Array.isArray(tags) ? tags : [], serviceConfig);
         }));
         setDbVendors(enriched);
-      } catch (err) { console.error('Failed to fetch vendors:', err); }
+      } catch {
+        // Ignore vendor fetch errors silently.
+      }
     };
     fetchVendors();
   }, [serviceConfig]);

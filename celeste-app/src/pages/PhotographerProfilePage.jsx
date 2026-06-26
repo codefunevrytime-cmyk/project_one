@@ -378,7 +378,9 @@ export default function PhotographerProfilePage({ bookmarks, onBookmarkToggle, s
           setDbPortfolio(Array.isArray(portfolio) ? portfolio : []);
           setDbTags(Array.isArray(tags) ? tags : []);
         }
-      } catch (err) { console.error(err); }
+      } catch {
+        // Ignore profile fetch errors silently.
+      }
       if (!cancelled) setDbLoading(false);
     })();
     return () => { cancelled = true; };

@@ -347,8 +347,8 @@ export default function MyEvents() {
 
       setCancelTarget(null);
       fetchBookings();
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // Ignore booking cancellation errors silently.
     }
     setCancelling(false);
   };

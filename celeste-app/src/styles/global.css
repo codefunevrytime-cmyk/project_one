@@ -1383,9 +1383,6 @@ footer p {
   margin-top: 2px;
 }
 
-/* Mobile services submenu — reuses your existing mobile-submenu styles */
-/* No extra CSS needed — .mobile-submenu already handles it */
-
 /* ═══════════════════════════════════
    ADMIN PANEL OVERRIDES
 ═══════════════════════════════════ */
@@ -1440,8 +1437,6 @@ footer p {
 
 /* ═══════════════════════════════════════════════════
    DARK AMBER LANDING THEME OVERRIDES
-   Paste at the very bottom of your global CSS
-═══════════════════════════════════════════════════ */
 
 /* ── Root token overrides ── */
 :root {

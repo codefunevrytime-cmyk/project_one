@@ -10,22 +10,18 @@ export default function AdminLogin({ onLogin }) {
     setLoading(true);
     setError('');
     try {
-      console.log('Attempting login...');
       const res = await fetch('http://localhost:5000/api/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-      console.log('Response status:', res.status);
       const data = await res.json();
-      console.log('Response data:', data);
       if (data.token) {
         onLogin(data.token);
       } else {
         setError(data.error || 'Invalid email or password');
       }
     } catch (err) {
-      console.error('Full error:', err);
       setError('Error: ' + err.message);
     }
     setLoading(false);

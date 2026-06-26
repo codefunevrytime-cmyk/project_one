@@ -15,10 +15,9 @@ const res = await fetch(`${API}/reviews?all=true`, {
        headers: { Authorization: `Bearer ${token()}` }
       });
       const data = await res.json();
-       console.log('Reviews fetched:', data); // ← add this
       setReviews(data);
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // Ignore review fetch errors silently.
     }
     setLoading(false);
   };
