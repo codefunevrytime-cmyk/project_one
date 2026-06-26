@@ -73,82 +73,96 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
   const currentImg = images[activeIdx] || null;
 
   return (
-    <div style={{
-      background: "var(--cream, #FBF6EE)",
-      borderRadius: 20,
-      border: "1px solid #e8ddd0",
-      overflow: "hidden",
-      marginBottom: 18,
-      animation: "epSlide 0.28s cubic-bezier(0.22,1,0.36,1)",
-      boxShadow: "0 8px 40px rgba(26,16,8,0.10)",
-    }}>
+    <div className="ep-wrap">
       <style>{`
-        @keyframes epSlide {
-          from { opacity:0; transform:translateY(-14px); }
-          to   { opacity:1; transform:translateY(0); }
-        }
-        .ep-close:hover { background: rgba(255,255,255,0.45) !important; }
-        .ep-bm:hover    { transform: scale(1.12) !important; }
-        .ep-cta:hover   { background: #3a2a10 !important; }
-        .ep-rel:hover   { transform: scale(1.05) !important; }
-        .ep-carousel-nav { position:absolute; top:50%; transform:translateY(-50%); z-index:4; width:34px; height:34px; border-radius:50%; background:rgba(0,0,0,0.45); backdrop-filter:blur(4px); border:1px solid rgba(255,255,255,0.2); color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.18s, transform 0.15s; }
+        .ep-wrap { background:#fff; border-radius:16px; border:0.5px solid rgba(0,0,0,0.08); overflow:hidden; margin-bottom:24px; animation:epIn 0.28s cubic-bezier(0.22,1,0.36,1); box-shadow:0 8px 40px rgba(0,0,0,0.10); }
+        @keyframes epIn { from{opacity:0;transform:translateY(-12px)} to{opacity:1;transform:translateY(0)} }
+        .ep-img-col { position:relative; overflow:hidden; min-height:520px; }
+        .ep-img-col img.ep-main-img { width:100%; height:100%; object-fit:cover; display:block; position:absolute; inset:0; transition:opacity 0.35s ease, transform 0.35s ease; }
+        .ep-img-col img.ep-main-img.ep-slide-enter { opacity:0; transform:scale(1.03); }
+        .ep-img-overlay { position:absolute; inset:0; background:linear-gradient(to top,rgba(0,0,0,0.30) 0%,transparent 50%); pointer-events:none; z-index:2; }
+        .ep-top { display:grid; grid-template-columns:44% 1fr; min-height:520px; }
+        .ep-close { position:absolute; top:14px; right:14px; width:32px; height:32px; border-radius:50%; background:rgba(0,0,0,0.35); border:none; cursor:pointer; color:#fff; font-size:16px; display:flex; align-items:center; justify-content:center; transition:background 0.18s; z-index:10; }
+        .ep-close:hover { background:rgba(0,0,0,0.6); }
+        .ep-bm { position:absolute; top:14px; left:14px; width:40px; height:40px; border-radius:50%; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px); transition:background 0.18s,transform 0.15s; z-index:10; }
+        .ep-bm:hover { transform:scale(1.12); }
+        .ep-right { padding:28px 32px; display:flex; flex-direction:column; justify-content:space-between; background:#fff; overflow-y:auto; }
+        .ep-name { font-family:'Cormorant Garamond',serif; font-size:30px; font-weight:400; color:#1A1714; margin-bottom:6px; line-height:1.2; }
+        .ep-meta-row { display:flex; align-items:center; gap:10px; margin-bottom:18px; flex-wrap:wrap; }
+        .ep-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:18px; }
+        .ep-cell { background:#F7F5F2; border-radius:10px; padding:11px 14px; border:0.5px solid rgba(0,0,0,0.07); }
+        .ep-cell-label { font-size:9px; letter-spacing:1.1px; text-transform:uppercase; color:#aaa; margin-bottom:4px; font-weight:600; }
+        .ep-cell-val { font-size:14px; color:#1A1714; font-weight:500; }
+        .ep-types { display:flex; flex-wrap:wrap; gap:7px; margin-bottom:18px; }
+        .ep-type-pill { font-size:12px; padding:5px 14px; border-radius:20px; background:#EEEDFE; color:#534AB7; font-weight:500; }
+        .ep-tags { display:flex; flex-wrap:wrap; gap:7px; margin-bottom:16px; }
+        .ep-award-pill { font-size:11px; padding:4px 12px; border-radius:20px; background:#F7F5F2; color:#888; border:0.5px solid rgba(0,0,0,0.08); }
+        .ep-footer { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-top:auto; padding-top:16px; border-top:0.5px solid rgba(0,0,0,0.07); }
+        .ep-cta { font-family:inherit; font-size:13px; font-weight:500; background:#534AB7; color:#fff; border:none; padding:13px 28px; border-radius:10px; cursor:pointer; transition:background 0.18s; white-space:nowrap; }
+        .ep-cta:hover { background:#3f389e; }
+        .ep-related-label { border-top:0.5px solid rgba(0,0,0,0.07); padding:14px 20px 10px; font-size:10px; letter-spacing:1.2px; text-transform:uppercase; color:#aaa; font-weight:600; }
+        .ep-related-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; padding:0 16px 16px; }
+        .ep-rel-card { border-radius:10px; overflow:hidden; cursor:pointer; aspect-ratio:4/3; position:relative; transition:transform 0.15s; }
+        .ep-rel-card:hover { transform:scale(1.05); }
+        .ep-rel-card img { width:100%; height:100%; object-fit:cover; display:block; }
+        .ep-rel-title { position:absolute; bottom:0; left:0; right:0; padding:18px 8px 7px; background:linear-gradient(to top,rgba(0,0,0,0.60),transparent); font-size:11px; color:#fff; font-weight:500; line-height:1.3; }
+        .ep-verified-badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:500; color:#534AB7; background:#EEEDFE; padding:3px 9px; border-radius:20px; }
+
+        /* Carousel */
+        .ep-carousel-nav { position:absolute; top:50%; transform:translateY(-50%); z-index:10; width:36px; height:36px; border-radius:50%; background:rgba(0,0,0,0.45); backdrop-filter:blur(4px); border:1px solid rgba(255,255,255,0.2); color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.18s, transform 0.15s; }
         .ep-carousel-nav:hover { background:rgba(0,0,0,0.72); transform:translateY(-50%) scale(1.1); }
-        .ep-carousel-prev { left:14px; }
-        .ep-carousel-next { right:14px; }
-        .ep-carousel-dots { position:absolute; bottom:14px; left:50%; transform:translateX(-50%); display:flex; gap:6px; z-index:4; }
+        .ep-carousel-prev { left:12px; }
+        .ep-carousel-next { right:12px; }
+        .ep-carousel-dots { position:absolute; bottom:14px; left:50%; transform:translateX(-50%); display:flex; gap:6px; z-index:10; }
         .ep-carousel-dot { width:6px; height:6px; border-radius:50%; background:rgba(255,255,255,0.4); cursor:pointer; transition:background 0.2s, transform 0.2s; border:none; padding:0; }
         .ep-carousel-dot.active { background:#fff; transform:scale(1.3); }
-        .ep-carousel-counter { position:absolute; top:14px; right:52px; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); color:#fff; font-size:11px; padding:4px 10px; border-radius:20px; border:0.5px solid rgba(255,255,255,0.2); z-index:4; }
+        .ep-carousel-counter { position:absolute; top:14px; right:52px; background:rgba(0,0,0,0.50); backdrop-filter:blur(4px); color:#fff; font-size:11px; padding:4px 10px; border-radius:20px; border:0.5px solid rgba(255,255,255,0.2); z-index:10; }
+
+        /* Type badge */
+        .ep-type-badge { position:absolute; top:16px; left:16px; font-size:10px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; padding:5px 13px; border-radius:20px; color:#fff; background:rgba(0,0,0,0.30); backdrop-filter:blur(6px); z-index:3; }
+
+        /* Scale badge */
+        .ep-scale-badge { position:absolute; top:16px; right:52px; font-size:10px; font-weight:600; padding:4px 10px; border-radius:20px; color:#e8c97a; background:rgba(0,0,0,0.45); backdrop-filter:blur(6px); border:0.5px solid rgba(232,201,122,0.3); z-index:3; }
+
+        /* Venue pin */
+        .ep-venue { position:absolute; bottom:16px; left:16px; display:flex; align-items:center; gap:5px; background:rgba(0,0,0,0.45); backdrop-filter:blur(6px); border:0.5px solid rgba(255,255,255,0.15); border-radius:20px; padding:4px 11px; z-index:3; font-size:11px; color:rgba(255,255,255,0.9); }
+
+        /* Description */
+        .ep-desc { font-size:14px; color:#8a7060; line-height:1.78; }
       `}</style>
 
       {/* top: image | details */}
-      <div style={{ display: "grid", gridTemplateColumns: "42% 1fr", minHeight: 420 }}>
+      <div className="ep-top">
 
         {/* image col */}
-        <div style={{
-          position: "relative",
+        <div className="ep-img-col" style={{
           display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 108, overflow: "hidden",
+          fontSize: 108,
           background: currentImg ? "#1a1008" : getGradient(event.type),
         }}>
           {currentImg
             ? <img src={currentImg} alt={event.title} key={currentImg}
-                style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", position:"absolute", inset:0, transition:"opacity 0.35s ease, transform 0.35s ease", opacity: sliding ? 0 : 1, transform: sliding ? "scale(1.03)" : "scale(1)" }} />
+                className={`ep-main-img${sliding ? ' ep-slide-enter' : ''}`} />
             : <span style={{ zIndex:1, position:"relative", filter:"drop-shadow(0 6px 16px rgba(0,0,0,0.18))" }}>
                 {getEmoji(event.type)}
               </span>
           }
 
-          <div style={{ position:"absolute", inset:0, background:"linear-gradient(to top,rgba(0,0,0,0.22) 0%,transparent 55%)", pointerEvents:"none", zIndex:2 }} />
+          <div className="ep-img-overlay" />
 
           {/* type badge */}
-          <span style={{
-            position:"absolute", top:16, left:16, fontSize:10, fontWeight:700,
-            letterSpacing:1.2, textTransform:"uppercase", padding:"5px 13px",
-            borderRadius:20, color:"#fff", background:"rgba(0,0,0,0.30)", backdropFilter:"blur(6px)", zIndex:3,
-          }}>{event.type}</span>
+          <span className="ep-type-badge">{event.type}</span>
 
           {/* scale badge */}
           {event.scale && (
-            <span style={{
-              position:"absolute", top:16, right:52, fontSize:10, fontWeight:600,
-              padding:"4px 10px", borderRadius:20, color:"#e8c97a",
-              background:"rgba(0,0,0,0.45)", backdropFilter:"blur(6px)",
-              border:"0.5px solid rgba(232,201,122,0.3)", zIndex:3,
-            }}>{event.scale}</span>
+            <span className="ep-scale-badge">{event.scale}</span>
           )}
 
           {/* photo counter */}
           {total > 1 && <div className="ep-carousel-counter">{activeIdx + 1} / {total}</div>}
 
           {/* close */}
-          <button className="ep-close" onClick={onClose} style={{
-            position:"absolute", top:14, right:14, width:32, height:32,
-            borderRadius:"50%", background:"rgba(255,255,255,0.25)", border:"none",
-            cursor:"pointer", color:"#fff", fontSize:16,
-            display:"flex", alignItems:"center", justifyContent:"center",
-            transition:"background 0.18s", zIndex:3,
-          }}>✕</button>
+          <button className="ep-close" onClick={onClose}>✕</button>
 
           {/* prev / next arrows */}
           {total > 1 && (
@@ -167,23 +181,23 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
           )}
 
           {/* bookmark */}
-          <BookmarkButton className="ep-bm" active={isBookmarked} onClick={onBookmark} size={40} iconSize={20} style={{
-            position:"absolute", bottom:16, right:16, width:40, height:40,
-            backdropFilter:"blur(4px)",
-            boxShadow: isBookmarked ? "0 2px 12px rgba(201,168,76,0.4)" : "none",
-            zIndex:3,
-          }} idleColor="rgba(255,255,255,0.22)" activeColor="rgba(201,168,76,0.88)" />
+          <BookmarkButton
+            className="ep-bm"
+            active={isBookmarked}
+            onClick={onBookmark}
+            size={40}
+            iconSize={20}
+            style={{
+              position:"absolute", bottom:16, right:16,
+              boxShadow: isBookmarked ? "0 2px 12px rgba(201,168,76,0.4)" : "none",
+            }}
+            idleColor="rgba(0,0,0,0.38)"
+            activeColor="rgba(201,168,76,0.88)"
+          />
 
           {/* venue pin */}
           {event.venue && (
-            <div style={{
-              position:"absolute", bottom:16, left:16,
-              display:"flex", alignItems:"center", gap:5,
-              background:"rgba(0,0,0,0.45)", backdropFilter:"blur(6px)",
-              border:"0.5px solid rgba(255,255,255,0.15)",
-              borderRadius:20, padding:"4px 11px", zIndex:3,
-              fontSize:11, color:"rgba(255,255,255,0.9)",
-            }}>
+            <div className="ep-venue">
               <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
                 <path d="M8 1.5C5.5 1.5 3.5 3.5 3.5 6c0 3.5 4.5 8.5 4.5 8.5s4.5-5 4.5-8.5c0-2.5-2-4.5-4.5-4.5z"/>
                 <circle cx="8" cy="6" r="1.5"/>
@@ -208,53 +222,54 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
         </div>
 
         {/* details col */}
-        <div style={{ padding:"28px 32px", display:"flex", flexDirection:"column", justifyContent:"space-between", background:"var(--cream, #FBF6EE)" }}>
+        <div className="ep-right">
           <div>
-            <div style={{ fontSize:11, letterSpacing:1.6, textTransform:"uppercase", color:"#c4a060", marginBottom:8, fontWeight:600 }}>
-              {event.type}
-            </div>
-            <div style={{ fontSize:28, fontWeight:700, color:"#2E1C10", marginBottom:20, lineHeight:1.2, fontFamily:"'Playfair Display', serif" }}>
-              {event.title}
+            <div className="ep-name">{event.title}</div>
+            <div className="ep-meta-row">
+              <span className="ep-verified-badge">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                  <circle cx="8" cy="8" r="7" fill="#534AB7"/>
+                  <path d="M5 8l2 2 4-4" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Verified
+              </span>
+              <span style={{ fontSize: 13, color: '#1A1714', fontWeight: 500 }}>{event.month} {event.year}</span>
             </div>
 
             {/* meta grid */}
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:18 }}>
+            <div className="ep-grid">
               {[
                 ["Date",     `${event.month} ${event.year}`],
                 ["Location", venue],
                 ["Scale",    scale],
                 ...(event.price ? [["Price", `₹${Number(event.price).toLocaleString("en-IN")}`]] : []),
               ].map(([label, val]) => (
-                <div key={label} style={{ background:"rgba(232,221,208,0.35)", borderRadius:10, padding:"11px 13px", border:"1px solid #e8ddd0" }}>
-                  <div style={{ fontSize:9, letterSpacing:1.1, textTransform:"uppercase", color:"#b0906a", marginBottom:4, fontWeight:600 }}>{label}</div>
-                  <div style={{ fontSize:14, color:"#2E1C10", fontWeight:600 }}>{val}</div>
+                <div key={label} className="ep-cell">
+                  <div className="ep-cell-label">{label}</div>
+                  <div className="ep-cell-val">{val}</div>
                 </div>
               ))}
             </div>
 
             {/* pills */}
-            <div style={{ display:"flex", flexWrap:"wrap", gap:7, marginBottom:20 }}>
+            <div className="ep-types">
               {event.tags && event.tags.length > 0
                 ? event.tags.map((tag) => (
-                    <span key={tag} style={{ fontSize:12, padding:"5px 14px", borderRadius:20, border:"1px solid #e8ddd0", color:"#7a6248", background:"#f5f0ea", fontWeight:500 }}>
-                      {tag}
-                    </span>
+                    <span key={tag} className="ep-type-pill">{tag}</span>
                   ))
                 : pills.map((pill) => (
-                    <span key={pill} style={{ fontSize:12, padding:"5px 14px", borderRadius:20, border:"1px solid #e8ddd0", color:"#7a6248", background:"#f5f0ea", fontWeight:500 }}>
-                      {pill}
-                    </span>
+                    <span key={pill} className="ep-type-pill">{pill}</span>
                   ))
               }
             </div>
 
             {/* description */}
-            <div style={{ fontSize:14, color:"#8a7060", lineHeight:1.78 }}>
+            <div className="ep-desc">
               {description
                 ? description
                 : <>
                     A {scale.toLowerCase()}-scale {event.type.toLowerCase()} event held at{" "}
-                    <strong style={{ color:"#2E1C10" }}>{venue}</strong> in {event.month} {event.year}.
+                    <strong style={{ color:"#1A1714" }}>{venue}</strong> in {event.month} {event.year}.
                     Every detail thoughtfully curated for an unforgettable experience.
                   </>
               }
@@ -262,13 +277,8 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
           </div>
 
           {/* footer */}
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", marginTop:24 }}>
-            <button className="ep-cta" onClick={() => { onClose(); navigate("/create-event", { state: { referenceEvent: event } }); }} style={{
-              background:"#2E1C10", color:"#FBF6EE", border:"none",
-              padding:"13px 28px", borderRadius:12, fontSize:13,
-              fontWeight:600, cursor:"pointer", transition:"background 0.18s",
-              letterSpacing:0.3, fontFamily:"inherit",
-            }}>
+          <div className="ep-footer">
+            <button className="ep-cta" onClick={() => { onClose(); navigate("/create-event", { state: { referenceEvent: event } }); }}>
               Add to Your Event
             </button>
           </div>
@@ -278,22 +288,17 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
       {/* related */}
       {related.length > 0 && (
         <>
-          <div style={{ borderTop:"1px solid #e8ddd0", padding:"14px 20px 10px", fontSize:10, letterSpacing:1.2, textTransform:"uppercase", color:"#c4a882", fontWeight:600 }}>
-            More like this
-          </div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:10, padding:"0 16px 16px" }}>
+          <div className="ep-related-label">More like this</div>
+          <div className="ep-related-grid">
             {related.map((r) => (
-              <div key={r.id} className="ep-rel" onClick={() => onRelatedClick(r)}
-                style={{ borderRadius:12, overflow:"hidden", cursor:"pointer", aspectRatio:"4/3", position:"relative", transition:"transform 0.15s" }}>
+              <div key={r.id} className="ep-rel-card" onClick={() => onRelatedClick(r)}>
                 {r.image_url
-                  ? <img src={r.image_url} alt={r.title} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
+                  ? <img src={r.image_url} alt={r.title} />
                   : <div style={{ width:"100%", height:"100%", background:getGradient(r.type), display:"flex", alignItems:"center", justifyContent:"center", fontSize:26 }}>
                       {getEmoji(r.type)}
                     </div>
                 }
-                <div style={{ position:"absolute", bottom:0, left:0, right:0, padding:"18px 8px 7px", background:"linear-gradient(to top,rgba(0,0,0,0.58),transparent)", fontSize:11, color:"#fff", fontWeight:500, lineHeight:1.3 }}>
-                  {r.title}
-                </div>
+                <div className="ep-rel-title">{r.title}</div>
               </div>
             ))}
           </div>
