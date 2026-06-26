@@ -1066,11 +1066,17 @@
   .pp-subnav-inner { padding: 0 20px; overflow-x: auto; }
   .pp-subnav-actions { gap: 6px; }
   .pp-body { padding: 24px 20px 48px; }
-  .pp-portfolio-grid { grid-template-columns: repeat(2, 1fr); }
-  .pp-albums-grid { grid-template-columns: repeat(2, 1fr); }
+  .pp-portfolio-grid { grid-template-columns: 1fr; }
+  .pp-albums-grid { grid-template-columns: 1fr; }
   .pp-services-list { grid-template-columns: 1fr; }
   .pp-info-grid { grid-template-columns: 1fr; }
   .pp-sidebar { grid-template-columns: 1fr; }
   .pp-subnav-price { display: none; }
   .pp-share-btn { display: none; }
+  .pp-carousel-stage { height: 320px; }
+  .pp-carousel-caption,
+  .pp-carousel-caption-sub { left: 12px; right: 72px; }
+  .pp-carousel-ptags { left: 12px; bottom: 12px; }
+  .pp-albums-wrap { grid-template-columns: 1fr; }
+  .pp-album-modal-grid { grid-template-columns: 1fr; }
 }

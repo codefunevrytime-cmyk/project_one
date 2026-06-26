@@ -132,6 +132,7 @@ export default function Navbar({ bookmarkCount }) {
         setProfileOpen(false);
         setExploreOpen(false);
         setServicesOpen(false);
+        setMobileOpen(false);
         setMobileExploreOpen(false);
         setMobileServicesOpen(false);
       }
@@ -145,6 +146,11 @@ export default function Navbar({ bookmarkCount }) {
       clearTimeout(servicesTimeoutRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    document.body.classList.toggle('menu-open', mobileOpen);
+    return () => document.body.classList.remove('menu-open');
+  }, [mobileOpen]);
 
   const closeAllMenus = () => {
     setMobileOpen(false);
@@ -320,18 +326,20 @@ export default function Navbar({ bookmarkCount }) {
         )}
       </div>
 
-      <button type="button" className="hamburger" onClick={() => setMobileOpen((v) => !v)} aria-label="Menu">
+      <button type="button" className="hamburger" onClick={() => setMobileOpen((v) => !v)} aria-label="Menu" aria-expanded={mobileOpen} aria-controls="mobile-nav-panel">
         <span></span><span></span><span></span>
       </button>
 
-      <div className={`mobile-menu${mobileOpen ? ' open' : ''}`}>
+      <div className={`mobile-menu-backdrop${mobileOpen ? ' open' : ''}`} onClick={closeAllMenus} />
+
+      <div id="mobile-nav-panel" className={`mobile-menu${mobileOpen ? ' open' : ''}`}>
         <Link to="/" onClick={closeAllMenus}>Home</Link>
 
         <button type="button" className="mobile-submenu-trigger" onClick={() => setMobileExploreOpen((v) => !v)}>
           Explore Events <Chevron open={mobileExploreOpen} />
         </button>
         <div className={`mobile-submenu${mobileExploreOpen ? ' open' : ''}`}>
-          <Link to="/events" onClick={closeAllMenus}>All Events</Link>
+          <Link to="/explore" onClick={closeAllMenus}>All Events</Link>
           {featuredEventTypes.map((type) => (
             <button key={type} type="button" className="nav-type-btn" onClick={() => handleTypeClick(type)}>{type}</button>
           ))}

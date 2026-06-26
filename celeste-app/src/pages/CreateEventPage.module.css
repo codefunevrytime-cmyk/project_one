@@ -607,6 +607,30 @@
   align-items: start;
 }
 
+@media (max-width: 900px) {
+  .basicsLayout { grid-template-columns: 1fr; }
+  .basicsRight { position: static; }
+  .vendorGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .root { padding-top: 56px; }
+  .header { padding: 14px 1rem; flex-wrap: wrap; gap: 10px; }
+  .titleBlock { position: static; transform: none; width: 100%; text-align: center; }
+  .pageTitle { font-size: 32px; }
+  .stepNav { padding: 10px 1rem; overflow-x: auto; }
+  .body { padding: 20px 1rem 40px; }
+  .fieldRow { grid-template-columns: 1fr; gap: 0; }
+  .vendorGrid { grid-template-columns: 1fr; }
+  .btnRow { flex-direction: column; }
+  .refPanelHeader { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .emptyRoot { padding: 24px 1rem 48px; }
+  .emptyHeading { font-size: 42px; }
+  .emptyFlow { flex-direction: column; padding: 18px 20px; }
+  .emptyFlowArrow { display: none; }
+  .emptyPill { width: 100%; }
+}
+
 .basicsLeft {
   display: flex;
   flex-direction: column;

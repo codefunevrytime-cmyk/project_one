@@ -297,3 +297,13 @@ html, body {
   .panel-wrap { width: 100%; height: 100vh; }
 }
 
+@media (max-width: 640px) {
+  .panel { padding: 20px 20px 24px; }
+  .panel-topbar { padding: 12px 18px; }
+  .field-row { flex-direction: column; gap: 0; }
+  .options-row { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .btn-main,
+  .btn-google { padding: 12px; }
+  .toast { right: 12px; left: 12px; max-width: none; }
+}
+
