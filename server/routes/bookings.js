@@ -30,10 +30,10 @@ router.get('/', async (req, res) => {
 // POST new booking (from client)
 router.post('/', async (req, res) => {
   try {
-    const { client_name, phone, email, event_type, event_date, message } = req.body;
+    const { client_name, phone, email, event_type, event_date, message, reference_image, decoration_location } = req.body;
     await pool.query(
-      'INSERT INTO bookings (client_name, phone, email, event_type, event_date, message) VALUES ($1, $2, $3, $4, $5, $6)',
-      [client_name, phone, email, event_type, event_date, message]
+      'INSERT INTO bookings (client_name, phone, email, event_type, event_date, message, reference_image, decoration_location) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+      [client_name, phone, email, event_type, event_date, message, reference_image || null, decoration_location || null]
     );
     res.json({ success: true });
   } catch (err) {

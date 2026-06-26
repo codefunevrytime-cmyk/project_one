@@ -162,9 +162,13 @@ function EventCard({ booking, navigate, onCancel }) {
     <div style={{ display:'flex', background: isCancelled ? '#1a1614' : '#1e1a14', border:`0.5px solid ${cfg.border}`, borderRadius:14, overflow:'hidden', marginBottom:16, opacity: isCancelled ? 0.7 : 1 }}>
       <div style={{ width:4, background:cfg.color, flexShrink:0, opacity:0.7 }} />
 
-      {/* Left icon */}
-      <div style={{ width:200, minHeight:180, flexShrink:0, background:'linear-gradient(135deg,#2a2118,#1a1612)', display:'flex', alignItems:'center', justifyContent:'center', borderRight:'0.5px solid rgba(200,175,120,0.08)', position:'relative' }}>
-        <EventTypeIcon type={booking.event_type} />
+      {/* Left image or icon */}
+      <div style={{ width:200, minHeight:180, flexShrink:0, background:'linear-gradient(135deg,#2a2118,#1a1612)', display:'flex', alignItems:'center', justifyContent:'center', borderRight:'0.5px solid rgba(200,175,120,0.08)', position:'relative', overflow:'hidden' }}>
+        {booking.reference_image ? (
+          <img src={booking.reference_image} alt="Event" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+        ) : (
+          <EventTypeIcon type={booking.event_type} />
+        )}
         <div style={{ position:'absolute', bottom:10, left:0, right:0, textAlign:'center' }}>
           <span style={{ fontSize:10, letterSpacing:'0.12em', textTransform:'uppercase', color:'rgba(200,175,120,0.4)' }}>{booking.event_type}</span>
         </div>
@@ -206,7 +210,7 @@ function EventCard({ booking, navigate, onCancel }) {
 
         {/* Info grid */}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, marginBottom:12 }}>
-          {[['📅 Date',eventDate],['📍 Location',details['location']||'—'],['⏰ Time',details['time']||'—'],['👥 Capacity',details['capacity']||'—'],[details['est. budget']?'💰 Est. Budget':null,details['est. budget']]].filter(([l])=>l).map(([label,val])=>(
+          {[['📅 Date',eventDate],['📍 Location',details['location']||'—'],['🎨 Decoration',details['decoration']||'—'],['⏰ Time',details['time']||'—'],['👥 Capacity',details['capacity']||'—'],[details['est. budget']?'💰 Est. Budget':null,details['est. budget']]].filter(([l])=>l).map(([label,val])=>(
             <div key={label} style={{ background:'rgba(200,175,120,0.04)', border:'0.5px solid rgba(200,175,120,0.08)', borderRadius:8, padding:'8px 12px' }}>
               <div style={{ fontSize:9, letterSpacing:'0.1em', textTransform:'uppercase', color:'rgba(200,175,120,0.35)', marginBottom:4 }}>{label}</div>
               <div style={{ fontSize:12, color:'#e8dcc8' }}>{val}</div>
@@ -258,8 +262,12 @@ function PastEventCard({ booking }) {
   return (
     <div style={{ display:'flex', background:'#1a1612', border:'0.5px solid rgba(200,175,120,0.08)', borderRadius:14, overflow:'hidden', marginBottom:16, opacity:0.75 }}>
       <div style={{ width:4, background:'rgba(200,175,120,0.2)', flexShrink:0 }} />
-      <div style={{ width:160, minHeight:140, flexShrink:0, background:'#1e1a14', display:'flex', alignItems:'center', justifyContent:'center', borderRight:'0.5px solid rgba(200,175,120,0.06)' }}>
-        <EventTypeIcon type={booking.event_type} />
+      <div style={{ width:160, minHeight:140, flexShrink:0, background:'#1e1a14', display:'flex', alignItems:'center', justifyContent:'center', borderRight:'0.5px solid rgba(200,175,120,0.06)', overflow:'hidden' }}>
+        {booking.reference_image ? (
+          <img src={booking.reference_image} alt="Event" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+        ) : (
+          <EventTypeIcon type={booking.event_type} />
+        )}
       </div>
       <div style={{ flex:1, padding:'18px 22px' }}>
         <h3 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:20, fontWeight:400, color:'rgba(232,220,200,0.7)', margin:'0 0 6px' }}>
@@ -338,6 +346,8 @@ export default function MyEvents() {
 
       // If advance was paid and refund applies, trigger it
       if (cancelTarget.payment_status === 'advance_paid' && data.refundPct > 0) {
+
+
         await fetch(`${API}/payments/refund`, {
           method:'POST',
           headers:{'Content-Type':'application/json'},

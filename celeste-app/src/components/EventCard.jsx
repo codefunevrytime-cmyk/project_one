@@ -94,19 +94,19 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
         .ep-cell-label { font-size:9px; letter-spacing:1.1px; text-transform:uppercase; color:#aaa; margin-bottom:4px; font-weight:600; }
         .ep-cell-val { font-size:14px; color:#1A1714; font-weight:500; }
         .ep-types { display:flex; flex-wrap:wrap; gap:7px; margin-bottom:18px; }
-        .ep-type-pill { font-size:12px; padding:5px 14px; border-radius:20px; background:#EEEDFE; color:#534AB7; font-weight:500; }
+        .ep-type-pill { font-size:12px; padding:5px 14px; border-radius:20px; background:#EEEDFE; color:#D4860A; font-weight:500; }
         .ep-tags { display:flex; flex-wrap:wrap; gap:7px; margin-bottom:16px; }
         .ep-award-pill { font-size:11px; padding:4px 12px; border-radius:20px; background:#F7F5F2; color:#888; border:0.5px solid rgba(0,0,0,0.08); }
         .ep-footer { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-top:auto; padding-top:16px; border-top:0.5px solid rgba(0,0,0,0.07); }
-        .ep-cta { font-family:inherit; font-size:13px; font-weight:500; background:#534AB7; color:#fff; border:none; padding:13px 28px; border-radius:10px; cursor:pointer; transition:background 0.18s; white-space:nowrap; }
-        .ep-cta:hover { background:#3f389e; }
-        .ep-related-label { border-top:0.5px solid rgba(0,0,0,0.07); padding:14px 20px 10px; font-size:10px; letter-spacing:1.2px; text-transform:uppercase; color:#aaa; font-weight:600; }
+        .ep-cta { font-family:inherit; font-size:13px; font-weight:500; background:#D4860A; color:#fff; border:none; padding:13px 28px; border-radius:10px; cursor:pointer; transition:background 0.18s; white-space:nowrap; margin-left:auto; }
+        .ep-cta:hover { background:#c07a0a; }
+        .ep-related-label { border-top:0.5px solid #050505; padding:14px 20px 10px; font-size:10px; letter-spacing:1.2px; text-transform:uppercase; color:#aaa; font-weight:600; }
         .ep-related-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; padding:0 16px 16px; }
         .ep-rel-card { border-radius:10px; overflow:hidden; cursor:pointer; aspect-ratio:4/3; position:relative; transition:transform 0.15s; }
         .ep-rel-card:hover { transform:scale(1.05); }
         .ep-rel-card img { width:100%; height:100%; object-fit:cover; display:block; }
         .ep-rel-title { position:absolute; bottom:0; left:0; right:0; padding:18px 8px 7px; background:linear-gradient(to top,rgba(0,0,0,0.60),transparent); font-size:11px; color:#fff; font-weight:500; line-height:1.3; }
-        .ep-verified-badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:500; color:#534AB7; background:#EEEDFE; padding:3px 9px; border-radius:20px; }
+        .ep-verified-badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:500; color:#D4860A; background:#5b3e16; padding:3px 9px; border-radius:20px; }
 
         /* Carousel */
         .ep-carousel-nav { position:absolute; top:50%; transform:translateY(-50%); z-index:10; width:36px; height:36px; border-radius:50%; background:rgba(0,0,0,0.45); backdrop-filter:blur(4px); border:1px solid rgba(255,255,255,0.2); color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.18s, transform 0.15s; }
@@ -228,7 +228,7 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
             <div className="ep-meta-row">
               <span className="ep-verified-badge">
                 <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-                  <circle cx="8" cy="8" r="7" fill="#534AB7"/>
+                  <circle cx="8" cy="8" r="7" fill="#D4860A "/>
                   <path d="M5 8l2 2 4-4" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
                 Verified

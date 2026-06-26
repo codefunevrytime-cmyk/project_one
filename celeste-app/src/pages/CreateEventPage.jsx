@@ -25,6 +25,15 @@ const VENDOR_CATALOGUE = [
 
 const EXTRA_PILLS = ["Accessibility ramps", "Valet parking", "Live translation", "Prayer / quiet room", "Kids zone", "Merchandise stall", "First aid station", "Green room / backstage", "Permit / license help", "Guest gifting", "Halal / Jain menu", "Live social media wall"];
 const EVENT_TYPES = ["Wedding", "Birthday", "Corporate", "Concert", "Festival", "Sports", "Outdoor", "Expo", "Cultural", "Charity", "Food", "Other"];
+const DECORATION_LOCATIONS = [
+  { value: "", label: "None" },
+  { value: "home", label: "Home" },
+  { value: "lawn", label: "Lawn / Garden" },
+  { value: "hotel", label: "Hotel" },
+  { value: "restaurant", label: "Restaurant" },
+  { value: "banquet", label: "Banquet Hall" },
+  { value: "outdoor", label: "Outdoor / Open Ground" },
+];
 const STEPS = ["Basics", "Vendors",  "Budget"];
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DAY_NAMES = ["Su","Mo","Tu","We","Th","Fr","Sa"];
@@ -166,6 +175,7 @@ export default function CreateEventPage() {
   const [location_, setLocation] = useState("");
   const [capacity,  setCapacity] = useState(150);
   const [refEvent,  setRefEvent] = useState(prefillEvent);
+  const [decorationLocation, setDecorationLocation] = useState("");
 
   const [vendors,   setVendors]   = useState({});
   const [extras,    setExtras]    = useState(new Set());
@@ -196,22 +206,25 @@ export default function CreateEventPage() {
     setSubmitting(true); setSubmitError('');
     const msg = [
       `Event: ${name}`, `Location: ${location_}`, `Time: ${time}`, `Capacity: ${capacity} guests`,
+      decorationLocation ? `Decoration: ${decorationLocation}` : null,
       Object.keys(vendors).length ? `Vendors: ${Object.keys(vendors).join(', ')}` : null,
       extras.size ? `Extras: ${[...extras].join(', ')}` : null,
       extraNote ? `Notes: ${extraNote}` : null,
       budget ? `Est. Budget: ₹${budget.grand.toLocaleString('en-IN')}` : null,
     ].filter(Boolean).join('\n');
+    // Get reference image from prefill event
+    const refImg = refEvent?.image_url || '';
     try {
-      const res  = await fetch(`${API}/bookings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_name: user?.name || 'Guest', email: user?.email || '', phone: '', event_type: evType, event_date: date, message: msg }) });
+      const res  = await fetch(`${API}/bookings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_name: user?.name || 'Guest', email: user?.email || '', phone: '', event_type: evType, event_date: date, message: msg, reference_image: refImg, decoration_location: decorationLocation }) });
       const data = await res.json();
 if (data.success) {
   navigate("/my-events", { state: { bookingSuccess: true } });
 } else {
   setSubmitError('Something went wrong. Please try again.');
-}    
+}
 } catch { setSubmitError('Could not connect to server.'); }
     setSubmitting(false);
-  }, [user, name, evType, date, time, location_, capacity, vendors, extras, extraNote, budget]);
+  }, [user, name, evType, date, time, location_, capacity, vendors, extras, extraNote, budget, refEvent]);
 
   const revenue = ticketPrice && ticketQty ? Math.round(parseFloat(ticketPrice) * parseFloat(ticketQty)) : null;
   const goNext  = () => setStep(s => Math.min(s + 1, 2));
@@ -247,7 +260,7 @@ if (data.success) {
       <div className={styles.shimmerLine} />
 
       <main className={styles.body}>
-        {step === 0 && <StepBasics name={name} setName={setName} evType={evType} setEvType={setEvType} date={date} setDate={setDate} time={time} setTime={setTime} location_={location_} setLocation={setLocation} capacity={capacity} setCapacity={setCapacity} refEvent={refEvent} setRefEvent={setRefEvent} availability={availability} onNext={goNext} />}
+        {step === 0 && <StepBasics name={name} setName={setName} evType={evType} setEvType={setEvType} date={date} setDate={setDate} time={time} setTime={setTime} location_={location_} setLocation={setLocation} capacity={capacity} setCapacity={setCapacity} decorationLocation={decorationLocation} setDecorationLocation={setDecorationLocation} refEvent={refEvent} setRefEvent={setRefEvent} availability={availability} onNext={goNext} />}
         {step === 1 && <StepVendors vendors={vendors} toggleVendor={toggleVendor} onNext={calculateBudget} onBack={goBack} />}
         {step === 2 && budget && <StepBudget budget={budget} vendors={vendors} capacity={capacity} extras={extras} submitting={submitting} submitError={submitError} onBack={goBack} onDone={handleCreateEvent} />}
       </main>
@@ -256,7 +269,7 @@ if (data.success) {
 }
 
 // ── Step 1 ────────────────────────────────────────────────────────────────────
-function StepBasics({ name, setName, evType, setEvType, date, setDate, time, setTime, location_, setLocation, capacity, setCapacity, refEvent, setRefEvent, availability, onNext }) {
+function StepBasics({ name, setName, evType, setEvType, date, setDate, time, setTime, location_, setLocation, capacity, setCapacity, decorationLocation, setDecorationLocation, refEvent, setRefEvent, availability, onNext }) {
   return (
     <div className={styles.stepWrap}>
       <div className={styles.basicsLayout}>
@@ -283,6 +296,15 @@ function StepBasics({ name, setName, evType, setEvType, date, setDate, time, set
           <Field label="Location">
             <input className={styles.input} placeholder='City, Venue name (Landmark near venue)' value={location_} onChange={e => setLocation(e.target.value)} />
             <p className={styles.hint}>e.g. "Mumbai, The Taj Mahal Palace (Gateway of India)"</p>
+          </Field>
+
+          <Field label="Event decoration location">
+            <select className={styles.input} value={decorationLocation} onChange={e => setDecorationLocation(e.target.value)}>
+              <option value="">None</option>
+              {DECORATION_LOCATIONS.filter(l => l.value).map(loc => (
+                <option key={loc.value} value={loc.value}>{loc.label}</option>
+              ))}
+            </select>
           </Field>
 
           <Field label={`Expected capacity — ${capacity} guests`}>
