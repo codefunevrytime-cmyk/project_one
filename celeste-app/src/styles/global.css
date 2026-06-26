@@ -376,94 +376,6 @@ nav {
   .nav-right-desktop { display: none; }
 }
 
-/* Fix dropdown gap — stops menu from hiding when moving mouse to it */
-.nav-events-wrap {
-  position: relative;
-}
-
-.nav-events-wrap::after {
-  content: '';
-  position: absolute;
-  top: 100%;
-  left: 0;
-  width: 100%;
-  height: 12px;
-}
-
-.nav-events-menu {
-  margin-top: 0;
-  padding-top: 4px;
-}
-
-/* Explore Events dropdown menu */
-.nav-events-menu {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  background: #fff;
-  border: 1px solid #ebebeb;
-  border-radius: 12px;
-  min-width: 200px;
-  box-shadow: 0 8px 28px rgba(0,0,0,0.12);
-  z-index: 200;
-  overflow: hidden;
-  padding: 6px 0;
-  margin-top: 8px;
-}
-
-/* Bridge gap so menu doesn't hide when moving mouse */
-.nav-events-wrap {
-  position: relative;
-}
-.nav-events-wrap::after {
-  content: '';
-  position: absolute;
-  top: 100%;
-  left: 0;
-  width: 100%;
-  height: 12px;
-}
-
-/* "All Events" link at top */
-.nav-events-menu a {
-  display: block;
-  padding: 8px 16px;
-  font-size: 13px;
-  color: #333;
-  text-decoration: none;
-  transition: background 0.1s;
-}
-.nav-events-menu a:hover {
-  background: #f7f7f7;
-  color: #111;
-}
-
-/* Category buttons */
-.nav-type-btn {
-  display: block;
-  width: 100%;
-  padding: 8px 16px;
-  font-size: 13px;
-  color: #333;
-  background: none;
-  border: none;
-  text-align: left;
-  cursor: pointer;
-  font-family: inherit;
-  transition: background 0.1s;
-}
-.nav-type-btn:hover {
-  background: #f7f7f7;
-  color: #111;
-}
-
-/* Divider after All Events */
-.nav-events-menu a:first-child {
-  border-bottom: 1px solid #f0f0f0;
-  margin-bottom: 4px;
-  font-weight: 600;
-  color: #111;
-}
 /* ═══════════════════════════════════
    HERO SLIDER
    Full-screen image slideshow
@@ -1199,29 +1111,6 @@ footer p {
 
 
 /* ═══════════════════════════════════
-   PAGE HEADER (sub-pages)
-═══════════════════════════════════ */
-.page-header {
-  text-align: center;
-  padding: 60px 20px 40px;
-  background: linear-gradient(135deg, #1a1008 0%, #3a2e1e 100%);
-  color: white;
-}
-.page-header h1 {
-  font-family: 'Playfair Display', serif;
-  font-size: 48px;
-  margin-bottom: 15px;
-}
-.page-header p {
-  font-family: 'DM Sans', sans-serif;
-  font-size: 16px;
-  color: #faf7f2;
-  max-width: 600px;
-  margin: 0 auto;
-}
-
-
-/* ═══════════════════════════════════
    RESPONSIVE BREAKPOINTS
 ═══════════════════════════════════ */
 
@@ -1251,374 +1140,21 @@ footer p {
 
 
 /* ═══════════════════════════════════
-   ABOUT PAGE STYLES
-═══════════════════════════════════ */
-.about-section {
-  padding: 80px 20px;
-  max-width: 1000px;
-  margin: 0 auto;
-}
-
-.about-content {
-  font-family: 'DM Sans', sans-serif;
-  line-height: 1.8;
-  color: #3a2e1e;
-  margin-bottom: 50px;
-}
-
-.about-content h2 {
-  font-family: 'Playfair Display', serif;
-  font-size: 32px;
-  color: #1a1008;
-  margin-bottom: 20px;
-  margin-top: 40px;
-}
-
-.about-content p {
-  font-size: 16px;
-  margin-bottom: 15px;
-}
-
-.values-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 30px;
-  margin: 50px 0;
-}
-
-.value-card {
-  background: #faf7f2;
-  padding: 30px;
-  border-radius: 12px;
-  text-align: center;
-  border-left: 4px solid #ffa01e;
-}
-
-.value-card h3 {
-  font-family: 'Playfair Display', serif;
-  font-size: 22px;
-  color: #1a1008;
-  margin-bottom: 12px;
-}
-
-.value-card p {
-  font-size: 14px;
-  color: #9e8e7a;
-}
-
-.team-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 30px;
-  margin-top: 40px;
-}
-
-.team-member {
-  text-align: center;
-  background: white;
-  padding: 20px;
-  border-radius: 12px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
-}
-
-.member-avatar {
-  width: 150px;
-  height: 150px;
-  background: linear-gradient(135deg, #ffa01e 0%, #ff8c00 100%);
-  border-radius: 50%;
-  margin: 0 auto 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 60px;
-  font-family: 'Playfair Display', serif;
-  color: #fff;
-  font-weight: 700;
-}
-
-.member-name {
-  font-family: 'Playfair Display', serif;
-  font-size: 20px;
-  color: #1a1008;
-  margin-bottom: 5px;
-}
-
-.member-role {
-  font-size: 14px;
-  color: #ffa01e;
-  font-weight: 600;
-  margin-bottom: 10px;
-}
-
-.member-bio {
-  font-size: 13px;
-  color: #9e8e7a;
-  line-height: 1.6;
-}
-
-
-/* ═══════════════════════════════════
-   BLOG PAGE STYLES
-═══════════════════════════════════ */
-.blog-section {
-  padding: 80px 20px;
-  max-width: 1100px;
-  margin: 0 auto;
-}
-
-.blog-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 40px;
-  margin-top: 50px;
-}
-
-.blog-card {
-  background: white;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-  display: flex;
-  flex-direction: column;
-}
-
-.blog-card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
-}
-
-.blog-image {
-  width: 100%;
-  height: 200px;
-  background: linear-gradient(135deg, #ffa01e 0%, #ff8c00 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 60px;
-}
-
-.blog-content {
-  padding: 25px;
-  flex-grow: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.blog-meta {
-  display: flex;
-  gap: 15px;
-  font-size: 12px;
-  color: #9e8e7a;
-  margin-bottom: 12px;
-  font-family: 'DM Sans', sans-serif;
-}
-
-.blog-meta-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.blog-title {
-  font-family: 'Playfair Display', serif;
-  font-size: 22px;
-  font-weight: 600;
-  margin-bottom: 12px;
-  color: #1a1008;
-  line-height: 1.4;
-}
-
-.blog-excerpt {
-  font-family: 'DM Sans', sans-serif;
-  font-size: 14px;
-  color: #9e8e7a;
-  margin-bottom: 18px;
-  line-height: 1.6;
-  flex-grow: 1;
-}
-
-.blog-category {
-  display: inline-block;
-  background: #ffa01e;
-  color: white;
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 11px;
-  font-weight: 600;
-  margin-bottom: 15px;
-  width: fit-content;
-}
-
-.read-more {
-  display: inline-block;
-  color: #ffa01e;
-  text-decoration: none;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 14px;
-  font-weight: 600;
-  transition: color 0.3s ease;
-}
-
-.read-more:hover {
-  color: #ff8c00;
-}
-
-
-/* ═══════════════════════════════════
-   PRODUCT PAGE STYLES
-═══════════════════════════════════ */
-.products-section {
-  padding: 80px 20px;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.products-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 30px;
-  margin-top: 50px;
-}
-
-.product-card {
-  background: white;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.product-card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
-}
-
-.product-image {
-  width: 100%;
-  height: 250px;
-  background: linear-gradient(135deg, #ffa01e 0%, #ff8c00 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 80px;
-}
-
-.product-info {
-  padding: 25px;
-}
-
-.product-name {
-  font-family: 'Playfair Display', serif;
-  font-size: 22px;
-  font-weight: 600;
-  margin-bottom: 10px;
-  color: #1a1008;
-}
-
-.product-desc {
-  font-family: 'DM Sans', sans-serif;
-  font-size: 14px;
-  color: #9e8e7a;
-  margin-bottom: 15px;
-  line-height: 1.6;
-}
-
-.product-price {
-  font-size: 24px;
-  font-weight: 700;
-  color: #ffa01e;
-  margin-bottom: 15px;
-}
-
-.product-btn {
-  width: 100%;
-  padding: 12px;
-  background: #ffa01e;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.3s ease;
-}
-
-.product-btn:hover {
-  background: #ff8c00;
-}
-
-
-/* ═══════════════════════════════════
-   GALLERY PAGE STYLES (Event Grid)
-═══════════════════════════════════ */
-.grid-wrap {
-  max-width: 1100px;
-  margin: 0 auto;
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-}
-
-.item {
-  position: relative;
-  border-radius: 18px;
-  overflow: hidden;
-  cursor: pointer;
-  aspect-ratio: 4/3;
-  transition: transform 0.42s cubic-bezier(0.22,1,0.36,1),
-              box-shadow 0.42s ease,
-              filter 0.32s ease;
-  z-index: 1;
-  background: #c8b99a;
-}
-
-.grid:has(.item:hover) .item:not(:hover) {
-  filter: blur(2.5px) brightness(0.65);
-  transform: scale(0.95);
-}
-
-.item:hover {
-  transform: scale(1.1);
-  z-index: 20;
-  box-shadow: 0 28px 70px rgba(26,16,8,0.42);
-}
-
-.item img {
-  width: 100%; height: 100%;
-  object-fit: cover;
-  display: block;
-  transition: transform 0.42s cubic-bezier(0.22,1,0.36,1);
-}
-
-.item:hover img { transform: scale(1.07); }
-
-/* Event page modal reuses same .modal-backdrop/.modal-box from gallery */
-
-@media (max-width: 700px) {
-  .grid { grid-template-columns: repeat(2, 1fr); }
-}
-
-@media (max-width: 480px) {
-  .grid { grid-template-columns: 1fr; }
-}
-
-/* ═══════════════════════════════════
    EXPLORE EVENTS DROPDOWN
 ═══════════════════════════════════ */
 /* ═══════════════════════════════════
    EXPLORE EVENTS DROPDOWN — Dark Amber
 ═══════════════════════════════════ */
+.nav-events-wrap {
+  position: relative;
+}
+
 .nav-events-menu {
   display: none;
   position: absolute;
   top: calc(100% + 12px);
-  left: 0;
+  left: 50%;
+  transform: translateX(-50%);
   background: #1c1508;
   border: 1px solid rgba(201,168,76,0.25);
   border-radius: 12px;
@@ -2949,3 +2485,270 @@ footer .logo { color: #c9a84c; }
   transition: opacity 0.2s ease;
 }
 .login-prompt-dismiss:hover { opacity: 1; text-decoration: underline; }
+
+
+/**
+ * CARD + EXPAND PANEL — DARK AMBER PATCH v2
+ * ─────────────────────────────────────────────────────────────
+ * Paste at the very BOTTOM of:
+ *   celeste-app/src/styles/global.css
+ *
+ * Targets:
+ *  1. ExpandPanel image column (white bg → dark)
+ *  2. EventCard image area (light bg → dark)
+ *  3. Vendor ExpandPanel image column (white bg → dark)
+ *  4. "More like this" related thumbnails (light bg → dark)
+ *  5. All card .common-card-media (transparent → dark)
+ * ─────────────────────────────────────────────────────────────
+ */
+
+/* ── 1. Expand panel top-level wrapper ─────────────────────── */
+/* EventCard ExpandPanel outer div (inline styled background) */
+[style*="background: var(--cream"],
+[style*='background: var(--cream'],
+[style*="background: #faf7f2"],
+[style*="background: #FAF7F2"] {
+  background: #1e1a13 !important;
+}
+
+/* ── 2. ExpandPanel image column ───────────────────────────── */
+/* The left 42% image col — its fallback bg is getGradient()
+   which is fine, but the column itself can show white gaps */
+.ep-top > div:first-child {
+  background: #151009 !important;
+}
+
+/* The ep-right (details column) */
+.ep-right {
+  background: #1e1a13 !important;
+  color: #c8a96a !important;
+}
+
+/* ── 3. ep-wrap (PhotographyPage ExpandPanel) ──────────────── */
+.ep-wrap {
+  background: #1e1a13 !important;
+  border: 1px solid rgba(201, 168, 76, 0.2) !important;
+}
+
+/* Image stage in photography expand panel */
+.ep-img-col {
+  background: #151009 !important;
+}
+
+/* ── 4. "More like this" section ───────────────────────────── */
+.ep-related-label {
+  background: #1e1a13 !important;
+  border-top: 1px solid rgba(201, 168, 76, 0.12) !important;
+  color: rgba(201, 168, 76, 0.5) !important;
+}
+
+/* Related thumbnail cards — white bg when image missing */
+.ep-rel-card,
+.ep-related-grid > div {
+  background: #151009 !important;
+}
+
+/* ── 5. Common card media area ─────────────────────────────── */
+.common-card-media,
+.common-card-media img,
+.vendor-img-wrap,
+.imgArea {
+  background: #151009 !important;
+}
+
+/* ── 6. EventCard module — card shell ──────────────────────── */
+/* Target by CSS custom property fallback pattern */
+div[class*="card_"] {
+  background: #1e1a13 !important;
+  border-color: rgba(201, 168, 76, 0.18) !important;
+}
+
+div[class*="card_"]:hover {
+  border-color: #c9a84c !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6),
+              0 0 0 1px rgba(201, 168, 76, 0.3) !important;
+}
+
+/* body area inside card */
+div[class*="body_"] {
+  background: #1e1a13 !important;
+}
+
+/* title */
+div[class*="title_"] {
+  color: #f0e6cc !important;
+}
+
+/* price value */
+div[class*="priceVal_"],
+span[class*="priceVal_"] {
+  color: #c9a84c !important;
+}
+
+/* price symbol */
+span[class*="priceSym_"] {
+  color: #a08850 !important;
+}
+
+/* location + date */
+div[class*="location_"],
+span[class*="location_"],
+span[class*="date_"],
+span[class*="planner_"] {
+  color: #a08850 !important;
+}
+
+/* meta row */
+div[class*="meta_"],
+div[class*="metaRow_"] {
+  color: #a08850 !important;
+}
+
+/* tag pills */
+span[class*="tagType_"] {
+  background: rgba(201, 168, 76, 0.14) !important;
+  color: #e8c870 !important;
+}
+
+span[class*="tagVenue_"] {
+  background: rgba(111, 207, 151, 0.10) !important;
+  color: #6fcf97 !important;
+}
+
+span[class*="tagScale_"] {
+  background: rgba(200, 175, 120, 0.10) !important;
+  color: #c8af78 !important;
+}
+
+/* award tags */
+span[class*="awardTag_"] {
+  background: rgba(201, 168, 76, 0.08) !important;
+  color: rgba(201, 168, 76, 0.55) !important;
+  border-color: rgba(201, 168, 76, 0.18) !important;
+}
+
+/* image overlay — deepen it */
+div[class*="imgOverlay_"] {
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.6) 0%,
+    transparent 58%
+  ) !important;
+}
+
+/* imgArea fallback */
+div[class*="imgArea_"] {
+  background: #151009 !important;
+}
+
+/* ── 7. PhotographyPage vendor cards ───────────────────────── */
+.vendor-card {
+  background: #1e1a13 !important;
+  border: 1px solid rgba(201, 168, 76, 0.18) !important;
+}
+
+.vendor-card:hover {
+  border-color: rgba(212, 134, 10, 0.65) !important;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.65),
+              0 0 0 1px rgba(212, 134, 10, 0.35) !important;
+}
+
+.vendor-info {
+  background: #1e1a13 !important;
+}
+
+.vendor-name   { color: #f0e6cc !important; }
+.price-val     { color: #f0e6cc !important; }
+.price-symbol  { color: #a08850 !important; }
+.price-unit    { color: rgba(201, 168, 76, 0.4) !important; }
+.vendor-location,
+.vendor-date   { color: #a08850 !important; }
+.vendor-reviews { color: rgba(201, 168, 76, 0.4) !important; }
+
+.type-tag {
+  background: rgba(212, 134, 10, 0.12) !important;
+  color: #f0a020 !important;
+  border-color: rgba(212, 134, 10, 0.28) !important;
+}
+
+.award-tag {
+  background: rgba(201, 168, 76, 0.07) !important;
+  color: rgba(201, 168, 76, 0.5) !important;
+  border-color: rgba(201, 168, 76, 0.14) !important;
+}
+
+/* ── 8. Expand panel detail grid cells (ep-cell) ───────────── */
+.ep-cell {
+  background: rgba(201, 168, 76, 0.06) !important;
+  border: 0.5px solid rgba(201, 168, 76, 0.12) !important;
+}
+
+.ep-cell-label { color: rgba(201, 168, 76, 0.4) !important; }
+.ep-cell-val   { color: #f0e6cc !important; }
+
+/* Meta rows */
+.ep-meta-row span { color: rgba(201, 168, 76, 0.5) !important; }
+
+/* Name */
+.ep-name { color: #f0e6cc !important; }
+
+/* Type pills */
+.ep-type-pill {
+  background: rgba(201, 168, 76, 0.12) !important;
+  color: #e8c870 !important;
+}
+
+/* Award pills inside expand panel */
+.ep-award-pill {
+  background: rgba(201, 168, 76, 0.07) !important;
+  color: rgba(201, 168, 76, 0.55) !important;
+  border-color: rgba(201, 168, 76, 0.14) !important;
+}
+
+/* Footer price */
+.ep-price-val  { color: #f0e6cc !important; }
+.ep-price-sym  { color: #a08850 !important; }
+.ep-price-unit { color: rgba(201, 168, 76, 0.4) !important; }
+
+/* Portfolio tag pills in expand panel */
+.ep-ptag {
+  background: rgba(212, 134, 10, 0.15) !important;
+  color: #f0a020 !important;
+  border-color: rgba(212, 134, 10, 0.3) !important;
+}
+
+/* ── 9. EventModal detail grid ─────────────────────────────── */
+.event-modal-detail {
+  background: rgba(201, 168, 76, 0.06) !important;
+  border-radius: 8px;
+  padding: 10px 13px;
+  border: 0.5px solid rgba(201, 168, 76, 0.1) !important;
+}
+
+/* ── 10. Carousel counter / nav buttons in expand panel ─────── */
+.ep-carousel-counter {
+  background: rgba(15, 13, 10, 0.65) !important;
+  border-color: rgba(201, 168, 76, 0.3) !important;
+  color: #f0a020 !important;
+}
+
+.ep-carousel-nav {
+  background: rgba(15, 13, 10, 0.55) !important;
+  border-color: rgba(201, 168, 76, 0.3) !important;
+  color: #f0e6cc !important;
+}
+
+.ep-carousel-nav:hover {
+  background: rgba(201, 168, 76, 0.5) !important;
+}
+
+/* ── 11. ep-grid (Photography expand panel grid) ────────────── */
+.ep-grid > .ep-cell {
+  background: rgba(201, 168, 76, 0.05) !important;
+  border-color: rgba(201, 168, 76, 0.1) !important;
+}
+
+/* ── 12. ep-top layout background fill ─────────────────────── */
+.ep-top {
+  background: #1e1a13 !important;
+}
