@@ -2,6 +2,46 @@ const express = require('express');
 const router  = express.Router();
 const pool    = require('../db');
 
+// Create bookings table if it doesn't exist, add missing columns if table exists
+async function ensureBookingsTable() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS bookings (
+        id SERIAL PRIMARY KEY,
+        client_name TEXT NOT NULL,
+        phone TEXT,
+        email TEXT,
+        event_type TEXT,
+        event_date DATE,
+        message TEXT,
+        reference_image TEXT,
+        decoration_location TEXT,
+        reference_event_id INTEGER,
+        status TEXT DEFAULT 'new',
+        payment_status TEXT,
+        payment_requested BOOLEAN DEFAULT false,
+        cancelled BOOLEAN DEFAULT false,
+        cancel_reason TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    // Add missing columns to existing table
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reference_event_id INTEGER`).catch(() => {});
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reference_image TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS decoration_location TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'new'`).catch(() => {});
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_status TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_requested BOOLEAN DEFAULT false`).catch(() => {});
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancelled BOOLEAN DEFAULT false`).catch(() => {});
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancel_reason TEXT`).catch(() => {});
+
+    } catch (err) {
+    // table ready or already exists
+  }
+}
+ensureBookingsTable();
+
 // GET client's own bookings by email
 router.get('/my', async (req, res) => {
   try {
@@ -30,13 +70,14 @@ router.get('/', async (req, res) => {
 // POST new booking (from client)
 router.post('/', async (req, res) => {
   try {
-    const { client_name, phone, email, event_type, event_date, message, reference_image, decoration_location } = req.body;
+    const { client_name, phone, email, event_type, event_date, message, reference_image, decoration_location, reference_event_id } = req.body;
     await pool.query(
-      'INSERT INTO bookings (client_name, phone, email, event_type, event_date, message, reference_image, decoration_location) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
-      [client_name, phone, email, event_type, event_date, message, reference_image || null, decoration_location || null]
+      'INSERT INTO bookings (client_name, phone, email, event_type, event_date, message, reference_image, decoration_location, reference_event_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+      [client_name, phone, email, event_type, event_date, message, reference_image || null, decoration_location || null, reference_event_id || null]
     );
     res.json({ success: true });
   } catch (err) {
+    console.error('Booking error:', err);
     res.status(500).json({ error: err.message });
   }
 });

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { MONTH_IDX } from "../context/data/events";
 import { EventCard } from "../components/EventCard";
 import { Sidebar } from "../components/Sidebar";
@@ -62,6 +63,15 @@ export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClear
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("latest");
   const [openId, setOpenId] = useState(null);
+  const [searchParams] = useSearchParams();
+
+  // Handle open query param from admin
+  const openParam = searchParams.get('open');
+  useEffect(() => {
+    if (openParam) {
+      setOpenId(openParam);
+    }
+  }, [openParam]);
 
   // Ref on the expand panel so we can scroll to it
   const expandPanelRef = useRef(null);

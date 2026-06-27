@@ -215,7 +215,7 @@ export default function CreateEventPage() {
     // Get reference image from prefill event
     const refImg = refEvent?.image_url || '';
     try {
-      const res  = await fetch(`${API}/bookings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_name: user?.name || 'Guest', email: user?.email || '', phone: '', event_type: evType, event_date: date, message: msg, reference_image: refImg, decoration_location: decorationLocation }) });
+      const res  = await fetch(`${API}/bookings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_name: user?.name || 'Guest', email: user?.email || '', phone: '', event_type: evType, event_date: date, message: msg, reference_image: refImg, decoration_location: decorationLocation, reference_event_id: refEvent?.id || null }) });
       const data = await res.json();
 if (data.success) {
   navigate("/my-events", { state: { bookingSuccess: true } });

@@ -145,6 +145,25 @@ export default function AdminBookings() {
                   ))}
                 </div>
 
+                {/* Cover photo and VIEW IMAGE button */}
+                {(b.reference_image || b.reference_event_id) && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, padding: 10, background: '#f7f5f2', borderRadius: 8 }}>
+                    {b.reference_image && (
+                      <div style={{ width: 64, height: 48, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: '#e8e0d5' }}>
+                        <img src={b.reference_image} alt="Event cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      </div>
+                    )}
+                    {b.reference_event_id && (
+                      <button
+                        onClick={() => window.open(`/explore?open=${b.reference_event_id}`, '_blank')}
+                        style={{ padding: '6px 14px', borderRadius: 6, fontSize: 11, fontFamily: 'inherit', cursor: 'pointer', background: '#1a1008', color: '#ffa01e', border: '1px solid #1a1008', fontWeight: 500, whiteSpace: 'nowrap' }}
+                      >
+                        VIEW IMAGE
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 {b.message && (
                   <div style={{ fontSize: 13, color: '#5a4a36', background: '#f7f5f2', borderRadius: 8, padding: '10px 12px', marginBottom: 14, lineHeight: 1.6, whiteSpace: 'pre-line' }}>
                     {b.message}

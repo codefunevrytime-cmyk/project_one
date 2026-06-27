@@ -357,9 +357,8 @@ export default function PhotographerProfilePage({ bookmarks, onBookmarkToggle, s
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const staticPhotographer = serviceConfig.id === 'photography'
-    ? PHOTOGRAPHERS.find(p => p.id === parseInt(id))
-    : null;
+ const staticPhotographer = null; // resolved after DB fetch
+
 
   const [activeSection, setActiveSection] = useState('projects');
   const [activeTab,     setActiveTab]     = useState('portfolio');
@@ -378,6 +377,13 @@ export default function PhotographerProfilePage({ bookmarks, onBookmarkToggle, s
   const [messageSending, setMessageSending] = useState(false);
   const [messageSent,    setMessageSent]    = useState(false);
   const [messageError,   setMessageError]   = useState('');
+
+  // Booking form state
+  const [bookingForm, setBookingForm] = useState({ name: '', phone: '', email: '', date: '', eventType: '' });
+  const [bookingSending, setBookingSending] = useState(false);
+  const [bookingSuccess, setBookingSuccess] = useState(false);
+  const [bookingError, setBookingError] = useState('');
+  const [showBookingModal, setShowBookingModal] = useState(false);
 
   const projectsRef = useRef(null);
   const aboutRef    = useRef(null);
@@ -423,47 +429,42 @@ export default function PhotographerProfilePage({ bookmarks, onBookmarkToggle, s
 
   // ── Fetch DB vendor data ───────────────────────────────────────────────
   useEffect(() => {
-    if (staticPhotographer) { setDbLoading(false); return; }
+  let cancelled = false;
+  setDbLoading(true);
 
-    let cancelled = false;
-    setDbLoading(true);
+  (async () => {
+    try {
+      const res     = await fetch(`${API}/vendors`);
+      const vendors = await res.json();
+      const match   = Array.isArray(vendors)
+        ? vendors.find(v => {
+            const serviceId = String(v.service_id || '').trim();
+            return v.id === parseInt(id) && (serviceId === String(serviceConfig.serviceId) || (serviceConfig.includeUnassigned && !serviceId));
+          })
+        : null;
 
-    (async () => {
-      try {
-        const res     = await fetch(`${API}/vendors`);
-        const vendors = await res.json();
-        const match   = Array.isArray(vendors)
-          ? vendors.find(v => {
-              const serviceId = String(v.service_id || '').trim();
-              return v.id === parseInt(id) && (
-                serviceId === String(serviceConfig.serviceId) ||
-                (serviceConfig.includeUnassigned && !serviceId)
-              );
-            })
-          : null;
+      if (!match) { if (!cancelled) setDbLoading(false); return; }
 
-        if (!match) { if (!cancelled) setDbLoading(false); return; }
+      const [portRes, tagsRes] = await Promise.all([
+        fetch(`${API}/vendors/${match.id}/portfolio`),
+        fetch(`${API}/vendors/${match.id}/tags`),
+      ]);
+      const portfolio = await portRes.json();
+      const tags      = await tagsRes.json();
 
-        const [portRes, tagsRes] = await Promise.all([
-          fetch(`${API}/vendors/${match.id}/portfolio`),
-          fetch(`${API}/vendors/${match.id}/tags`),
-        ]);
-        const portfolio = await portRes.json();
-        const tags      = await tagsRes.json();
-
-        if (!cancelled) {
-          setDbVendor(match);
-          setDbPortfolio(Array.isArray(portfolio) ? portfolio : []);
-          setDbTags(Array.isArray(tags) ? tags : []);
-        }
-      } catch (err) {
-        console.error('Failed to fetch vendor:', err);
+      if (!cancelled) {
+        setDbVendor(match);
+        setDbPortfolio(Array.isArray(portfolio) ? portfolio : []);
+        setDbTags(Array.isArray(tags) ? tags : []);
       }
-      if (!cancelled) setDbLoading(false);
-    })();
+    } catch (err) {
+      console.error('Failed to fetch vendor:', err);
+    }
+    if (!cancelled) setDbLoading(false);
+  })();
 
-    return () => { cancelled = true; };
-  }, [id, serviceConfig, staticPhotographer]);
+  return () => { cancelled = true; };
+}, [id, serviceConfig]);
 
   // ── Intersection observer for sticky nav ──────────────────────────────
   useEffect(() => {
@@ -476,8 +477,13 @@ export default function PhotographerProfilePage({ bookmarks, onBookmarkToggle, s
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const photographer = staticPhotographer || (dbVendor ? mapDbVendorToProfile(dbVendor, dbTags) : null);
+const staticFallback = (!dbVendor && !dbLoading && serviceConfig.id === 'photography')
+  ? PHOTOGRAPHERS.find(p => p.id === parseInt(id))
+  : null;
 
+const photographer = dbVendor
+  ? mapDbVendorToProfile(dbVendor, dbTags)
+  : staticFallback || null;
   if (!photographer) {
     if (dbLoading) {
       return (
@@ -547,6 +553,42 @@ export default function PhotographerProfilePage({ bookmarks, onBookmarkToggle, s
       }
     } catch { setMessageError('Could not connect to server.'); }
     setMessageSending(false);
+  };
+
+  // Handle direct booking request
+  const handleBookNow = async () => {
+    if (!bookingForm.name || !bookingForm.phone) {
+      setBookingError('Name and phone are required.');
+      return;
+    }
+    setBookingSending(true);
+    setBookingError('');
+    const payload = {
+      client_name: bookingForm.name,
+      email: bookingForm.email || '',
+      phone: bookingForm.phone,
+      event_type: bookingForm.eventType || 'Event',
+      event_date: bookingForm.date || null,
+      message: `[${serviceConfig.singular}: ${photographer.name}] - Direct Booking Request\nDate: ${bookingForm.date || 'Not specified'}`,
+      reference_event_id: photographer?.id || null,
+      reference_image: photographer?.photo_url || null,
+    };
+    try {
+      const res = await fetch(`${API}/bookings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setBookingSuccess(true);
+        setBookingForm({ name: '', phone: '', email: '', date: '', eventType: '' });
+        setTimeout(() => { setBookingSuccess(false); setShowBookingModal(false); }, 4000);
+      } else {
+        setBookingError(data.error || 'Something went wrong. Please try again.');
+      }
+    } catch (err) { setBookingError('Could not connect to server: ' + err.message); }
+    setBookingSending(false);
   };
 
   const ratingCounts = [5, 4, 3, 2, 1].map(stars => ({
@@ -631,7 +673,7 @@ export default function PhotographerProfilePage({ bookmarks, onBookmarkToggle, s
             </button>
             <span className="pp-subnav-price">₹{photographer.pricePerDay.toLocaleString('en-IN')}</span>
             <a href="#contact" className="pp-contact-btn">Contact</a>
-            <a href="#contact" className="pp-contact-btn">Add To Your Event</a>
+            <button className="pp-contact-btn" onClick={() => setShowBookingModal(true)}>Book Now</button>
           </div>
         </div>
       </div>
@@ -870,6 +912,107 @@ export default function PhotographerProfilePage({ bookmarks, onBookmarkToggle, s
           </div>
         </aside>
       </div>
+
+      {/* Booking Modal */}
+      {showBookingModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }} onClick={() => setShowBookingModal(false)}>
+          <div style={{ background: '#1e1a14', border: '0.5px solid rgba(200,175,120,0.2)', borderRadius: 16, padding: 32, maxWidth: 420, width: '100%', boxShadow: '0 24px 64px rgba(0,0,0,0.6)' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 500, color: '#e8dcc8' }}>Book {photographer.name}</div>
+                <div style={{ fontSize: 12, color: 'rgba(200,175,120,0.4)' }}>Request a booking for your event</div>
+              </div>
+              <button onClick={() => setShowBookingModal(false)} style={{ background: 'none', border: 'none', color: 'rgba(200,175,120,0.5)', cursor: 'pointer', fontSize: 20 }}>
+                ×
+              </button>
+            </div>
+
+            {bookingSuccess && (
+              <div style={{ background: 'rgba(111,207,151,0.1)', border: '0.5px solid rgba(111,207,151,0.25)', borderRadius: 8, padding: '12px 16px', marginBottom: 20, color: '#6fcf97', fontSize: 13 }}>
+                ✓ Booking request sent! The vendor will contact you soon.
+              </div>
+            )}
+
+            {bookingError && (
+              <div style={{ background: 'rgba(248,113,113,0.1)', border: '0.5px solid rgba(248,113,113,0.25)', borderRadius: 8, padding: '12px 16px', marginBottom: 20, color: '#f87171', fontSize: 13 }}>
+                {bookingError}
+              </div>
+            )}
+
+            {!bookingSuccess && (
+              <>
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: 'block', fontSize: 11, color: 'rgba(200,175,120,0.6)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Your Name *</label>
+                  <input
+                    type="text"
+                    className="pp-form-input"
+                    placeholder="Full name"
+                    value={bookingForm.name}
+                    onChange={e => { setBookingForm({ ...bookingForm, name: e.target.value }); setBookingError(''); }}
+                  />
+                </div>
+
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: 'block', fontSize: 11, color: 'rgba(200,175,120,0.6)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Phone *</label>
+                  <input
+                    type="tel"
+                    className="pp-form-input"
+                    placeholder="+91 98765 43210"
+                    value={bookingForm.phone}
+                    onChange={e => { setBookingForm({ ...bookingForm, phone: e.target.value }); setBookingError(''); }}
+                  />
+                </div>
+
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: 'block', fontSize: 11, color: 'rgba(200,175,120,0.6)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Email</label>
+                  <input
+                    type="email"
+                    className="pp-form-input"
+                    placeholder="you@example.com"
+                    value={bookingForm.email}
+                    onChange={e => setBookingForm({ ...bookingForm, email: e.target.value })}
+                  />
+                </div>
+
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: 'block', fontSize: 11, color: 'rgba(200,175,120,0.6)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Event Type</label>
+                  <select
+                    className="pp-form-input"
+                    value={bookingForm.eventType}
+                    onChange={e => setBookingForm({ ...bookingForm, eventType: e.target.value })}
+                    style={{ marginBottom: 0 }}
+                  >
+                    <option value="">Select event type</option>
+                    <option value="Wedding">Wedding</option>
+                    <option value="Pre-Wedding">Pre-Wedding Shoot</option>
+                    <option value="Birthday">Birthday Party</option>
+                    <option value="Corporate">Corporate Event</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
+                <div style={{ marginBottom: 24 }}>
+                  <label style={{ display: 'block', fontSize: 11, color: 'rgba(200,175,120,0.6)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Event Date</label>
+                  <input
+                    type="date"
+                    className="pp-form-input"
+                    value={bookingForm.date}
+                    onChange={e => setBookingForm({ ...bookingForm, date: e.target.value })}
+                  />
+                </div>
+
+                <button
+                  onClick={handleBookNow}
+                  disabled={bookingSending}
+                  style={{ width: '100%', padding: '14px 0', background: '#c9a96e', color: '#1a1612', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', transition: 'background 0.2s' }}
+                >
+                  {bookingSending ? 'Sending Request...' : 'Confirm Booking Request'}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
