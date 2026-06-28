@@ -25,6 +25,8 @@ import PaymentsEmpty from "./pages/PaymentsEmpty";
 import PaymentCheckout from './pages/PaymentCheckout';
 import PaymentsHistory from './pages/PaymentsHistory';
 import ProtectedRoute from './components/ProtectedRoute';
+import CreateEventPage1 from './pages/CreateEventPage1';
+import MyEventsPage    from './pages/MyEventsPage';
 
 
 // ── Decides which payments page to show based on real payment history ─────────
@@ -65,6 +67,8 @@ function MainApp({ bm }) {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/products" element={<ProductPage />} />
+        <Route path="/create-event" element={<CreateEventPage1 />} />
+        <Route path="/my-events"    element={<MyEventsPage />} /> 
 
         {/* ── Bookmarks ── */}
         <Route

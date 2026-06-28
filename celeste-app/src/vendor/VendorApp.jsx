@@ -9,6 +9,8 @@ import VendorAvailability from './pages/VendorAvailability';
 import VendorEnquiries from './pages/VendorEnquiries';
 import VendorLayout from './components/VendorLayout';
 import VendorPending from './pages/VendorPending';
+import VendorEventRequests from './pages/VendorEventRequests';
+
 
 function ProtectedVendorRoute({ children }) {
   const { vendorUser, loading } = useVendorAuth();
@@ -45,6 +47,8 @@ function VendorRoutes() {
         </ProtectedVendorRoute>
       } />
       <Route path="*" element={<Navigate to="/vendor/login" replace />} />
+      <Route path="/vendor/event-requests" element={<VendorEventRequests />} />
+
     </Routes>
   );
 }

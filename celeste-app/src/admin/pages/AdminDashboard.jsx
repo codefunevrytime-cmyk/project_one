@@ -6,6 +6,9 @@ import AdminAvailability from './AdminAvailability';
 import AdminQueries from './AdminQueries';
 import AdminVendors from './AdminVendors';
 import AdminVendorApplications from './AdminVendorApplications';
+import AdminEventRequests from './AdminEventRequests';
+
+
 
 const MENU = [
   { id: 'gallery',      label: 'Gallery',             icon: '🖼' },
@@ -15,6 +18,9 @@ const MENU = [
   { id: 'bookings',     label: 'Bookings',             icon: '📅' },
   { id: 'availability', label: 'Availability',         icon: '🗓' },
   { id: 'queries',      label: 'Queries',              icon: '💬' },
+  { key: 'events', label: 'Event Requests', component: <AdminEventRequests /> }
+
+  
 ];
 
 export default function AdminDashboard({ onLogout }) {
@@ -30,6 +36,7 @@ export default function AdminDashboard({ onLogout }) {
       case 'availability': return <AdminAvailability />;
       case 'queries':      return <AdminQueries />;
       default:             return <AdminGallery />;
+      
     }
   };
 
