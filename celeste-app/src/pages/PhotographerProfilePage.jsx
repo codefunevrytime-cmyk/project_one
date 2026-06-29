@@ -6,6 +6,8 @@ import { DEFAULT_VENDOR_SERVICE } from '../context/data/vendorServiceConfig';
 import { BookmarkIcon } from '../components/BookmarkIcon';
 import { useAuth } from '../hooks/useAuth';
 import './PhotographerProfilePage.css';
+import ClientMessaging from '../components/ClientMessaging';
+
 
 const API = 'http://localhost:5000/api';
 
@@ -1013,6 +1015,10 @@ const photographer = dbVendor
           </div>
         </div>
       )}
+       <ClientMessaging                         
+        vendor={photographer.isDbItem ? dbVendor : null}
+        user={user}
+      />
     </div>
   );
 }

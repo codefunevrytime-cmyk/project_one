@@ -11,6 +11,12 @@ const STATUS_COLORS = {
   cancelled: { bg: '#fef2f2', border: '#fecaca', color: '#b91c1c' },
 };
 
+const VENDOR_STATUS_COLORS = {
+  pending:   { bg: '#f3f4f6', border: '#e5e7eb', color: '#6b7280', label: 'Pending Vendor Response' },
+  accepted:  { bg: '#f0fdf4', border: '#bbf7d0', color: '#15803d', label: 'Vendor Accepted' },
+  declined:  { bg: '#fef2f2', border: '#fecaca', color: '#b91c1c', label: 'Vendor Declined' },
+};
+
 export default function AdminBookings() {
   const [bookings,  setBookings]  = useState([]);
   const [loading,   setLoading]   = useState(true);
@@ -118,6 +124,12 @@ export default function AdminBookings() {
                     <div style={{ fontSize: 12, color: '#9e8e7a' }}>{b.email} · {b.phone}</div>
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    {/* Vendor status badge */}
+                    {b.vendor_id && (
+                      <span style={{ fontSize: 11, padding: '4px 10px', borderRadius: 20, background: VENDOR_STATUS_COLORS[b.vendor_status]?.bg || '#f3f4f6', border: `1px solid ${VENDOR_STATUS_COLORS[b.vendor_status]?.border || '#e5e7eb'}`, color: VENDOR_STATUS_COLORS[b.vendor_status]?.color || '#6b7280' }}>
+                        {VENDOR_STATUS_COLORS[b.vendor_status]?.label || 'Vendor Status Unknown'}
+                      </span>
+                    )}
                     {/* Payment requested badge */}
                     {b.payment_requested && b.payment_status !== 'advance_paid' && (
                       <span style={{ fontSize: 11, padding: '4px 10px', borderRadius: 20, background: '#fefce8', border: '1px solid #fde68a', color: '#92400e' }}>
@@ -144,6 +156,20 @@ export default function AdminBookings() {
                     </div>
                   ))}
                 </div>
+
+                {/* Vendor info */}
+                {b.vendor_id && (
+                  <div style={{ background: '#f7f5f2', borderRadius: 8, padding: '10px 12px', marginBottom: 12 }}>
+                    <div style={{ fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', color: '#9e8e7a', marginBottom: 4 }}>Vendor Information</div>
+                    <div style={{ fontSize: 13, color: '#1a1008', fontWeight: 500 }}>Vendor ID: {b.vendor_id}</div>
+                    {b.quoted_price && (
+                      <div style={{ fontSize: 12, color: '#9e8e7a', marginTop: 2 }}>Quoted Price: ₹{parseFloat(b.quoted_price).toLocaleString('en-IN')}</div>
+                    )}
+                    {b.vendor_notes && (
+                      <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4, fontStyle: 'italic' }}>Vendor Note: {b.vendor_notes}</div>
+                    )}
+                  </div>
+                )}
 
                 {/* Cover photo and VIEW IMAGE button */}
                 {(b.reference_image || b.reference_event_id) && (

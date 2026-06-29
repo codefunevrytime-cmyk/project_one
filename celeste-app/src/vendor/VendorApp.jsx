@@ -10,6 +10,8 @@ import VendorEnquiries from './pages/VendorEnquiries';
 import VendorLayout from './components/VendorLayout';
 import VendorPending from './pages/VendorPending';
 import VendorEventRequests from './pages/VendorEventRequests';
+import VendorMessages from './pages/VendorMessages';
+
 
 
 function ProtectedVendorRoute({ children }) {
@@ -30,26 +32,26 @@ function VendorRoutes() {
 
   return (
     <Routes>
-      <Route path="/vendor/login"  element={vendorUser ? <Navigate to="/vendor/dashboard" replace /> : <VendorLogin />} />
-      <Route path="/vendor/signup" element={vendorUser ? <Navigate to="/vendor/dashboard" replace /> : <VendorSignup />} />
-      <Route path="/vendor/*" element={
-        <ProtectedVendorRoute>
-          <VendorLayout>
-            <Routes>
-              <Route path="dashboard"    element={<VendorDashboard />} />
-              <Route path="profile"      element={<VendorProfile />} />
-              <Route path="portfolio"    element={<VendorPortfolio />} />
-              <Route path="availability" element={<VendorAvailability />} />
-              <Route path="enquiries"    element={<VendorEnquiries />} />
-              <Route path="*"            element={<Navigate to="/vendor/dashboard" replace />} />
-            </Routes>
-          </VendorLayout>
-        </ProtectedVendorRoute>
-      } />
-      <Route path="*" element={<Navigate to="/vendor/login" replace />} />
-      <Route path="/vendor/event-requests" element={<VendorEventRequests />} />
-
-    </Routes>
+  <Route path="/vendor/login"  element={vendorUser ? <Navigate to="/vendor/dashboard" replace /> : <VendorLogin />} />
+  <Route path="/vendor/signup" element={vendorUser ? <Navigate to="/vendor/dashboard" replace /> : <VendorSignup />} />
+  <Route path="/vendor/*" element={
+    <ProtectedVendorRoute>
+      <VendorLayout>
+        <Routes>
+          <Route path="dashboard"      element={<VendorDashboard />} />
+          <Route path="profile"        element={<VendorProfile />} />
+          <Route path="portfolio"      element={<VendorPortfolio />} />
+          <Route path="availability"   element={<VendorAvailability />} />
+          <Route path="enquiries"      element={<VendorEnquiries />} />
+          <Route path="messages"       element={<VendorMessages />} />
+          <Route path="event-requests" element={<VendorEventRequests />} />
+          <Route path="*"              element={<Navigate to="/vendor/dashboard" replace />} />
+        </Routes>
+      </VendorLayout>
+    </ProtectedVendorRoute>
+  } />
+  <Route path="*" element={<Navigate to="/vendor/login" replace />} />
+</Routes>
   );
 }
 
