@@ -4,6 +4,16 @@ import { useAuth } from "../hooks/useAuth";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
+/* ─── Date helper ────────────────────────────────────────────────────────────
+   Safely parses event_date whether it arrives as a plain "YYYY-MM-DD" string
+   or (from older/other endpoints) a full ISO timestamp already containing
+   "T". Blindly appending "T00:00:00" to a string that already has a "T"
+   produces an Invalid Date, which silently breaks all downstream filtering. */
+function toDate(d) {
+  if (!d) return null;
+  return new Date(d.includes("T") ? d : d + "T00:00:00");
+}
+
 /* ─── Status config ──────────────────────────────────────────────────────────── */
 const STATUS_CFG = {
   pending:           { label: "Under Review",          color: "#8ab4f8", pulse: "pulseSlow",  dur: "2.4s" },
@@ -39,8 +49,7 @@ function fmt(n) { return Number(n || 0).toLocaleString("en-IN"); }
 
 function fmtDate(d) {
   if (!d) return "—";
-  return new Date(d + (d.includes("T") ? "" : "T00:00:00"))
-    .toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+  return toDate(d).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
 }
 
 /* ─── Glow dot ───────────────────────────────────────────────────────────────── */
@@ -222,7 +231,7 @@ function ExpandedDetails({ ev }) {
 /* ─── Cancel popup ───────────────────────────────────────────────────────────── */
 function CancelPopup({ ev, onConfirm, onClose, cancelling }) {
   const now = new Date();
-  const eventDate = ev.event_date ? new Date(ev.event_date + "T00:00:00") : null;
+  const eventDate = toDate(ev.event_date);
   const daysToEvent = eventDate ? (eventDate - now) / (1000*60*60*24) : 999;
   const hasPaid = ev.payment_status === "advance_paid";
 
@@ -495,8 +504,8 @@ export default function MyEvents() {
   };
 
   const now = new Date();
-  const upcoming = events.filter(e => e.status !== "cancelled" && (!e.event_date || new Date(e.event_date + "T00:00:00") >= now));
-  const past     = events.filter(e => e.status === "confirmed" && e.event_date && new Date(e.event_date + "T00:00:00") < now);
+  const upcoming = events.filter(e => e.status !== "cancelled" && (!e.event_date || toDate(e.event_date) >= now));
+  const past     = events.filter(e => e.status === "confirmed" && e.event_date && toDate(e.event_date) < now);
   const cancelled= events.filter(e => e.status === "cancelled");
 
   const TABS = [

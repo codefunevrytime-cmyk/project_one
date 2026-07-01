@@ -1,4 +1,22 @@
 // server/routes/events.js
+//
+// ── CHANGES IN THIS VERSION (Option B fix) ─────────────────────────────────────
+// Problem: JWT payload only contains { id, iat, exp } — no `email` field.
+// GET /my was filtering on token?.email (always undefined) → always returned [].
+// POST / was trusting req.body.client_email blindly → anyone could submit an
+// event "as" any email address, and it never matched what GET /my expected.
+//
+// Fix: event_requests now has a client_id column. POST resolves the logged-in
+// user's id/name/email from the `users` table using the JWT's `id`, stores
+// client_id on the row, and GET /my filters directly on client_id. No more
+// trusting the request body for identity, no more email-matching mismatch.
+//
+// ⚠️ ASSUMPTION TO VERIFY: this file assumes a `users` table exists with at
+// least `id`, `name`, `email` columns (matching your client login/signup).
+// If your table or column names differ, tell me and I'll adjust the
+// `SELECT email, name FROM users WHERE id = $1` line accordingly.
+// ─────────────────────────────────────────────────────────────────────────────
+
 const express = require('express');
 const router  = express.Router();
 const pool    = require('../db');
@@ -10,6 +28,7 @@ async function ensureTables() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS event_requests (
       id                     SERIAL PRIMARY KEY,
+      client_id              INTEGER,
       client_name            TEXT,
       client_email           TEXT,
       client_phone           TEXT,
@@ -34,6 +53,7 @@ async function ensureTables() {
 
   // Add missing columns to existing table if they don't exist
   const alterColumns = [
+    `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS client_id INTEGER`,
     `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS client_name TEXT`,
     `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS reference_event_id TEXT`,
     `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS reference_event_image TEXT`,
@@ -43,6 +63,26 @@ async function ensureTables() {
   for (const sql of alterColumns) {
     await pool.query(sql).catch(() => {}); // ignore if already exists
   }
+
+  // Helpful for fast "my events" lookups
+  await pool.query(
+    `CREATE INDEX IF NOT EXISTS idx_event_requests_client_id ON event_requests(client_id)`
+  ).catch(() => {});
+
+  // ── One-time backfill for rows created before client_id existed ─────────────
+  // Those older rows still have client_email saved (the old POST route wrote
+  // it straight from the request body), just no client_id. Match them to the
+  // users table by email so they become visible again in GET /my. This is
+  // safe to run on every startup — it only touches rows where client_id is
+  // still NULL and a matching user email exists.
+  await pool.query(`
+    UPDATE event_requests er
+    SET client_id = u.id
+    FROM users u
+    WHERE er.client_id IS NULL
+      AND er.client_email IS NOT NULL
+      AND LOWER(er.client_email) = LOWER(u.email)
+  `).catch(err => console.error('client_id backfill skipped:', err.message));
 
   // Vendor slots table
   await pool.query(`
@@ -91,41 +131,55 @@ function getClientFromToken(req) {
 // ── POST /api/events — client submits event ───────────────────────────────────
 router.post('/', async (req, res) => {
   try {
+    const token = getClientFromToken(req);
+    if (!token?.id) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    // Resolve the logged-in user's real identity from the DB —
+    // never trust client_name/client_email from the request body.
+    const userRes = await pool.query(
+      `SELECT id, name, email FROM users WHERE id = $1`,
+      [token.id]
+    );
+    const clientUser = userRes.rows[0];
+    if (!clientUser) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
     const {
-      client_name, client_email, client_phone,
+      client_phone,
       event_name, event_type, event_date, event_time,
       location, capacity, budget_estimate, decoration_type,
       reference_event_id, reference_event_image,
+      reference_event_title, reference_event_type,
       vendors = [],
     } = req.body;
-
-    // Get reference event title/type from eventsData lookup if not provided
-    const reference_event_title = req.body.reference_event_title || null;
-    const reference_event_type  = req.body.reference_event_type  || null;
 
     // Insert the event
     const eventResult = await pool.query(
       `INSERT INTO event_requests
-         (client_name, client_email, client_phone,
+         (client_id, client_name, client_email, client_phone,
           event_name, event_type, event_date, event_time,
           location, capacity, budget_estimate, decoration_type,
           reference_event_id, reference_event_image,
           reference_event_title, reference_event_type,
           status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'pending')
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'pending')
        RETURNING id`,
       [
-        client_name   || null,
-        client_email  || null,
-        client_phone  || null,
-        event_name    || null,
-        event_type    || null,
-        event_date    || null,
-        event_time    || null,
-        location      || null,
-        capacity      || null,
-        budget_estimate || null,
-        decoration_type || null,
+        clientUser.id,
+        clientUser.name  || req.body.client_name || null,
+        clientUser.email || null,
+        client_phone     || null,
+        event_name       || null,
+        event_type       || null,
+        event_date       || null,
+        event_time       || null,
+        location         || null,
+        capacity         || null,
+        budget_estimate  || null,
+        decoration_type  || null,
         reference_event_id    ? String(reference_event_id) : null,
         reference_event_image || null,
         reference_event_title || null,
@@ -141,9 +195,7 @@ router.post('/', async (req, res) => {
       let vendorUserId = null;
       if (v.vendor_id) {
         const vuRes = await pool.query(
-          `SELECT vu.id FROM vendor_users vu
-           JOIN vendors vn ON vn.name = vu.name
-           WHERE vn.id = $1 LIMIT 1`,
+          `SELECT id FROM vendor_users WHERE vendor_id = $1 LIMIT 1`,
           [v.vendor_id]
         ).catch(() => ({ rows: [] }));
         vendorUserId = vuRes.rows[0]?.id || null;
@@ -182,12 +234,20 @@ router.post('/', async (req, res) => {
 router.get('/my', async (req, res) => {
   try {
     const token = getClientFromToken(req);
-    const email = token?.email || req.query.email;
-    if (!email) return res.json([]);
+    if (!token?.id) return res.json([]);
 
+    // event_date::text avoids node-postgres serializing DATE columns as full
+    // ISO timestamps (e.g. "2026-05-30T18:30:00.000Z"), which broke the
+    // frontend's date filtering — it expects a plain "YYYY-MM-DD" string.
     const eventsRes = await pool.query(
-      `SELECT * FROM event_requests WHERE client_email = $1 ORDER BY created_at DESC`,
-      [email]
+      `SELECT id, client_id, client_name, client_email, client_phone,
+              event_name, event_type, event_date::text AS event_date, event_time,
+              location, capacity, budget_estimate, decoration_type,
+              reference_event_id, reference_event_image,
+              reference_event_title, reference_event_type,
+              admin_notes, status, created_at, updated_at
+       FROM event_requests WHERE client_id = $1 ORDER BY created_at DESC`,
+      [token.id]
     );
     const events = eventsRes.rows;
     if (events.length === 0) return res.json([]);
@@ -212,6 +272,7 @@ router.get('/my', async (req, res) => {
 
     res.json(events.map(e => ({ ...e, vendors: slotsByEvent[e.id] || [] })));
   } catch (err) {
+    console.error('GET /api/events/my error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -219,10 +280,22 @@ router.get('/my', async (req, res) => {
 // ── PATCH /api/events/:id/cancel — client cancels ────────────────────────────
 router.patch('/:id/cancel', async (req, res) => {
   try {
-    await pool.query(
-      `UPDATE event_requests SET status = 'cancelled', updated_at = NOW() WHERE id = $1`,
-      [req.params.id]
+    const token = getClientFromToken(req);
+    if (!token?.id) return res.status(401).json({ error: 'Not authenticated' });
+
+    // Make sure the event actually belongs to this client before cancelling it
+    const result = await pool.query(
+      `UPDATE event_requests
+       SET status = 'cancelled', updated_at = NOW()
+       WHERE id = $1 AND client_id = $2
+       RETURNING id`,
+      [req.params.id, token.id]
     );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -233,7 +306,13 @@ router.patch('/:id/cancel', async (req, res) => {
 router.get('/admin/all', async (req, res) => {
   try {
     const eventsRes = await pool.query(
-      `SELECT * FROM event_requests ORDER BY created_at DESC`
+      `SELECT id, client_id, client_name, client_email, client_phone,
+              event_name, event_type, event_date::text AS event_date, event_time,
+              location, capacity, budget_estimate, decoration_type,
+              reference_event_id, reference_event_image,
+              reference_event_title, reference_event_type,
+              admin_notes, status, created_at, updated_at
+       FROM event_requests ORDER BY created_at DESC`
     );
     const events = eventsRes.rows;
     if (events.length === 0) return res.json([]);
