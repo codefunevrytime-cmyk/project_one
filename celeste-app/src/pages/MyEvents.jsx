@@ -296,11 +296,19 @@ function EventCard({ ev, navigate, onCancel }) {
   const detailRef = useRef(null);
 
   const cfg = STATUS_CFG[ev.status] || STATUS_CFG.pending;
-  const isPayReq = (ev.payment_requested === true || ev.payment_requested === "true") && ev.payment_status !== "advance_paid" && ev.status !== "cancelled";
+const isPayReq = ev.status === "payment_pending" && ev.payment_status !== "advance_paid";
   const displayCfg = isPayReq ? STATUS_CFG.payment_pending : cfg;
   const isCancelled = ev.status === "cancelled";
 
-  const advance = ev.budget_estimate ? Math.round(Number(ev.budget_estimate) * 0.3) : 0;
+const vendorSlotTotal = (ev.vendors || [])
+  .filter(v => v.status !== "replaced")
+  .reduce((s, v) => s + (Number(v.effective_price ?? v.quoted_price) || 0), 0);
+
+const effectiveTotal = Number(ev.budget_estimate) > 0
+  ? Number(ev.budget_estimate)
+  : vendorSlotTotal;
+
+const advance = effectiveTotal > 0 ? Math.round(effectiveTotal * 0.3) : 0;
 
   const handleExpand = () => {
     setExpanded(e => {
@@ -319,13 +327,13 @@ function EventCard({ ev, navigate, onCancel }) {
       guests: ev.capacity || 0,
       date: fmtDate(ev.event_date),
       time: ev.event_time || "18:00",
-      breakdown: (ev.vendors||[]).filter(v=>v.quoted_price>0&&v.status!=="replaced").map(v=>({
-        label: v.service_type,
-        sub: v.business_name || v.vendor_name || "",
-        amount: Number(v.quoted_price),
-      })),
+      breakdown: (ev.vendors||[]).filter(v=>(v.effective_price ?? v.quoted_price)>0 && v.status!=="replaced").map(v=>({
+  label: v.service_type,
+  sub: v.business_name || v.vendor_name || "",
+  amount: Number(v.effective_price ?? v.quoted_price),
+})),
       gst: 0.18,
-      budgetTotal: ev.budget_estimate,
+budgetTotal: effectiveTotal,
       advanceAmount: advance,
     }}});
   };
@@ -365,9 +373,9 @@ function EventCard({ ev, navigate, onCancel }) {
 
             {/* Right: budget + status + actions */}
             <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:8, flexShrink:0, marginLeft:8 }}>
-              {ev.budget_estimate > 0 && (
-                <div style={{ fontSize:18, fontWeight:700, color:"#d4a843" }}>₹{fmt(ev.budget_estimate)}</div>
-              )}
+             {effectiveTotal > 0 && (
+  <div style={{ fontSize:18, fontWeight:700, color:"#d4a843" }}>₹{fmt(effectiveTotal)}</div>
+)}
               {/* Status badge */}
               <div style={{ display:"flex", alignItems:"center", background:"rgba(255,255,255,0.04)", border:`0.5px solid ${displayCfg.color}44`, borderRadius:20, padding:"4px 12px" }}>
                 <GlowDot cfg={displayCfg}/>
