@@ -36,7 +36,13 @@ async function ensureBookingsTable() {
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancelled BOOLEAN DEFAULT false`).catch(() => {});
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancel_reason TEXT`).catch(() => {});
 
-    } catch (err) {
+    // Columns needed for vendor assignment + response tracking
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS vendor_id INTEGER REFERENCES vendors(id) ON DELETE SET NULL`).catch(() => {});
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS vendor_status TEXT DEFAULT 'pending'`).catch(() => {});
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS vendor_notes TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS quoted_price NUMERIC`).catch(() => {});
+
+  } catch (err) {
     // table ready or already exists
   }
 }
@@ -67,6 +73,22 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET bookings assigned to a specific vendor
+// Called by VendorEventRequests.jsx as GET /bookings/vendor-requests/:vendorId
+router.get('/vendor-requests/:vendorId', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT * FROM bookings
+       WHERE vendor_id = $1
+       ORDER BY created_at DESC`,
+      [req.params.vendorId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST new booking (from client)
 router.post('/', async (req, res) => {
   try {
@@ -87,6 +109,21 @@ router.patch('/:id/status', async (req, res) => {
   try {
     const { status } = req.body;
     await pool.query('UPDATE bookings SET status = $1 WHERE id = $2', [status, req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH vendor responds to a booking request (accept / decline)
+// Called by VendorEventRequests.jsx as PATCH /bookings/:id/vendor-response
+router.patch('/:id/vendor-response', async (req, res) => {
+  try {
+    const { status, vendor_notes } = req.body;
+    await pool.query(
+      `UPDATE bookings SET vendor_status = $1, vendor_notes = $2 WHERE id = $3`,
+      [status, vendor_notes || null, req.params.id]
+    );
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -143,7 +180,7 @@ router.patch('/:id/client-cancel', async (req, res) => {
 
     let refundPct    = 0;
     let refundPolicy = 'no_refund';
-    if (daysToEvent > 7)      { refundPct = 100; refundPolicy = 'full'; }
+    if (daysToEvent > 7)       { refundPct = 100; refundPolicy = 'full'; }
     else if (hoursSince <= 48) { refundPct = 50;  refundPolicy = 'half'; }
 
     await pool.query(

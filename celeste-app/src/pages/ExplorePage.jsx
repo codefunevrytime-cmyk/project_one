@@ -4,6 +4,9 @@ import { MONTH_IDX } from "../context/data/events";
 import { EventCard } from "../components/EventCard";
 import { Sidebar } from "../components/Sidebar";
 import styles from "./ExplorePage.module.css";
+import ClientAdminChat from '../components/ClientAdminChat';
+import { useAuth } from '../hooks/useAuth';
+
 
 const API = "http://localhost:5000/api";
 
@@ -55,6 +58,7 @@ function mapGalleryToEvent(item) {
 export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClearType }) {
   const [allEvents, setAllEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+const { user } = useAuth();
 
   const [filters, setFilters] = useState(() => {
     if (selectedType) return { ...cloneFilters(EMPTY_FILTERS), type: new Set([selectedType]) };
@@ -282,6 +286,8 @@ export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClear
           </>
         )}
       </main>
+      <ClientAdminChat user={user} pageContext="Event Planning" />
+
     </div>
   );
 }

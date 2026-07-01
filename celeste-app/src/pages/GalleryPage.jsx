@@ -6,6 +6,8 @@ import Footer from '../components/Footer';
 import { eventsData, featuredEventTypes } from '../context/data/eventsData';
 import { useAuth } from '../hooks/useAuth';
 import { useModal } from '../hooks/useModal';
+import ClientAdminChat from '../components/ClientAdminChat';
+
 
 const SORT_OPTIONS = [
   { value: 'latest', label: 'Latest to oldest' },
@@ -66,7 +68,8 @@ function sortEvents(events, sortBy) {
 }
 
 export default function GalleryPage() {
-  const { bookmarkCount, bookmarkedEventIds, isBookmarked, toggleBookmark } = useAuth();
+
+  const { user, bookmarkCount, bookmarkedEventIds, isBookmarked, toggleBookmark } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const presetType = searchParams.get('type') || '';
 
@@ -123,6 +126,8 @@ export default function GalleryPage() {
 
     setSelectedTypes((currentTypes) => toggleListValue(currentTypes, type));
   };
+
+  
 
   const hasFilters = Boolean(query)
     || selectedTypes.length > 0
@@ -291,6 +296,7 @@ export default function GalleryPage() {
         onNext={() => navigate(1)}
         onToggleBookmark={toggleBookmark}
       />
+               <ClientAdminChat user={user} pageContext="Gallery Events" />
 
       <Footer />
     </div>

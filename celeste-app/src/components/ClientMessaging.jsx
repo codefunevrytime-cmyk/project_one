@@ -117,7 +117,7 @@ function Bubble({ msg }) {
   );
 }
 
-export default function ClientMessaging({ vendor, user }) {
+export default function ClientMessaging({ vendor, user, adminMode }) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState('form'); // 'form' | 'chat'
   const [convId, setConvId] = useState(null);

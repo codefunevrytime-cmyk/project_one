@@ -19,6 +19,11 @@ router.post('/create-order', async (req, res) => {
       receipt:  `booking_${booking_id}`,
       notes:    { booking_id: String(booking_id) },
     });
+    
+    // Ensure payments table has commission columns
+    await pool.query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS admin_commission DECIMAL`).catch(() => {});
+    await pool.query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS vendor_share DECIMAL`).catch(() => {});
+    
     await pool.query(
       'INSERT INTO payments (booking_id, razorpay_order_id, amount, status, payment_type) VALUES ($1, $2, $3, $4, $5)',
       [booking_id, order.id, amount, 'pending', 'advance']
@@ -44,16 +49,28 @@ router.post('/verify', async (req, res) => {
       return res.status(400).json({ error: 'Invalid signature' });
     }
 
+    // Get booking details for payment splitting
+    const bookingRes = await pool.query('SELECT * FROM bookings WHERE id = $1', [booking_id]);
+    const booking = bookingRes.rows[0];
+    const paymentRes = await pool.query('SELECT * FROM payments WHERE razorpay_order_id = $1', [razorpay_order_id]);
+    const payment = paymentRes.rows[0];
+    
+    // Calculate admin commission and vendor share
+    const adminCommissionPct = booking.admin_commission_pct || 15;
+    const totalAmount = payment.amount;
+    const adminCommission = Math.round(totalAmount * (adminCommissionPct / 100));
+    const vendorShare = totalAmount - adminCommission;
+
     await pool.query(
-      'UPDATE payments SET razorpay_payment_id = $1, status = $2 WHERE razorpay_order_id = $3',
-      [razorpay_payment_id, 'paid', razorpay_order_id]
+      'UPDATE payments SET razorpay_payment_id = $1, status = $2, admin_commission = $3, vendor_share = $4 WHERE razorpay_order_id = $5',
+      [razorpay_payment_id, 'paid', adminCommission, vendorShare, razorpay_order_id]
     );
     await pool.query(
       `UPDATE bookings SET payment_status = 'advance_paid', status = 'confirmed' WHERE id = $1`,
       [booking_id]
     );
 
-    res.json({ success: true });
+    res.json({ success: true, adminCommission, vendorShare });
   } catch (err) {
     console.error('Verify error:', err);
     res.status(500).json({ error: err.message });

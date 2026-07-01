@@ -3,16 +3,25 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useVendorAuth } from '../context/VendorAuthContext';
 
 const NAV = [
-  { to: '/vendor/dashboard',    label: 'Dashboard',    icon: 'M3 3h7v7H3zM13 3h7v7h-7zM3 13h7v7H3zM13 16a4 4 0 108 0 4 4 0 00-8 0' },
-  { to: '/vendor/profile',      label: 'My Profile',   icon: 'M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8' },
-  { to: '/vendor/portfolio',    label: 'Portfolio',    icon: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z' },
-  { to: '/vendor/availability', label: 'Availability', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
-  { to: '/vendor/enquiries',    label: 'Enquiries',    icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z' },
-  { to: '/vendor/messages', label: 'Messages', icon: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z' },
-  { to: '/vendor/event-requests', label: 'Event Requests', icon: '📋' }
-  
-
+  { to: '/vendor/dashboard',      label: 'Dashboard',      icon: 'M3 3h7v7H3zM13 3h7v7h-7zM3 13h7v7H3zM13 16a4 4 0 108 0 4 4 0 00-8 0' },
+  { to: '/vendor/profile',        label: 'My Profile',     icon: 'M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8' },
+  { to: '/vendor/portfolio',      label: 'Portfolio',      icon: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z' },
+  { to: '/vendor/availability',   label: 'Availability',   icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
+  { to: '/vendor/enquiries',      label: 'Enquiries',      icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z' },
+  { to: '/vendor/messages',       label: 'Messages',       icon: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z' },
+  { to: '/vendor/event-requests', label: 'Event Requests', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z' },
 ];
+
+// Service category → accent color + badge label, mirrors VendorProfile config
+const CATEGORY_META = {
+  photography: { label: 'Photography',  color: '#4c8aff', icon: '📷' },
+  invitation:  { label: 'Invitations',  color: '#d4a843', icon: '✉️' },
+  decor:       { label: 'Decoration',   color: '#e879a0', icon: '🌸' },
+  catering:    { label: 'Catering',     color: '#f97316', icon: '🍽️' },
+  music:       { label: 'Music',        color: '#a855f7', icon: '🎵' },
+  makeup:      { label: 'Makeup',       color: '#ec4899', icon: '💄' },
+  venue:       { label: 'Venue',        color: '#14b8a6', icon: '🏛️' },
+};
 
 export default function VendorLayout({ children }) {
   const { vendorUser, signOut } = useVendorAuth();
@@ -22,6 +31,9 @@ export default function VendorLayout({ children }) {
   const initials = vendorUser?.name
     ? vendorUser.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
     : 'V';
+
+  const category = (vendorUser?.service_category || vendorUser?.category || 'photography').toLowerCase();
+  const meta = CATEGORY_META[category] || CATEGORY_META.photography;
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#080c14', fontFamily: "'DM Sans', sans-serif" }}>
@@ -53,6 +65,21 @@ export default function VendorLayout({ children }) {
             </div>
           )}
         </div>
+
+        {/* Service category badge */}
+        {!collapsed && (
+          <div style={{ padding: '12px 16px 0' }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 7,
+              padding: '6px 12px', borderRadius: 8,
+              background: `${meta.color}16`, border: `1px solid ${meta.color}40`,
+              fontSize: 11, color: meta.color, fontWeight: 500,
+            }}>
+              <span>{meta.icon}</span>
+              <span>{meta.label}</span>
+            </div>
+          </div>
+        )}
 
         {/* Nav */}
         <nav style={{ flex: 1, padding: '16px 8px', overflowY: 'auto' }}>

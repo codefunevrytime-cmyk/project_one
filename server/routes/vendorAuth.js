@@ -100,10 +100,18 @@ router.post('/login', async (req, res) => {
 });
 
 // GET /api/vendor-auth/me
+// Joined through vendors -> services so service_category (services.category)
+// comes back on the user object — VendorLayout.jsx reads vendorUser.service_category
+// for the sidebar badge.
 router.get('/me', vendorAuth, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, name, email, phone, status, vendor_id, created_at FROM vendor_users WHERE id = $1',
+      `SELECT vu.id, vu.name, vu.email, vu.phone, vu.status, vu.vendor_id, vu.created_at,
+              s.category AS service_category
+       FROM vendor_users vu
+       LEFT JOIN vendors v   ON vu.vendor_id = v.id
+       LEFT JOIN services s  ON v.service_id = s.id
+       WHERE vu.id = $1`,
       [req.vendorUserId]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
@@ -181,6 +189,9 @@ router.post('/enquiries/:id/request-contact', vendorAuth, async (req, res) => {
 });
 
 // GET /api/vendor-auth/profile  — get linked vendor profile
+// Joined through vendors -> services so service_category (services.category)
+// and service_name (services.name) come back on the `vendor` object —
+// VendorProfile.jsx reads vendor.service_category to pick the right form config.
 router.get('/profile', vendorAuth, async (req, res) => {
   try {
     const userRes = await pool.query('SELECT * FROM vendor_users WHERE id = $1', [req.vendorUserId]);
@@ -188,7 +199,13 @@ router.get('/profile', vendorAuth, async (req, res) => {
     if (!user.vendor_id) return res.json({ user, vendor: null, portfolio: [], tags: [] });
 
     const [vendorRes, portRes, tagsRes] = await Promise.all([
-      pool.query('SELECT * FROM vendors WHERE id = $1', [user.vendor_id]),
+      pool.query(
+        `SELECT v.*, s.name AS service_name, s.category AS service_category
+         FROM vendors v
+         LEFT JOIN services s ON v.service_id = s.id
+         WHERE v.id = $1`,
+        [user.vendor_id]
+      ),
       pool.query('SELECT * FROM vendor_portfolio WHERE vendor_id = $1 ORDER BY created_at DESC', [user.vendor_id]),
       pool.query('SELECT * FROM vendor_tags WHERE vendor_id = $1', [user.vendor_id]),
     ]);

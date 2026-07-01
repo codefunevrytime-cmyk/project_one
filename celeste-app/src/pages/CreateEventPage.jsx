@@ -4,6 +4,8 @@ import { useAuth } from "../hooks/useAuth";
 import { eventsData } from "../context/data/eventsData";
 import { EVENT_CATEGORIES } from "../context/data/events";
 import styles from "./CreateEventPage.module.css";
+import { DEFAULT_VENDOR_SERVICE, VENDOR_SERVICE_CONFIGS } from "../context/data/vendorServiceConfig";
+
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
@@ -137,46 +139,156 @@ function DatePickerField({ value, onChange, availability }) {
 
 /* ─── Reference Event Picker Modal ───────────────────────────────────────────── */
 function RefEventModal({ bookmarkedIds, onSelect, onClose, title="Pick a reference event" }) {
-  const [search, setSearch] = useState("");
-  const [tab, setTab] = useState("explore"); // "explore" | "bookmarks"
+  const [search, setSearch]       = useState("");
+  const [tab, setTab]             = useState("explore");
+  const [filterType, setFilterType] = useState("");
+  const [galleryEvents, setGalleryEvents] = useState([]);
+  const [loading, setLoading]     = useState(true);
 
-  const bookmarkedEvents = eventsData.filter(e => bookmarkedIds.includes(String(e.id)) || bookmarkedIds.includes(e.id));
-  const displayList = tab === "bookmarks" ? bookmarkedEvents : eventsData;
-  const filtered = displayList.filter(e =>
-    !search || e.title.toLowerCase().includes(search.toLowerCase()) || e.type.toLowerCase().includes(search.toLowerCase())
+  // Fetch gallery events from DB (same source as Explore Events page)
+  useEffect(() => {
+    fetch(`${API}/api/gallery`)
+      .then(r => r.json())
+      .then(data => { setGalleryEvents(Array.isArray(data) ? data : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  // Normalise gallery row → same shape as eventsData
+  const normaliseGallery = (g) => ({
+    id:        `gallery_${g.id}`,
+    _galleryId: g.id,
+    title:     g.title || "Untitled",
+    type:      g.event_type || "Event",
+    img:       g.image_url || null,
+    city:      g.venue || "",
+    dateLabel: g.event_date ? new Date(g.event_date).toLocaleDateString("en-IN", { month:"short", year:"numeric" }) : "",
+    price:     g.price ? `₹${Number(g.price).toLocaleString("en-IN")}` : "",
+    pills:     Array.isArray(g.tags) ? g.tags : [],
+    scale:     g.scale || "",
+    // extra images for carousel preview
+    extraImages: g.gallery_images || [],
+  });
+
+  // Normalise static eventsData row
+  const normaliseStatic = (e) => ({
+    id:        String(e.id),
+    title:     e.title,
+    type:      e.type,
+    img:       e.img || null,
+    city:      e.city || e.venueName || "",
+    dateLabel: e.dateLabel || "",
+    price:     e.price || "",
+    pills:     e.pills || [],
+  });
+
+  // Merge: gallery first (has real DB images), then static
+  const allEvents = [
+    ...galleryEvents.map(normaliseGallery),
+    ...eventsData.map(normaliseStatic),
+  ];
+
+  // Bookmarked = any event whose id is in bookmarkedIds
+  const bookmarkedList = allEvents.filter(e =>
+    bookmarkedIds.includes(e.id) ||
+    bookmarkedIds.includes(String(e._galleryId)) ||
+    bookmarkedIds.includes(e._galleryId)
   );
 
+  const allTypes = [...new Set(allEvents.map(e => e.type).filter(Boolean))].sort();
+
+  const displayList = tab === "bookmarks" ? bookmarkedList : allEvents;
+  const filtered = displayList.filter(e => {
+    const matchSearch = !search ||
+      e.title.toLowerCase().includes(search.toLowerCase()) ||
+      e.type.toLowerCase().includes(search.toLowerCase()) ||
+      e.city.toLowerCase().includes(search.toLowerCase());
+    const matchType = !filterType || e.type === filterType;
+    return matchSearch && matchType;
+  });
+
   return (
-    <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.78)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:24 }}>
-      <div style={{ background:"#1c1812",border:"0.5px solid rgba(200,175,120,0.2)",borderRadius:16,width:"100%",maxWidth:720,maxHeight:"80vh",display:"flex",flexDirection:"column",boxShadow:"0 24px 64px rgba(0,0,0,0.6)" }}>
+    <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20 }}>
+      <div style={{ background:"#1c1812",border:"0.5px solid rgba(200,175,120,0.2)",borderRadius:16,width:"100%",maxWidth:860,maxHeight:"88vh",display:"flex",flexDirection:"column",boxShadow:"0 24px 64px rgba(0,0,0,0.7)" }}>
+
         {/* Header */}
-        <div style={{ padding:"20px 24px",borderBottom:"0.5px solid rgba(200,175,120,0.1)",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0 }}>
-          <div style={{ fontSize:15,fontWeight:600,color:"#e8dcc8" }}>{title}</div>
-          <button onClick={onClose} style={{ background:"none",border:"none",cursor:"pointer",color:"rgba(200,175,120,0.4)",fontSize:20,lineHeight:1 }}>✕</button>
+        <div style={{ padding:"18px 24px",borderBottom:"0.5px solid rgba(200,175,120,0.1)",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0 }}>
+          <div>
+            <div style={{ fontSize:15,fontWeight:600,color:"#e8dcc8" }}>{title}</div>
+            <div style={{ fontSize:11,color:"rgba(200,175,120,0.4)",marginTop:2 }}>
+              {loading ? "Loading events…" : `${filtered.length} events`}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background:"none",border:"none",cursor:"pointer",color:"rgba(200,175,120,0.4)",fontSize:22,lineHeight:1,padding:"4px 8px" }}>✕</button>
         </div>
-        {/* Tabs + Search */}
-        <div style={{ padding:"12px 24px",borderBottom:"0.5px solid rgba(200,175,120,0.08)",display:"flex",alignItems:"center",gap:12,flexShrink:0,flexWrap:"wrap" }}>
+
+        {/* Tabs + filters */}
+        <div style={{ padding:"12px 24px",borderBottom:"0.5px solid rgba(200,175,120,0.08)",display:"flex",alignItems:"center",gap:10,flexShrink:0,flexWrap:"wrap" }}>
+          {/* Tabs */}
           {["explore","bookmarks"].map(t=>(
-            <button key={t} onClick={()=>setTab(t)} style={{ background:tab===t?"rgba(200,175,120,0.12)":"none",border:`0.5px solid ${tab===t?"rgba(200,175,120,0.4)":"rgba(200,175,120,0.12)"}`,borderRadius:20,padding:"5px 14px",fontSize:12,color:tab===t?"#c8af78":"rgba(200,175,120,0.45)",cursor:"pointer",fontFamily:"inherit",textTransform:"capitalize" }}>
-              {t==="bookmarks"?`Bookmarks (${bookmarkedEvents.length})`:t.charAt(0).toUpperCase()+t.slice(1)}
+            <button key={t} onClick={()=>setTab(t)} style={{ background:tab===t?"rgba(200,175,120,0.12)":"none",border:`0.5px solid ${tab===t?"rgba(200,175,120,0.4)":"rgba(200,175,120,0.12)"}`,borderRadius:20,padding:"5px 14px",fontSize:12,color:tab===t?"#c8af78":"rgba(200,175,120,0.45)",cursor:"pointer",fontFamily:"inherit" }}>
+              {t==="bookmarks" ? `Bookmarks (${bookmarkedList.length})` : "All Events"}
             </button>
           ))}
+
+          {/* Type filter pills */}
+          <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginLeft:4 }}>
+            <button onClick={()=>setFilterType("")} style={{ fontSize:11,padding:"4px 10px",borderRadius:20,border:`0.5px solid ${!filterType?"rgba(200,175,120,0.4)":"rgba(200,175,120,0.1)"}`,background:!filterType?"rgba(200,175,120,0.1)":"none",color:!filterType?"#c8af78":"rgba(200,175,120,0.4)",cursor:"pointer",fontFamily:"inherit" }}>All</button>
+            {allTypes.map(t=>(
+              <button key={t} onClick={()=>setFilterType(t===filterType?"":t)} style={{ fontSize:11,padding:"4px 10px",borderRadius:20,border:`0.5px solid ${filterType===t?"rgba(200,175,120,0.4)":"rgba(200,175,120,0.1)"}`,background:filterType===t?"rgba(200,175,120,0.1)":"none",color:filterType===t?"#c8af78":"rgba(200,175,120,0.4)",cursor:"pointer",fontFamily:"inherit" }}>{t}</button>
+            ))}
+          </div>
+
+          {/* Search */}
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search events…" style={{ marginLeft:"auto",background:"#1e1a14",border:"0.5px solid rgba(200,175,120,0.15)",borderRadius:8,padding:"7px 12px",fontSize:12,color:"#e8dcc8",outline:"none",fontFamily:"inherit",width:180 }}/>
         </div>
-        {/* Grid */}
-        <div style={{ overflowY:"auto",padding:16,display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12 }}>
-          {filtered.length===0&&<div style={{ gridColumn:"1/-1",textAlign:"center",padding:40,color:"rgba(200,175,120,0.3)",fontSize:13 }}>No events found</div>}
-          {filtered.map(ev=>(
-            <div key={ev.id} onClick={()=>onSelect(ev)} style={{ cursor:"pointer",borderRadius:10,overflow:"hidden",border:"0.5px solid rgba(200,175,120,0.12)",background:"#211c14",transition:"border-color 0.15s" }}
-              onMouseEnter={e=>e.currentTarget.style.borderColor="rgba(200,175,120,0.4)"}
-              onMouseLeave={e=>e.currentTarget.style.borderColor="rgba(200,175,120,0.12)"}>
-              <div style={{ height:110,overflow:"hidden",position:"relative" }}>
-                {ev.img ? <img src={ev.img} alt={ev.title} style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <div style={{ width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:36,background:"#2a2018" }}>{getEmoji(ev.type)}</div>}
-                <div style={{ position:"absolute",bottom:6,left:8,fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em",color:"#c8af78",background:"rgba(0,0,0,0.65)",padding:"2px 8px",borderRadius:20 }}>{ev.type}</div>
+
+        {/* Event grid */}
+        <div style={{ overflowY:"auto",padding:16,display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12 }}>
+          {loading && (
+            <div style={{ gridColumn:"1/-1",textAlign:"center",padding:40,color:"rgba(200,175,120,0.3)",fontSize:13 }}>Loading events from database…</div>
+          )}
+          {!loading && filtered.length===0 && (
+            <div style={{ gridColumn:"1/-1",textAlign:"center",padding:40,color:"rgba(200,175,120,0.3)",fontSize:13 }}>No events found</div>
+          )}
+          {!loading && filtered.map(ev=>(
+            <div key={ev.id} onClick={()=>onSelect(ev)} style={{ cursor:"pointer",borderRadius:10,overflow:"hidden",border:"0.5px solid rgba(200,175,120,0.12)",background:"#211c14",transition:"border-color 0.15s,transform 0.15s" }}
+              onMouseEnter={e=>{ e.currentTarget.style.borderColor="rgba(200,175,120,0.45)"; e.currentTarget.style.transform="translateY(-2px)"; }}
+              onMouseLeave={e=>{ e.currentTarget.style.borderColor="rgba(200,175,120,0.12)"; e.currentTarget.style.transform="translateY(0)"; }}>
+
+              {/* Image */}
+              <div style={{ height:120,overflow:"hidden",position:"relative",background:"#2a2018" }}>
+                {ev.img
+                  ? <img src={ev.img} alt={ev.title} style={{ width:"100%",height:"100%",objectFit:"cover",transition:"transform 0.3s" }}
+                      onMouseEnter={e=>e.target.style.transform="scale(1.05)"}
+                      onMouseLeave={e=>e.target.style.transform="scale(1)"}/>
+                  : <div style={{ width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:36 }}>{getEmoji(ev.type)}</div>
+                }
+                {/* Type badge */}
+                <div style={{ position:"absolute",bottom:6,left:8,fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em",color:"#c8af78",background:"rgba(0,0,0,0.7)",padding:"2px 8px",borderRadius:20 }}>{ev.type}</div>
+                {/* Extra images count */}
+                {ev.extraImages?.length > 0 && (
+                  <div style={{ position:"absolute",top:6,right:8,fontSize:9,color:"rgba(200,175,120,0.8)",background:"rgba(0,0,0,0.6)",padding:"2px 7px",borderRadius:20 }}>+{ev.extraImages.length} photos</div>
+                )}
+                {/* Scale badge */}
+                {ev.scale && (
+                  <div style={{ position:"absolute",top:6,left:8,fontSize:9,color:"rgba(200,175,120,0.7)",background:"rgba(0,0,0,0.6)",padding:"2px 7px",borderRadius:20 }}>{ev.scale}</div>
+                )}
               </div>
+
+              {/* Info */}
               <div style={{ padding:"10px 12px" }}>
                 <div style={{ fontSize:12,fontWeight:600,color:"#e8dcc8",marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{ev.title}</div>
-                <div style={{ fontSize:10,color:"rgba(200,175,120,0.4)" }}>{ev.city} · {ev.dateLabel}</div>
+                <div style={{ fontSize:10,color:"rgba(200,175,120,0.4)",marginBottom:ev.price?4:0 }}>
+                  {[ev.city, ev.dateLabel].filter(Boolean).join(" · ")}
+                </div>
+                {ev.price && <div style={{ fontSize:11,fontWeight:600,color:"#c8af78" }}>{ev.price}</div>}
+                {ev.pills?.length > 0 && (
+                  <div style={{ display:"flex",flexWrap:"wrap",gap:4,marginTop:6 }}>
+                    {ev.pills.slice(0,2).map((p,i)=>(
+                      <span key={i} style={{ fontSize:9,padding:"2px 7px",borderRadius:20,background:"rgba(200,175,120,0.08)",color:"rgba(200,175,120,0.5)",border:"0.5px solid rgba(200,175,120,0.12)" }}>{p}</span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -362,7 +474,7 @@ function VendorBlock({ serviceType, serviceId, vendors, bookmarkedIds, vendorDat
 
   const isPhotography = serviceType === "Photography";
   const coverTypes = isPhotography ? PHOTOGRAPHY_TYPES : INVITATION_TYPES;
-  const svcVendors = vendors.filter(v => String(v.service_id) === String(serviceId));
+const svcVendors = vendors; // already filtered correctly by the parent (StepVendors)
 
   const toggle = (key, val) => {
     const arr = vendorData[key] || [];
@@ -488,8 +600,11 @@ function VendorBlock({ serviceType, serviceId, vendors, bookmarkedIds, vendorDat
 
 /* ─── STEP 2 — Vendors ────────────────────────────────────────────────────────── */
 function StepVendors({ vendors, vendorSelections, setVendorSelections, bookmarkedIds, onNext, onBack }) {
-  const photoVendors = vendors.filter(v => String(v.service_id) === "1");
-  const inviteVendors = vendors.filter(v => String(v.service_id) === "5");
+ const photoVendors = vendors.filter(v => {
+  const sid = String(v.service_id || "").trim();
+  return sid === "1" || sid === ""; // unassigned vendors default to Photography, matching the public listing page
+});
+const inviteVendors = vendors.filter(v => String(v.service_id || "").trim() === "5");
 
   const atLeastOne = vendorSelections.photography.enabled || vendorSelections.invitations.enabled;
   const photoOk = !vendorSelections.photography.enabled || vendorSelections.photography.vendor;
