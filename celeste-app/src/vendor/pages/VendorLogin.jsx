@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useVendorAuth } from '../context/VendorAuthContext';
 
@@ -175,14 +175,23 @@ export default function VendorLogin() {
         </p>
 
         <div style={S.statsRow}>
+          {/*
+            FIX: previously this returned a bare `<>...</>` Fragment from
+            .map() with no key on the Fragment itself (only the children
+            inside had keys). React needs the top-level item returned by
+            a .map() callback to carry the key — that's what was causing:
+            "Each child in a list should have a unique key prop.
+             Check the render method of `VendorLogin`."
+            Using React.Fragment with an explicit key fixes it.
+          */}
           {[['120+', 'Active Vendors'], ['4.8★', 'Avg Rating'], ['₹2Cr+', 'Bookings Processed']].map(([num, label], i) => (
-            <>
-              {i > 0 && <div key={`div-${i}`} style={S.dividerV} />}
-              <div key={label} style={S.stat}>
+            <Fragment key={label}>
+              {i > 0 && <div style={S.dividerV} />}
+              <div style={S.stat}>
                 <div style={S.statNum}>{num}</div>
                 <div style={S.statLabel}>{label}</div>
               </div>
-            </>
+            </Fragment>
           ))}
         </div>
       </div>

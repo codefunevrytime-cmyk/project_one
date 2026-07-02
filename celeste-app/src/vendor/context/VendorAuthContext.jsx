@@ -30,10 +30,15 @@ export function VendorAuthProvider({ children }) {
     return data;
   }, []);
 
-  const signup = useCallback(async (name, email, password, phone) => {
+  // ── UPDATED: signup now accepts serviceCategory ────────────────────────
+  // This is sent to the backend as `service_category` so the /signup route
+  // can create a linked `vendors` row with the correct service_id right
+  // away, instead of leaving it NULL until (or unless) the vendor later
+  // saves their profile.
+  const signup = useCallback(async (name, email, password, phone, serviceCategory) => {
     const res  = await fetch(`${API}/vendor-auth/signup`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, password, phone }),
+      body: JSON.stringify({ name, email, password, phone, service_category: serviceCategory }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Signup failed');

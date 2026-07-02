@@ -15,8 +15,13 @@ import GalleryPage from "./pages/GalleryPage";
 import LoginPage from "./pages/LoginPage";
 import ProductPage from "./pages/ProductPage";
 import SignupPage from "./pages/SignupPage";
-import PhotographyPage from "./pages/PhotographyPage";
-import PhotographerProfilePage from "./pages/PhotographerProfilePage";
+// NOTE: swapped from the old PhotographyPage / PhotographerProfilePage —
+// those files still exist but are no longer wired into routing. Once you've
+// confirmed everything below works end to end, delete PhotographyPage.jsx,
+// PhotographyPage.css, and PhotographerProfilePage.jsx so there's only one
+// implementation of the vendor listing/profile pages left in the codebase.
+import VendorListingPage from "./pages/VendorListingPage";
+import VendorProfilePage from "./pages/VendorProfilePage";
 import { getVendorServiceConfig } from "./context/data/vendorServiceConfig";
 import MyEvents from "./pages/MyEvents";
 import AdminApp from "./admin/AdminApp";
@@ -26,9 +31,8 @@ import PaymentsEmpty from "./pages/PaymentsEmpty";
 import PaymentCheckout from './pages/PaymentCheckout';
 import PaymentsHistory from './pages/PaymentsHistory';
 import ProtectedRoute from './components/ProtectedRoute';
-// import CreateEventPage1 from './pages/CreateEventPage1';
-// import MyEventsPage    from './pages/MyEventsPage';
 
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 // ── Decides which payments page to show based on real payment history ─────────
 function PaymentsGate() {
@@ -38,7 +42,7 @@ function PaymentsGate() {
 
   useEffect(() => {
     if (!user?.email) { setChecking(false); return; }
-    fetch(`http://localhost:5000/api/payments/history?email=${encodeURIComponent(user.email)}`)
+    fetch(`${API_BASE}/api/payments/history?email=${encodeURIComponent(user.email)}`)
       .then(r => r.json())
       .then(d => { setHasPayments(Array.isArray(d) && d.length > 0); setChecking(false); })
       .catch(() => setChecking(false));
@@ -68,8 +72,6 @@ function MainApp({ bm }) {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/products" element={<ProductPage />} />
-        {/* <Route path="/create-event" element={<CreateEventPage1 />} />
-        <Route path="/my-events"    element={<MyEventsPage />} />  */}
 
         {/* ── Bookmarks ── */}
         <Route
@@ -93,11 +95,17 @@ function MainApp({ bm }) {
           }
         />
 
-        {/* ── Vendor services ── */}
+        {/* ── Vendor services ──
+             Every vendor category (photography, custom invitations, and any
+             new service added later) routes through the same two shared
+             pages, differentiated purely by serviceConfig. Adding service
+             #3+ should mean adding a route + a getVendorServiceConfig entry,
+             not a new page component. ── */}
         <Route
           path="/services/photography"
           element={
-            <PhotographyPage
+            <VendorListingPage
+              serviceConfig={getVendorServiceConfig('photography')}
               bookmarks={bm.bookmarks}
               onBookmarkToggle={bm.toggle}
             />
@@ -106,7 +114,7 @@ function MainApp({ bm }) {
         <Route
           path="/services/custom-invitations"
           element={
-            <PhotographyPage
+            <VendorListingPage
               serviceConfig={getVendorServiceConfig('custom-invitations')}
               bookmarks={bm.bookmarks}
               onBookmarkToggle={bm.toggle}
@@ -116,7 +124,8 @@ function MainApp({ bm }) {
         <Route
           path="/services/photography/:id"
           element={
-            <PhotographerProfilePage
+            <VendorProfilePage
+              serviceConfig={getVendorServiceConfig('photography')}
               bookmarks={bm.bookmarks}
               onBookmarkToggle={bm.toggle}
             />
@@ -125,7 +134,7 @@ function MainApp({ bm }) {
         <Route
           path="/services/custom-invitations/:id"
           element={
-            <PhotographerProfilePage
+            <VendorProfilePage
               serviceConfig={getVendorServiceConfig('custom-invitations')}
               bookmarks={bm.bookmarks}
               onBookmarkToggle={bm.toggle}

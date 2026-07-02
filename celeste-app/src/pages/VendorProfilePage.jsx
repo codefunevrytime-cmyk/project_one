@@ -1,15 +1,14 @@
-// src/pages/PhotographerProfilePage.jsx
+// src/pages/VendorProfilePage.jsx
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { PHOTOGRAPHERS } from '../context/data/photographyData';
 import { DEFAULT_VENDOR_SERVICE } from '../context/data/vendorServiceConfig';
 import { BookmarkIcon } from '../components/BookmarkIcon';
 import { useAuth } from '../hooks/useAuth';
-import './PhotographerProfilePage.css';
+import './VendorProfilePage.css';
 import ClientMessaging from '../components/ClientMessaging';
 
 
-const API = 'http://localhost:5000/api';
+const API = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'http://localhost:5000/api';
 
 const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -30,40 +29,69 @@ function RatingStars({ rating }) {
   );
 }
 
-const PORTFOLIO_SETS = {
-  1: [
-    "https://images.unsplash.com/photo-1583939003579-730e3918a45a?w=400&q=80",
-    "https://images.unsplash.com/photo-1519741497674-611481863552?w=400&q=80",
-    "https://images.unsplash.com/photo-1529636798458-92182e662485?w=400&q=80",
-    "https://images.unsplash.com/photo-1606216794074-735e91aa2c92?w=400&q=80",
-    "https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=400&q=80",
-    "https://images.unsplash.com/photo-1465495976277-4387d4b0b4c6?w=400&q=80",
-    "https://images.unsplash.com/photo-1587271407850-8d438ca9fdf2?w=400&q=80",
-    "https://images.unsplash.com/photo-1591604021695-0c69b7c05981?w=400&q=80",
-    "https://images.unsplash.com/photo-1525772764200-be829a350797?w=400&q=80",
-  ],
-};
-for (let i = 2; i <= 9; i++) PORTFOLIO_SETS[i] = PORTFOLIO_SETS[1];
+/* Static/demo vendors used to always fall back to a hardcoded set of
+   wedding-photography stock photos (PORTFOLIO_SETS), regardless of which
+   service the vendor actually belongs to. Any service whose staticData
+   entries don't define their own images silently showed photography
+   photos. Now each service supplies its own demo images via
+   `serviceConfig.demoPortfolio` (array of URLs), or a per-vendor
+   `portfolio` array on the staticData entry itself; if neither exists we
+   just show the vendor's single cover image instead of fabricating a
+   photo set. */
+function getStaticPortfolioImages(staticVendor, serviceConfig) {
+  if (Array.isArray(staticVendor?.portfolio) && staticVendor.portfolio.length > 0) {
+    return staticVendor.portfolio.map(url => ({ url, caption: null, tags: [] }));
+  }
+  if (Array.isArray(serviceConfig?.demoPortfolio) && serviceConfig.demoPortfolio.length > 0) {
+    return serviceConfig.demoPortfolio.map(url => ({ url, caption: null, tags: [] }));
+  }
+  return staticVendor?.cover ? [{ url: staticVendor.cover, caption: null, tags: [] }] : [];
+}
 
-const SERVICES_OFFERED = [
-  "Candid Photography", "Traditional Photography", "Traditional Videography",
-  "Wedding Films", "Pre-Wedding Shoots", "Pre-Wedding Films",
-  "Drone Shots", "Photo Booth", "Live Screening", "Albums",
-];
-
-function mapDbVendorToProfile(vendor, tags) {
+function mapDbVendorToProfile(vendor, tags, serviceConfig) {
   const typeFromSpecialty = vendor.specialty
     ? vendor.specialty.split(',').map(s => s.trim()).filter(Boolean)
-    : ['Photography'];
+    : [serviceConfig.defaultSpecialty];
+
+  const pricePerDay = vendor.price_per_day ? Number(vendor.price_per_day) : 0;
+
+  // ── Real multi-select "Services Offered" list ─────────────────────────
+  // This is the actual list of services the vendor ticked in their profile
+  // form (VendorProfile.jsx → the "Services Offered" pills / "Pricing per
+  // Service" checkboxes), stored on vendors.services (JSONB). Previously
+  // this page never read this column at all — it only ever derived a
+  // single tag from the free-text `specialty` field, so selecting several
+  // services never surfaced here.
+  let services = [];
+  if (Array.isArray(vendor.services)) {
+    services = vendor.services;
+  } else if (typeof vendor.services === 'string') {
+    try { services = JSON.parse(vendor.services) || []; } catch { services = []; }
+  }
+
+  // ── Per-service prices ──────────────────────────────────────────────
+  // vendor.prices is the { "Digital Invites": "200", "Box Invitations":
+  // "500", ... } map the vendor filled in on VendorProfile.jsx's "Pricing
+  // per Service" section. We surface this so each service can show its
+  // own price on the public profile, alongside the overall average.
+  let prices = {};
+  if (vendor.prices && typeof vendor.prices === 'object' && !Array.isArray(vendor.prices)) {
+    prices = vendor.prices;
+  } else if (typeof vendor.prices === 'string') {
+    try { prices = JSON.parse(vendor.prices) || {}; } catch { prices = {}; }
+  }
+
   return {
     id: vendor.id,
     bookmarkId: `db_${vendor.id}`,
     name: vendor.name,
-    location: 'Lucknow',
+    location: vendor.location || 'Lucknow',
     rating: 5.0,
-    pricePerDay: vendor.price_per_day ? Number(vendor.price_per_day) : 0,
+    pricePerDay,
+    services,
+    prices,
     type: typeFromSpecialty,
-    media: ['Photo'],
+    media: [serviceConfig.filters.mediaOptions[0]],
     verified: false,
     tags: tags.map(t => t.tag),
     cover: vendor.photo_url || '',
@@ -72,6 +100,7 @@ function mapDbVendorToProfile(vendor, tags) {
     isDbItem: true,
   };
 }
+
 
 // ── Sub-components ─────────────────────────────────────────────────────────
 function ReviewCard({ review }) {
@@ -354,7 +383,7 @@ function WriteReviewForm({ vendorId, vendorName, user, onReviewSubmitted }) {
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────
-export default function PhotographerProfilePage({ bookmarks, onBookmarkToggle, serviceConfig = DEFAULT_VENDOR_SERVICE }) {
+export default function VendorProfilePage({ bookmarks, onBookmarkToggle, serviceConfig = DEFAULT_VENDOR_SERVICE }) {
   const { id }   = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -479,12 +508,12 @@ export default function PhotographerProfilePage({ bookmarks, onBookmarkToggle, s
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-const staticFallback = (!dbVendor && !dbLoading && serviceConfig.id === 'photography')
-  ? PHOTOGRAPHERS.find(p => p.id === parseInt(id))
+const staticFallback = (!dbVendor && !dbLoading && serviceConfig.staticData)
+  ? serviceConfig.staticData.find(p => p.id === parseInt(id))
   : null;
 
 const photographer = dbVendor
-  ? mapDbVendorToProfile(dbVendor, dbTags)
+  ? mapDbVendorToProfile(dbVendor, dbTags, serviceConfig)
   : staticFallback || null;
   if (!photographer) {
     if (dbLoading) {
@@ -507,15 +536,22 @@ const photographer = dbVendor
   const isBookmarked     = !!(bookmarks && bookmarks[photographer.bookmarkId ?? photographer.id]);
   const portfolioImages  = photographer.isDbItem
     ? dbPortfolio.map(p => ({ url: p.image_url, caption: p.caption, tags: p.tags || [] }))
-    : (PORTFOLIO_SETS[photographer.id] || PORTFOLIO_SETS[1]).map(url => ({ url, caption: null, tags: [] }));
+    : getStaticPortfolioImages(staticFallback, serviceConfig);
   const heroCover        = photographer.cover || portfolioImages[0]?.url || '';
   const totalReviews     = reviews.length;
   const avgRating        = totalReviews > 0
     ? reviews.reduce((s, r) => s + Number(r.rating), 0) / totalReviews
     : photographer.rating;
-  const servicesOffered  = serviceConfig.id === 'photography'
-    ? SERVICES_OFFERED
-    : [...new Set([...photographer.type, ...photographer.tags, serviceConfig.defaultSpecialty])];
+  // Previously this ignored `photographer.services` entirely and either
+  // used a hardcoded serviceConfig list or a fallback derived from the
+  // single `specialty` text field + tags. Now the vendor's own multi-select
+  // list (ticked in VendorProfile.jsx, e.g. Digital Invites + Box
+  // Invitations + Menu Cards) takes priority.
+  const servicesOffered  = photographer.services?.length
+    ? photographer.services
+    : (serviceConfig.servicesOffered
+        ? serviceConfig.servicesOffered
+        : [...new Set([...photographer.type, ...photographer.tags, serviceConfig.defaultSpecialty])]);
 
   const handleBookmark = () => {
     onBookmarkToggle({
@@ -853,18 +889,57 @@ const photographer = dbVendor
         {/* ── SIDEBAR ── */}
         <aside className="pp-sidebar" id="contact">
           <div className="pp-pricing-card">
-            <h3 className="pp-pricing-title">Per Day Price</h3>
+            <h3 className="pp-pricing-title">Average Price</h3>
+
+            {/* The old per-tier "Pricing Packages" breakdown read from
+                `vendor.pricing_packages`, a column that never actually
+                existed in the schema, so that branch never fired for real
+                vendors. We always show the single average price
+                (vendor.price_per_day) as the headline number, computed in
+                VendorProfile.jsx. */}
             <div className="pp-pricing-row">
               <div className="pp-pricing-item">
                 <div className="pp-pricing-amount">₹{photographer.pricePerDay.toLocaleString('en-IN')}</div>
-                <div className="pp-pricing-label">{photographer.media.join(' + ')}</div>
+                <div className="pp-pricing-label">
+                  Average across {(photographer.services?.length || photographer.type.length)} service{(photographer.services?.length || photographer.type.length) !== 1 ? 's' : ''}
+                </div>
               </div>
             </div>
-            <div className="pp-event-types">
-              {photographer.type.map(t => <span key={t} className="pp-event-pill">{t}</span>)}
+
+            {/* Per-service price breakdown — lists each service the vendor
+                ticked (photographer.services) together with its own price
+                from photographer.prices[service], sourced from the
+                "Pricing per Service" section on VendorProfile.jsx. The
+                average above stays the headline; this is the detail
+                underneath it. Services without an entered price show
+                "Price on request" instead of a blank/zero. */}
+            <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 0 }}>
+              {(photographer.services?.length ? photographer.services : photographer.type).map(service => {
+                const svcPrice = Number(photographer.prices?.[service]) || 0;
+                return (
+                  <div
+                    key={service}
+                    style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '10px 0', borderBottom: '1px solid var(--pp-border)',
+                    }}
+                  >
+                    <span style={{ fontSize: 13.5, color: 'var(--pp-text-2)' }}>{service}</span>
+                    {svcPrice > 0 ? (
+                      <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--pp-amber)' }}>
+                        ₹{svcPrice.toLocaleString('en-IN')}
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 12, color: 'var(--pp-text-3)', fontStyle: 'italic' }}>
+                        Price on request
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
             {photographer.tags.length > 0 && (
-              <div className="pp-award-tags">
+              <div className="pp-award-tags" style={{ marginTop: 14 }}>
                 {photographer.tags.map(t => <span key={t} className="pp-award-pill">🏅 {t}</span>)}
               </div>
             )}

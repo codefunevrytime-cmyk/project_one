@@ -12,7 +12,6 @@ const SERVICE_CONFIGS = {
     specialtyPlaceholder: 'Wedding & Pre-Wedding Photography',
     bioPlaceholder: 'Tell clients about your photography style, experience and what makes your work unique...',
     services: ['Candid Photography', 'Traditional Photography', 'Wedding Films', 'Pre-Wedding Shoots', 'Drone Shots', 'Photo Booth', 'Live Screening', 'Albums', 'Reels/Shorts'],
-    eventTypes: ['Bridal', 'Pre-Wedding', 'Mehndi', 'Sangeet', 'Reception', 'Birthday', 'Corporate', 'Other'],
     priceUnit: '/ day',
     extraFields: [
       { key: 'delivery_time', label: 'Delivery time',  placeholder: '2–3 weeks after event' },
@@ -26,7 +25,6 @@ const SERVICE_CONFIGS = {
     specialtyPlaceholder: 'Luxury Wedding Stationery & Digital Invites',
     bioPlaceholder: 'Describe your design style, paper quality, printing techniques and customisation options...',
     services: ['Printed Cards', 'Digital Invites', 'Box Invitations', 'Scroll Invitations', 'Save the Date', 'Menu Cards', 'Thank You Cards', 'Custom Packaging', 'Calligraphy'],
-    eventTypes: ['Wedding', 'Engagement', 'Mehndi', 'Sangeet', 'Reception', 'Birthday', 'Baby Shower', 'Corporate'],
     priceUnit: '/ 100 pcs',
     extraFields: [
       { key: 'delivery_time', label: 'Production time', placeholder: '7–10 days after design approval' },
@@ -40,7 +38,6 @@ const SERVICE_CONFIGS = {
     specialtyPlaceholder: 'Floral & Theme-based Wedding Décor',
     bioPlaceholder: 'Describe your signature style, materials used, setup team size and areas of expertise...',
     services: ['Floral Decoration', 'Stage Setup', 'Mandap Decoration', 'Table Centrepieces', 'Entrance Décor', 'Fairy Lights & Draping', 'Theme Decoration', 'Balloon Art', 'Car Decoration'],
-    eventTypes: ['Bridal', 'Mehndi', 'Sangeet', 'Reception', 'Birthday', 'Engagement', 'Corporate', 'Other'],
     priceUnit: '/ event',
     extraFields: [
       { key: 'travel_info',   label: 'Coverage area',   placeholder: 'Lucknow & NCR, outstation on request' },
@@ -54,7 +51,6 @@ const SERVICE_CONFIGS = {
     specialtyPlaceholder: 'Multi-cuisine Wedding Banquets & Live Counters',
     bioPlaceholder: 'Describe your cuisine expertise, kitchen hygiene standards, team size and signature dishes...',
     services: ['Veg Catering', 'Non-Veg Catering', 'Live Counters', 'Dessert Stations', 'Cocktail Catering', 'Breakfast Buffet', 'High Tea', 'Food Trucks', 'Cake & Baking'],
-    eventTypes: ['Wedding', 'Reception', 'Engagement', 'Birthday', 'Corporate', 'Mehndi', 'Sangeet', 'Other'],
     priceUnit: '/ plate',
     extraFields: [
       { key: 'travel_info',   label: 'Service area',    placeholder: 'Lucknow & nearby districts' },
@@ -68,7 +64,6 @@ const SERVICE_CONFIGS = {
     specialtyPlaceholder: 'Live Bands, DJs & Sangeet Performers',
     bioPlaceholder: 'Describe your musical repertoire, equipment quality, band size and performance experience...',
     services: ['DJ Services', 'Live Band', 'Dhol Players', 'Bagpipe Band', 'Ghazal Night', 'Folk Performers', 'Bollywood Night', 'Sound & Lighting', 'Emcee / Anchor'],
-    eventTypes: ['Sangeet', 'Reception', 'Mehndi', 'Birthday', 'Corporate', 'Engagement', 'Other'],
     priceUnit: '/ night',
     extraFields: [
       { key: 'travel_info',   label: 'Performance area',  placeholder: 'Pan-India travel, outstation with stay' },
@@ -82,7 +77,6 @@ const SERVICE_CONFIGS = {
     specialtyPlaceholder: 'Bridal Makeup, Hair & Saree Draping',
     bioPlaceholder: 'Describe your makeup style, brands used, years of experience and signature bridal looks...',
     services: ['Bridal Makeup', 'Party Makeup', 'Hair Styling', 'Saree Draping', 'Mehendi', 'Airbrush Makeup', 'Pre-Bridal Packages', 'Groom Grooming', 'Group Packages'],
-    eventTypes: ['Bridal', 'Pre-Wedding', 'Mehndi', 'Sangeet', 'Reception', 'Birthday', 'Corporate', 'Other'],
     priceUnit: '/ session',
     extraFields: [
       { key: 'travel_info',   label: 'Home visits',   placeholder: 'Available, travel charges extra' },
@@ -96,7 +90,6 @@ const SERVICE_CONFIGS = {
     specialtyPlaceholder: 'Luxury Banquet Halls & Farmhouse Venues',
     bioPlaceholder: 'Describe the venue capacity, amenities, parking, in-house catering policy and décor flexibility...',
     services: ['Indoor Banquet', 'Outdoor Lawn', 'Pool Venue', 'Terrace Venue', 'Hotel Venue', 'Farmhouse', 'Rooftop', 'Convention Centre', 'Heritage Property'],
-    eventTypes: ['Wedding', 'Reception', 'Sangeet', 'Birthday', 'Corporate', 'Engagement', 'Mehndi', 'Other'],
     priceUnit: '/ day',
     extraFields: [
       { key: 'travel_info',   label: 'Location / Area', placeholder: 'Gomti Nagar, Lucknow' },
@@ -164,7 +157,7 @@ export default function VendorProfile() {
   const [form, setForm] = useState({
     name: '', specialty: '', contact: '', location: '',
     bio: '', travel_info: '', delivery_time: '', payment_terms: '',
-    services: [], event_types: [], prices: {},
+    services: [], prices: {},
   });
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
@@ -187,7 +180,6 @@ export default function VendorProfile() {
             delivery_time: v.delivery_time || '',
             payment_terms: v.payment_terms || '',
             services: v.services || [],
-            event_types: v.event_types || [],
             prices: v.prices || {},
           });
           if (v.photo_url) setPhotoPreview(v.photo_url);
@@ -201,20 +193,51 @@ export default function VendorProfile() {
   const accent = cfg.accentColor;
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  // NOTE: this is the single toggle used by BOTH the "Services Offered"
+  // pills and the "Pricing per Service" checkboxes below. Since they both
+  // read/write the exact same `form.services` array, ticking either one
+  // automatically reflects in the other — that's the sync the client asked
+  // for ("when I click above service checkbox the below one should get
+  // select automatically").
   const toggleArr = (k, val) => setForm(f => {
     const arr = f[k] || [];
     return { ...f, [k]: arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val] };
   });
-  const setPrice = (type, val) => setForm(f => ({ ...f, prices: { ...f.prices, [type]: val } }));
+
+  const setPrice = (service, val) => setForm(f => ({ ...f, prices: { ...f.prices, [service]: val } }));
+
+  // ── Average price shown publicly ────────────────────────────────────────
+  // We ask the vendor for a detailed price per selected service, but the
+  // public profile/listing pages only ever show ONE number
+  // (vendor.price_per_day). So instead of exposing every sub-service price
+  // to clients, we average the prices of whichever services the vendor has
+  // ticked and selected a price for, and save that single number as
+  // price_per_day. This keeps per-service pricing private/internal while
+  // still driving the public "average price" figure.
+  const avgPrice = (() => {
+    const selectedPrices = form.services
+      .map(s => Number(form.prices[s]))
+      .filter(p => p > 0);
+    if (selectedPrices.length === 0) return 0;
+    const rawAvg = selectedPrices.reduce((a, b) => a + b, 0) / selectedPrices.length;
+    // Round to the nearest multiple of 50 — e.g. 240 → 250, 210 → 200,
+    // 225 → 250 (standard round-half-up). This is what gets displayed
+    // publicly, so we round it right here before it's ever sent anywhere.
+    return Math.round(rawAvg / 50) * 50;
+  })();
 
   const handleSave = async () => {
     setSaving(true);
     try {
       const fd = new FormData();
       Object.entries(form).forEach(([k, v]) => {
-        if (['prices', 'services', 'event_types'].includes(k)) fd.append(k, JSON.stringify(v));
+        if (['prices', 'services'].includes(k)) fd.append(k, JSON.stringify(v));
         else fd.append(k, v);
       });
+      // Send the computed average as price_per_day — this is what the
+      // public profile page and listing cards actually display.
+      fd.append('price_per_day', avgPrice);
       if (photoFile) fd.append('photo', photoFile);
       await fetch(`${API}/vendor-auth/profile`, {
         method: 'PUT', headers: { Authorization: `Bearer ${token()}` }, body: fd,
@@ -278,7 +301,9 @@ export default function VendorProfile() {
         </div>
       </div>
 
-      {/* Services — dynamic */}
+      {/* Services Offered — the single source of truth for which services
+          are selected. Ticking a pill here is the exact same state as
+          ticking the checkbox in "Pricing per Service" below. */}
       <div style={S.card}>
         <div style={S.cardTitle}>Services Offered</div>
         <div style={{ display: 'flex', flexWrap: 'wrap' }}>
@@ -297,22 +322,27 @@ export default function VendorProfile() {
         </div>
       </div>
 
-      {/* Event types & pricing — dynamic */}
+      {/* Pricing per Service — replaces the old "Event Types & Pricing"
+          section. Uses the exact same cfg.services list + form.services
+          array as the "Services Offered" pills above, so both stay in
+          sync automatically — no separate "event type" concept anymore. */}
       <div style={S.card}>
-        <div style={S.cardTitle}>
-          {serviceCategory === 'venue' ? 'Venue Types & Pricing' : 'Event Types & Pricing'}
-        </div>
-        <p style={{ fontSize: 12, color: 'rgba(160,180,220,0.35)', marginBottom: 16 }}>
-          Select the types you cover and set your rate ({cfg.priceUnit})
+        <div style={S.cardTitle}>Pricing per Service</div>
+        <p style={{ fontSize: 12, color: 'rgba(160,180,220,0.35)', marginBottom: 16, lineHeight: 1.6 }}>
+          Tick a service to include it and set your rate ({cfg.priceUnit}). This checkbox is synced with
+          "Services Offered" above — ticking either one selects both.
         </p>
         <div style={S.priceGrid}>
-          {cfg.eventTypes.map(type => {
-            const selected = form.event_types.includes(type);
+          {cfg.services.map(service => {
+            const selected = form.services.includes(service);
             return (
-              <div key={type} style={{ ...S.priceCard, borderColor: selected ? `${accent}55` : 'rgba(56,100,220,0.1)', opacity: selected ? 1 : 0.5 }}>
+              <div key={service} style={{ ...S.priceCard, borderColor: selected ? `${accent}55` : 'rgba(56,100,220,0.1)', opacity: selected ? 1 : 0.5 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <div style={S.priceLabel}>{type}</div>
-                  <button onClick={() => toggleArr('event_types', type)} style={{ width: 18, height: 18, borderRadius: 4, border: `1px solid ${selected ? accent : 'rgba(56,100,220,0.3)'}`, background: selected ? accent : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={S.priceLabel}>{service}</div>
+                  <button
+                    onClick={() => toggleArr('services', service)}
+                    style={{ width: 18, height: 18, borderRadius: 4, border: `1px solid ${selected ? accent : 'rgba(56,100,220,0.3)'}`, background: selected ? accent : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                  >
                     {selected && <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round"/></svg>}
                   </button>
                 </div>
@@ -320,8 +350,8 @@ export default function VendorProfile() {
                   <span style={{ fontSize: 13, color: 'rgba(160,180,220,0.4)' }}>₹</span>
                   <input
                     style={{ ...S.priceInput, color: selected ? accent : 'rgba(76,138,255,0.3)' }}
-                    placeholder="0" value={form.prices[type] || ''}
-                    onChange={e => setPrice(type, e.target.value)}
+                    placeholder="0" value={form.prices[service] || ''}
+                    onChange={e => setPrice(service, e.target.value)}
                     disabled={!selected} type="number"
                   />
                   <span style={{ fontSize: 11, color: 'rgba(160,180,220,0.3)' }}>{cfg.priceUnit}</span>
@@ -330,6 +360,26 @@ export default function VendorProfile() {
             );
           })}
         </div>
+
+        {/* Live preview of the average price that will be shown publicly */}
+        {avgPrice > 0 ? (
+          <div style={{
+            marginTop: 20, padding: '14px 18px', borderRadius: 10,
+            background: `${accent}12`, border: `1px solid ${accent}33`,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8,
+          }}>
+            <span style={{ fontSize: 12, color: 'rgba(160,180,220,0.55)' }}>
+              Average price shown to clients on your public profile
+            </span>
+            <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, color: accent }}>
+              ₹{avgPrice.toLocaleString('en-IN')} <span style={{ fontSize: 13, fontFamily: "'DM Sans', sans-serif", color: 'rgba(160,180,220,0.4)' }}>{cfg.priceUnit}</span>
+            </span>
+          </div>
+        ) : (
+          <div style={{ marginTop: 20, fontSize: 12, color: 'rgba(160,180,220,0.3)' }}>
+            Select at least one service and enter a price to calculate your public average price.
+          </div>
+        )}
       </div>
 
       {/* Additional details — dynamic labels */}

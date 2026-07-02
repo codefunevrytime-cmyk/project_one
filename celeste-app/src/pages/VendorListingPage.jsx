@@ -1,13 +1,13 @@
-// src/pages/PhotographyPage.jsx
+// src/pages/VendorListingPage.jsx
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PHOTOGRAPHERS, YEARS } from "../context/data/photographyData";
+import { YEARS } from "../context/data/photographyData";
 import { DEFAULT_VENDOR_SERVICE } from "../context/data/vendorServiceConfig";
 import PriceSlider from "../components/PriceSlider";
 import { BookmarkButton, FilterOption, FilterPanel, FilterSection, SearchBar } from "../components/CommonControls";
-import './PhotographyPage.css';
+import './VendorListingPage.css';
 
-const API = 'http://localhost:5000/api';
+const API = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'http://localhost:5000/api';
 const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function mapVendorToCard(vendor, portfolio, tags, serviceConfig) {
@@ -17,9 +17,36 @@ function mapVendorToCard(vendor, portfolio, tags, serviceConfig) {
     ? vendor.specialty.split(',').map(s => s.trim()).filter(Boolean)
     : [serviceConfig.defaultSpecialty];
   const portfolioTags = [...new Set(portfolio.flatMap(p => p.tags || []))].slice(0, 3);
+
+  // Handle pricing packages
+  let pricePerDay = vendor.price_per_day ? Number(vendor.price_per_day) : 0;
+  let pricingPackages = null;
+  let priceRange = null;
+
+  if (vendor.pricing_packages) {
+    try {
+      pricingPackages = typeof vendor.pricing_packages === 'string'
+        ? JSON.parse(vendor.pricing_packages)
+        : vendor.pricing_packages;
+
+      const prices = Object.values(pricingPackages).filter(p => p > 0);
+      if (prices.length > 0) {
+        const minPrice = Math.min(...prices);
+        const maxPrice = Math.max(...prices);
+        priceRange = { min: minPrice, max: maxPrice };
+        pricePerDay = minPrice; // used for sorting/filtering
+      }
+    } catch {
+      // fall back to single price
+    }
+  }
+
   return {
     id: `db_${vendor.id}`, _dbId: vendor.id, name: vendor.name,
-    location: 'Lucknow', rating: 5.0, reviews: 0, pricePerDay: vendor.price_per_day ? Number(vendor.price_per_day) : 0,
+    // NOTE: hardcoded to Lucknow until vendors carry a real location field.
+    location: vendor.location || 'Lucknow',
+    rating: 5.0, reviews: 0, pricePerDay,
+    pricingPackages, priceRange,
     type: typeFromSpecialty, media: [serviceConfig.filters.mediaOptions[0]],
     year: new Date(vendor.created_at).getFullYear(),
     month: new Date(vendor.created_at).getMonth() + 1,
@@ -56,6 +83,47 @@ function RatingStars({ rating }) {
       {[1, 2, 3, 4, 5].map(i => <StarIcon key={i} filled={i <= Math.round(rating)} />)}
     </span>
   );
+}
+
+/* ── Shared display normalizer ──────────────────────────────────────────────
+   Both DB vendors and static/demo vendors get rendered by the same card and
+   expand panel. Rather than branching on `vendor.isDbItem` in six separate
+   JSX spots (badge, price row, meta grid, footer, CTA...), compute the
+   handful of values that actually differ ONCE here and pass plain strings
+   downward. Adding a new vendor shape later only means teaching this one
+   function about it, not touching every render site. ───────────────────── */
+function getVendorDisplay(vendor, serviceConfig) {
+  if (vendor.isDbItem) {
+    const priceLabel = vendor.priceRange
+      ? `₹${vendor.priceRange.min.toLocaleString('en-IN')} - ${vendor.priceRange.max.toLocaleString('en-IN')}`
+      : vendor.pricePerDay > 0
+        ? `₹${vendor.pricePerDay.toLocaleString('en-IN')}`
+        : null;
+    return {
+      priceLabel,
+      priceUnit: serviceConfig.priceUnit,
+      badgeLabel: `${serviceConfig.cardIcon} ${vendor.specialty || 'Gallery'}`,
+      showVerified: false,
+      metaCells: [
+        ['Vendor', vendor.name],
+        ['Specialty', vendor.specialty || serviceConfig.defaultSpecialty],
+        ['Location', vendor.location],
+        ['Contact', vendor.contact || 'N/A'],
+      ],
+    };
+  }
+  return {
+    priceLabel: `₹${vendor.pricePerDay.toLocaleString('en-IN')}`,
+    priceUnit: '/ day',
+    badgeLabel: vendor.media.join(' + '),
+    showVerified: vendor.verified,
+    metaCells: [
+      ['Location', vendor.location],
+      ['Date', `${MONTH_NAMES[vendor.month]} ${vendor.year}`],
+      ['Media', vendor.media.join(' + ')],
+      ['Price', `₹${vendor.pricePerDay.toLocaleString('en-IN')} / day`],
+    ],
+  };
 }
 
 const EP_STYLES = `
@@ -99,7 +167,6 @@ const EP_STYLES = `
   .ep-verified-badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:500; color:#534AB7; background:#EEEDFE; padding:3px 9px; border-radius:20px; }
   .ep-specialty-badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:500; color:#D4860A; background:rgba(212,134,10,0.10); padding:3px 9px; border-radius:20px; border:0.5px solid rgba(212,134,10,0.25); }
 
-  /* ── Carousel styles ── */
   .ep-carousel-nav { position:absolute; bottom:50%; transform:translateY(50%); z-index:10; width:36px; height:36px; border-radius:50%; background:rgba(0,0,0,0.45); backdrop-filter:blur(4px); border:1px solid rgba(255,255,255,0.2); color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.18s, transform 0.15s; }
   .ep-carousel-nav:hover { background:rgba(0,0,0,0.72); transform:translateY(50%) scale(1.1); }
   .ep-carousel-prev { left:12px; }
@@ -116,8 +183,8 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
   const related = getRelated(vendor, allVendors);
   const [activeIdx, setActiveIdx] = useState(0);
   const [sliding, setSliding] = useState(false);
+  const display = useMemo(() => getVendorDisplay(vendor, serviceConfig), [vendor, serviceConfig]);
 
-  // Build image list: DB portfolio or just the cover
   const images = vendor.isDbItem && vendor.portfolio?.length > 0
     ? vendor.portfolio.map(p => ({ url: p.image_url, caption: p.caption, tags: p.tags }))
     : [{ url: vendor.cover, caption: null, tags: [] }];
@@ -143,7 +210,6 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
       <style>{EP_STYLES}</style>
       <div className="ep-top">
 
-        {/* ── Image carousel column ── */}
         <div className="ep-img-col">
           <img
             src={currentImg.url}
@@ -153,7 +219,6 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
           />
           <div className="ep-img-overlay" />
 
-          {/* Bookmark — top left */}
           <BookmarkButton
             className="ep-bm"
             active={isBookmarked}
@@ -165,15 +230,12 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
             style={{ boxShadow: isBookmarked ? '0 2px 12px rgba(201,168,76,0.4)' : 'none' }}
           />
 
-          {/* Close — top right */}
           <button className="ep-close" onClick={onClose}>✕</button>
 
-          {/* Photo counter */}
           {total > 1 && (
             <div className="ep-carousel-counter">{activeIdx + 1} / {total}</div>
           )}
 
-          {/* Prev / Next arrows */}
           {total > 1 && (
             <>
               <button className="ep-carousel-nav ep-carousel-prev" onClick={prev} title="Previous">
@@ -189,7 +251,6 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
             </>
           )}
 
-          {/* Dot indicators */}
           {total > 1 && (
             <div className="ep-carousel-dots">
               {images.map((_, i) => (
@@ -204,19 +265,18 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
           )}
         </div>
 
-        {/* ── Details column ── */}
         <div className="ep-right">
           <div>
             <div className="ep-name">{vendor.name}</div>
             <div className="ep-meta-row">
               {vendor.isDbItem ? (
-                <span className="ep-specialty-badge">{serviceConfig.cardIcon} {vendor.specialty || serviceConfig.defaultSpecialty}</span>
+                <span className="ep-specialty-badge">{display.badgeLabel}</span>
               ) : (
                 <>
                   <RatingStars rating={vendor.rating} />
                   <span style={{ fontSize:13, fontWeight:500, color:'#1A1714' }}>{vendor.rating.toFixed(1)}</span>
                   <span style={{ fontSize:12, color:'#aaa' }}>({vendor.reviews} reviews)</span>
-                  {vendor.verified && (
+                  {display.showVerified && (
                     <span className="ep-verified-badge">
                       <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
                         <circle cx="8" cy="8" r="7" fill="#534AB7"/>
@@ -230,23 +290,14 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
             </div>
 
             <div className="ep-grid">
-              {vendor.isDbItem ? (
-                <>
-                  <div className="ep-cell"><div className="ep-cell-label">Vendor</div><div className="ep-cell-val">{vendor.name}</div></div>
-                  <div className="ep-cell"><div className="ep-cell-label">Specialty</div><div className="ep-cell-val">{vendor.specialty || serviceConfig.defaultSpecialty}</div></div>
-                  <div className="ep-cell"><div className="ep-cell-label">Location</div><div className="ep-cell-val">{vendor.location}</div></div>
-                  <div className="ep-cell"><div className="ep-cell-label">Contact</div><div className="ep-cell-val" style={{ fontSize:12 }}>{vendor.contact || 'N/A'}</div></div>
-                  {currentImg.caption && (
-                    <div className="ep-cell" style={{ gridColumn:'1/-1' }}>
-                      <div className="ep-cell-label">About this photo</div>
-                      <div className="ep-cell-val" style={{ fontSize:13, fontWeight:400 }}>{currentImg.caption}</div>
-                    </div>
-                  )}
-                </>
-              ) : (
-                [['Location', vendor.location], ['Date', `${MONTH_NAMES[vendor.month]} ${vendor.year}`], ['Media', vendor.media.join(' + ')], ['Price', `₹${vendor.pricePerDay.toLocaleString('en-IN')} / day`]].map(([label, val]) => (
-                  <div key={label} className="ep-cell"><div className="ep-cell-label">{label}</div><div className="ep-cell-val">{val}</div></div>
-                ))
+              {display.metaCells.map(([label, val]) => (
+                <div key={label} className="ep-cell"><div className="ep-cell-label">{label}</div><div className="ep-cell-val">{val}</div></div>
+              ))}
+              {vendor.isDbItem && currentImg.caption && (
+                <div className="ep-cell" style={{ gridColumn:'1/-1' }}>
+                  <div className="ep-cell-label">About this photo</div>
+                  <div className="ep-cell-val" style={{ fontSize:13, fontWeight:400 }}>{currentImg.caption}</div>
+                </div>
               )}
             </div>
 
@@ -278,7 +329,7 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
                 <div className="ep-price">
                   <span className="ep-price-sym">₹</span>
                   <span className="ep-price-val">{vendor.pricePerDay.toLocaleString('en-IN')}</span>
-                  <span className="ep-price-unit">/ day</span>
+                  <span className="ep-price-unit">{display.priceUnit}</span>
                 </div>
                 <button className="ep-cta" onClick={() => navigate(`${serviceConfig.path}/${vendor.id}`)}>View Profile</button>
                 <button className="ep-cta">Add to Your Event</button>
@@ -307,8 +358,9 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
 
 // ── VendorCard ────────────────────────────────────────────────────────────────
 function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark, serviceConfig }) {
-  const [hovered, setHovered]     = useState(false);
+  const [hovered, setHovered] = useState(false);
   const navigate = useNavigate();
+  const display = useMemo(() => getVendorDisplay(vendor, serviceConfig), [vendor, serviceConfig]);
   const handleBookmark = (e) => { e.stopPropagation(); onBookmark(vendor.id); };
 
   return (
@@ -325,11 +377,9 @@ function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark,
       <div className="vendor-img-wrap common-card-media">
         <img src={vendor.cover} alt={vendor.name} className="vendor-img" />
 
-        <div className="vendor-media-badge">
-          {vendor.isDbItem ? `${serviceConfig.cardIcon} ${vendor.specialty || 'Gallery'}` : vendor.media.join(' + ')}
-        </div>
+        <div className="vendor-media-badge">{display.badgeLabel}</div>
 
-        {!vendor.isDbItem && vendor.verified && (
+        {display.showVerified && (
           <div className="vendor-verified">
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
               <circle cx="8" cy="8" r="7" fill="#534AB7"/>
@@ -385,31 +435,24 @@ function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark,
         </div>
 
         <div className="vendor-bottom-row">
-          {vendor.isDbItem ? (
-            <>
-              <div className="vendor-price">
-                {vendor.pricePerDay > 0 ? (
-                  <>
-                    <span className="price-symbol">₹</span>
-                    <span className="price-val">{vendor.pricePerDay.toLocaleString('en-IN')}</span>
-                    <span className="price-unit">{serviceConfig.priceUnit}</span>
-                  </>
-                ) : (
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Price on request</span>
-                )}
-              </div>
-              <button className="vendor-cta" style={{ color:'#D4860A', borderColor:'rgba(212,134,10,0.4)' }} onClick={e => { e.stopPropagation(); navigate(`${serviceConfig.path}/${vendor._dbId}`); }}>View Profile</button>
-            </>
-          ) : (
-            <>
-              <div className="vendor-price">
+          <div className="vendor-price">
+            {display.priceLabel ? (
+              <>
                 <span className="price-symbol">₹</span>
-                <span className="price-val">{vendor.pricePerDay.toLocaleString('en-IN')}</span>
-                <span className="price-unit">/ day</span>
-              </div>
-              <button className="vendor-cta" onClick={e => { e.stopPropagation(); navigate(`${serviceConfig.path}/${vendor.id}`); }}>View Profile</button>
-            </>
-          )}
+                <span className="price-val">{display.priceLabel.replace('₹', '')}</span>
+                <span className="price-unit">{display.priceUnit}</span>
+              </>
+            ) : (
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Price on request</span>
+            )}
+          </div>
+          <button
+            className="vendor-cta"
+            style={vendor.isDbItem ? { color: '#D4860A', borderColor: 'rgba(212,134,10,0.4)' } : undefined}
+            onClick={e => { e.stopPropagation(); navigate(`${serviceConfig.path}/${vendor.isDbItem ? vendor._dbId : vendor.id}`); }}
+          >
+            View Profile
+          </button>
         </div>
 
         <div className="vendor-tags">
@@ -420,7 +463,7 @@ function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark,
   );
 }
 
-export default function PhotographyPage({ bookmarks, onBookmarkToggle, serviceConfig = DEFAULT_VENDOR_SERVICE }) {
+export default function VendorListingPage({ bookmarks, onBookmarkToggle, serviceConfig = DEFAULT_VENDOR_SERVICE }) {
   const [priceRange, setPriceRange]       = useState([0, 120000]);
   const [selectedTypes, setSelectedTypes] = useState([]);
   const [selectedMedia, setSelectedMedia] = useState([]);
@@ -456,10 +499,14 @@ export default function PhotographyPage({ bookmarks, onBookmarkToggle, serviceCo
     fetchVendors();
   }, [serviceConfig]);
 
+  // NOTE: still keyed off `serviceConfig.staticData` (fixed from the old
+  // `serviceConfig.id === 'photography'` special case) — every service now
+  // supplies its own static/demo vendors through config, none of it lives
+  // hardcoded in this component.
   const allVendors = useMemo(() => {
-    const staticVendors = serviceConfig.id === 'photography' ? PHOTOGRAPHERS : [];
+    const staticVendors = serviceConfig.staticData || [];
     return [...staticVendors, ...dbVendors];
-  }, [serviceConfig.id, dbVendors]);
+  }, [serviceConfig.staticData, dbVendors]);
   const openVendor = useMemo(() => allVendors.find(v => v.id === openId) || null, [allVendors, openId]);
 
   const toggleBookmark = (id) => {
@@ -482,11 +529,17 @@ export default function PhotographyPage({ bookmarks, onBookmarkToggle, serviceCo
 
   const filtered = useMemo(() => {
     let list = allVendors.filter(p => {
-      if (!p.isDbItem) {
-        if (p.pricePerDay < priceRange[0] || p.pricePerDay > priceRange[1]) return false;
-        if (p.rating < minRating) return false;
-        if (selectedMedia.length && !selectedMedia.some(m => p.media.includes(m))) return false;
-      }
+      // FIX: price range and minimum rating were previously skipped entirely
+      // for DB vendors (`if (!p.isDbItem) { ... }`), even though DB vendors
+      // now carry real pricePerDay/priceRange data. Both filters now apply
+      // to every vendor; rating still only exists as real data on the
+      // demo/static set, so it's harmlessly a no-op for DB vendors (rating
+      // defaults to 5.0) until real vendor ratings exist.
+      const effectivePrice = p.priceRange ? p.priceRange.min : p.pricePerDay;
+      if (effectivePrice > 0 && (effectivePrice < priceRange[0] || effectivePrice > priceRange[1])) return false;
+      if (p.rating < minRating) return false;
+      if (!p.isDbItem && selectedMedia.length && !selectedMedia.some(m => p.media.includes(m))) return false;
+
       if (selectedTypes.length && !selectedTypes.some(t => p.type.includes(t))) return false;
       if (selectedYears.length && !selectedYears.includes(p.year)) return false;
       if (searchQuery && !p.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
@@ -495,8 +548,8 @@ export default function PhotographyPage({ bookmarks, onBookmarkToggle, serviceCo
     list.sort((a, b) => {
       if (sortBy === 'latest')     return (b.year*100+b.month)-(a.year*100+a.month);
       if (sortBy === 'rating')     return b.rating-a.rating;
-      if (sortBy === 'price_asc')  return a.pricePerDay-b.pricePerDay;
-      if (sortBy === 'price_desc') return b.pricePerDay-a.pricePerDay;
+      if (sortBy === 'price_asc')  return (a.priceRange?.min ?? a.pricePerDay) - (b.priceRange?.min ?? b.pricePerDay);
+      if (sortBy === 'price_desc') return (b.priceRange?.min ?? b.pricePerDay) - (a.priceRange?.min ?? a.pricePerDay);
       return 0;
     });
     return list;

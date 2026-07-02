@@ -2,6 +2,20 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useVendorAuth } from '../context/VendorAuthContext';
 
+// ── Service categories a vendor can register under ──────────────────────────
+// These values MUST match the keys used in SERVICE_CONFIGS inside
+// VendorProfile.jsx (photography, invitation, decor, catering, music,
+// makeup, venue) — that's how the profile page picks the right form.
+const SERVICE_OPTIONS = [
+  { value: 'photography', label: 'Photography & Videography' },
+  { value: 'invitation',  label: 'Custom Invitations' },
+  { value: 'decor',       label: 'Event Decoration' },
+  { value: 'catering',    label: 'Catering & Food' },
+  { value: 'music',       label: 'Music & Entertainment' },
+  { value: 'makeup',      label: 'Makeup & Beauty' },
+  { value: 'venue',       label: 'Venue & Banquet' },
+];
+
 const S = {
   page: {
     minHeight: '100vh', background: '#080c14',
@@ -76,7 +90,7 @@ const focusOut = e => { e.target.style.borderColor = 'rgba(56,100,220,0.18)'; e.
 export default function VendorSignup() {
   const navigate = useNavigate();
   const { signup } = useVendorAuth();
-  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', confirm: '' });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', confirm: '', service: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -84,11 +98,12 @@ export default function VendorSignup() {
 
   const handleSignup = async () => {
     if (!form.name || !form.email || !form.password) { setError('Name, email and password are required'); return; }
+    if (!form.service) { setError('Please select the service you provide'); return; }
     if (form.password !== form.confirm) { setError('Passwords do not match'); return; }
     if (form.password.length < 6) { setError('Password must be at least 6 characters'); return; }
     setLoading(true); setError('');
     try {
-      await signup(form.name, form.email, form.password, form.phone);
+      await signup(form.name, form.email, form.password, form.phone, form.service);
       navigate('/vendor/dashboard');
     } catch (err) {
       setError(err.message);
@@ -142,6 +157,20 @@ export default function VendorSignup() {
         <div style={S.field}>
           <label style={S.label}>Email address</label>
           <input style={S.input} type="email" placeholder="you@studio.com" value={form.email} onChange={set('email')} onFocus={focusIn} onBlur={focusOut} />
+        </div>
+
+        {/* ── NEW: Service category selection ──────────────────────────────
+            This is the field that was missing. It drives vendors.service_id
+            on the backend, which is what VendorProfile.jsx reads (via
+            service_category) to decide which form fields to render. */}
+        <div style={S.field}>
+          <label style={S.label}>Service you provide</label>
+          <select style={S.input} value={form.service} onChange={set('service')} onFocus={focusIn} onBlur={focusOut}>
+            <option value="">Select a service…</option>
+            {SERVICE_OPTIONS.map(o => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
         </div>
 
         <div style={S.row}>

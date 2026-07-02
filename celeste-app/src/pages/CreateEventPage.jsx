@@ -4,7 +4,7 @@ import { useAuth } from "../hooks/useAuth";
 import { eventsData } from "../context/data/eventsData";
 import { EVENT_CATEGORIES } from "../context/data/events";
 import styles from "./CreateEventPage.module.css";
-import { DEFAULT_VENDOR_SERVICE, VENDOR_SERVICE_CONFIGS } from "../context/data/vendorServiceConfig";
+import { VENDOR_SERVICE_CONFIGS } from "../context/data/vendorServiceConfig";
 
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:5000";
@@ -31,15 +31,58 @@ const MONTH_NAMES = ["January","February","March","April","May","June",
   "July","August","September","October","November","December"];
 const DAY_NAMES = ["Su","Mo","Tu","We","Th","Fr","Sa"];
 
-const PHOTOGRAPHY_TYPES = [
-  "Candid","Traditional","Pre-Wedding","Drone Coverage",
-  "Cinematic Film","Reels / Shorts","Photo Booth","Live Screening",
-];
+/* ─── Fallback extra-field defaults for services that haven't yet been
+   migrated to declare `extraFields`/`pricingModel` on their serviceConfig
+   entry. This makes the refactor backward-compatible: today's photography
+   and invitations behavior is preserved exactly, but every field they need
+   is now defined ONCE as data instead of branched in JSX. When you add
+   service #3, either give it a real config entry (preferred, see the note
+   in vendorServiceConfig.js) or add a fallback here as a stopgap — either
+   way VendorBlock itself never needs to change. ─────────────────────────── */
+const FALLBACK_SERVICE_FIELDS = {
+  photography: {
+    pricingModel: "perDay", // total = vendor.price_per_day * days
+    extraFields: [
+      {
+        key: "days", type: "counter", label: "Number of days", min: 1,
+      },
+      {
+        key: "coverage_types", type: "multiselect", label: "Coverage types",
+        options: ["Candid","Traditional","Pre-Wedding","Drone Coverage","Cinematic Film","Reels / Shorts","Photo Booth","Live Screening"],
+      },
+    ],
+  },
+  "custom-invitations": {
+    pricingModel: "flat", // total = vendor.price_per_day (flat package rate)
+    extraFields: [
+      {
+        key: "coverage_types", type: "multiselect", label: "Invitation types",
+        options: ["Digital Invite","Printed Cards","Luxury Box","Save The Date","Wedding Website","Foil Print","Handmade"],
+      },
+      {
+        key: "quantity", type: "number", label: "Quantity", placeholder: "e.g. 200",
+      },
+    ],
+  },
+};
 
-const INVITATION_TYPES = [
-  "Digital Invite","Printed Cards","Luxury Box",
-  "Save The Date","Wedding Website","Foil Print","Handmade",
-];
+function getServiceFields(serviceConfig) {
+  return {
+    pricingModel: serviceConfig?.pricingModel
+      || FALLBACK_SERVICE_FIELDS[serviceConfig?.id]?.pricingModel
+      || "perDay",
+    extraFields: serviceConfig?.extraFields
+      || FALLBACK_SERVICE_FIELDS[serviceConfig?.id]?.extraFields
+      || [],
+  };
+}
+
+function computeVendorTotal(pricingModel, vendorData) {
+  const pricePerUnit = vendorData.vendor?.price_per_day ? Number(vendorData.vendor.price_per_day) : 0;
+  if (pricingModel === "flat") return pricePerUnit;
+  const days = Number(vendorData.days) || 1;
+  return pricePerUnit * days; // "perDay" and any unrecognised model default here
+}
 
 /* ─── small helpers ──────────────────────────────────────────────────────────── */
 function getEmoji(type) {
@@ -145,7 +188,6 @@ function RefEventModal({ bookmarkedIds, onSelect, onClose, title="Pick a referen
   const [galleryEvents, setGalleryEvents] = useState([]);
   const [loading, setLoading]     = useState(true);
 
-  // Fetch gallery events from DB (same source as Explore Events page)
   useEffect(() => {
     fetch(`${API}/api/gallery`)
       .then(r => r.json())
@@ -153,7 +195,6 @@ function RefEventModal({ bookmarkedIds, onSelect, onClose, title="Pick a referen
       .catch(() => setLoading(false));
   }, []);
 
-  // Normalise gallery row → same shape as eventsData
   const normaliseGallery = (g) => ({
     id:        `gallery_${g.id}`,
     _galleryId: g.id,
@@ -165,11 +206,9 @@ function RefEventModal({ bookmarkedIds, onSelect, onClose, title="Pick a referen
     price:     g.price ? `₹${Number(g.price).toLocaleString("en-IN")}` : "",
     pills:     Array.isArray(g.tags) ? g.tags : [],
     scale:     g.scale || "",
-    // extra images for carousel preview
     extraImages: g.gallery_images || [],
   });
 
-  // Normalise static eventsData row
   const normaliseStatic = (e) => ({
     id:        String(e.id),
     title:     e.title,
@@ -181,13 +220,11 @@ function RefEventModal({ bookmarkedIds, onSelect, onClose, title="Pick a referen
     pills:     e.pills || [],
   });
 
-  // Merge: gallery first (has real DB images), then static
   const allEvents = [
     ...galleryEvents.map(normaliseGallery),
     ...eventsData.map(normaliseStatic),
   ];
 
-  // Bookmarked = any event whose id is in bookmarkedIds
   const bookmarkedList = allEvents.filter(e =>
     bookmarkedIds.includes(e.id) ||
     bookmarkedIds.includes(String(e._galleryId)) ||
@@ -210,7 +247,6 @@ function RefEventModal({ bookmarkedIds, onSelect, onClose, title="Pick a referen
     <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20 }}>
       <div style={{ background:"#1c1812",border:"0.5px solid rgba(200,175,120,0.2)",borderRadius:16,width:"100%",maxWidth:860,maxHeight:"88vh",display:"flex",flexDirection:"column",boxShadow:"0 24px 64px rgba(0,0,0,0.7)" }}>
 
-        {/* Header */}
         <div style={{ padding:"18px 24px",borderBottom:"0.5px solid rgba(200,175,120,0.1)",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0 }}>
           <div>
             <div style={{ fontSize:15,fontWeight:600,color:"#e8dcc8" }}>{title}</div>
@@ -221,16 +257,13 @@ function RefEventModal({ bookmarkedIds, onSelect, onClose, title="Pick a referen
           <button onClick={onClose} style={{ background:"none",border:"none",cursor:"pointer",color:"rgba(200,175,120,0.4)",fontSize:22,lineHeight:1,padding:"4px 8px" }}>✕</button>
         </div>
 
-        {/* Tabs + filters */}
         <div style={{ padding:"12px 24px",borderBottom:"0.5px solid rgba(200,175,120,0.08)",display:"flex",alignItems:"center",gap:10,flexShrink:0,flexWrap:"wrap" }}>
-          {/* Tabs */}
           {["explore","bookmarks"].map(t=>(
             <button key={t} onClick={()=>setTab(t)} style={{ background:tab===t?"rgba(200,175,120,0.12)":"none",border:`0.5px solid ${tab===t?"rgba(200,175,120,0.4)":"rgba(200,175,120,0.12)"}`,borderRadius:20,padding:"5px 14px",fontSize:12,color:tab===t?"#c8af78":"rgba(200,175,120,0.45)",cursor:"pointer",fontFamily:"inherit" }}>
               {t==="bookmarks" ? `Bookmarks (${bookmarkedList.length})` : "All Events"}
             </button>
           ))}
 
-          {/* Type filter pills */}
           <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginLeft:4 }}>
             <button onClick={()=>setFilterType("")} style={{ fontSize:11,padding:"4px 10px",borderRadius:20,border:`0.5px solid ${!filterType?"rgba(200,175,120,0.4)":"rgba(200,175,120,0.1)"}`,background:!filterType?"rgba(200,175,120,0.1)":"none",color:!filterType?"#c8af78":"rgba(200,175,120,0.4)",cursor:"pointer",fontFamily:"inherit" }}>All</button>
             {allTypes.map(t=>(
@@ -238,11 +271,9 @@ function RefEventModal({ bookmarkedIds, onSelect, onClose, title="Pick a referen
             ))}
           </div>
 
-          {/* Search */}
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search events…" style={{ marginLeft:"auto",background:"#1e1a14",border:"0.5px solid rgba(200,175,120,0.15)",borderRadius:8,padding:"7px 12px",fontSize:12,color:"#e8dcc8",outline:"none",fontFamily:"inherit",width:180 }}/>
         </div>
 
-        {/* Event grid */}
         <div style={{ overflowY:"auto",padding:16,display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12 }}>
           {loading && (
             <div style={{ gridColumn:"1/-1",textAlign:"center",padding:40,color:"rgba(200,175,120,0.3)",fontSize:13 }}>Loading events from database…</div>
@@ -255,7 +286,6 @@ function RefEventModal({ bookmarkedIds, onSelect, onClose, title="Pick a referen
               onMouseEnter={e=>{ e.currentTarget.style.borderColor="rgba(200,175,120,0.45)"; e.currentTarget.style.transform="translateY(-2px)"; }}
               onMouseLeave={e=>{ e.currentTarget.style.borderColor="rgba(200,175,120,0.12)"; e.currentTarget.style.transform="translateY(0)"; }}>
 
-              {/* Image */}
               <div style={{ height:120,overflow:"hidden",position:"relative",background:"#2a2018" }}>
                 {ev.img
                   ? <img src={ev.img} alt={ev.title} style={{ width:"100%",height:"100%",objectFit:"cover",transition:"transform 0.3s" }}
@@ -263,19 +293,15 @@ function RefEventModal({ bookmarkedIds, onSelect, onClose, title="Pick a referen
                       onMouseLeave={e=>e.target.style.transform="scale(1)"}/>
                   : <div style={{ width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:36 }}>{getEmoji(ev.type)}</div>
                 }
-                {/* Type badge */}
                 <div style={{ position:"absolute",bottom:6,left:8,fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em",color:"#c8af78",background:"rgba(0,0,0,0.7)",padding:"2px 8px",borderRadius:20 }}>{ev.type}</div>
-                {/* Extra images count */}
                 {ev.extraImages?.length > 0 && (
                   <div style={{ position:"absolute",top:6,right:8,fontSize:9,color:"rgba(200,175,120,0.8)",background:"rgba(0,0,0,0.6)",padding:"2px 7px",borderRadius:20 }}>+{ev.extraImages.length} photos</div>
                 )}
-                {/* Scale badge */}
                 {ev.scale && (
                   <div style={{ position:"absolute",top:6,left:8,fontSize:9,color:"rgba(200,175,120,0.7)",background:"rgba(0,0,0,0.6)",padding:"2px 7px",borderRadius:20 }}>{ev.scale}</div>
                 )}
               </div>
 
-              {/* Info */}
               <div style={{ padding:"10px 12px" }}>
                 <div style={{ fontSize:12,fontWeight:600,color:"#e8dcc8",marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{ev.title}</div>
                 <div style={{ fontSize:10,color:"rgba(200,175,120,0.4)",marginBottom:ev.price?4:0 }}>
@@ -303,7 +329,6 @@ function VendorPickerModal({ vendors, bookmarkedIds, serviceType, onSelect, onCl
   const [tab, setTab] = useState("all");
   const [search, setSearch] = useState("");
 
-  // bookmarked vendors: those with id prefixed db_ in bookmarkedIds
   const bookmarkedVendorDbIds = bookmarkedIds
     .filter(id => String(id).startsWith("db_"))
     .map(id => String(id).replace("db_",""));
@@ -467,23 +492,74 @@ function StepBasics({ form, setForm, availability, bookmarkedIds, onNext }) {
   );
 }
 
+/* ─── Generic extra-field renderer ────────────────────────────────────────────
+   Replaces the old isPhotography ? <days counter + coverage pills> :
+   <quantity input + invitation pills> block. Every service's "shape" (a
+   counter, a multiselect pill group, a plain number input, free text) is
+   described as data in FALLBACK_SERVICE_FIELDS / serviceConfig.extraFields,
+   and rendered here once. Adding a new field type later means adding one
+   case to this switch, not a new branch per service. ─────────────────────── */
+function ExtraField({ field, vendorData, onChange }) {
+  const value = vendorData[field.key];
+
+  if (field.type === "counter") {
+    const count = Number(value) || field.min || 1;
+    return (
+      <div style={{ marginBottom:14 }}>
+        <div style={{ fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em",color:"rgba(200,175,120,0.45)",marginBottom:8 }}>{field.label}</div>
+        <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+          <button onClick={()=>onChange({...vendorData,[field.key]: Math.max(field.min||1, count-1)})} style={{ width:32,height:32,borderRadius:"50%",background:"rgba(200,175,120,0.08)",border:"0.5px solid rgba(200,175,120,0.2)",color:"#c8af78",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>−</button>
+          <span style={{ fontSize:16,fontWeight:600,color:"#e8dcc8",minWidth:24,textAlign:"center" }}>{count}</span>
+          <button onClick={()=>onChange({...vendorData,[field.key]: count+1})} style={{ width:32,height:32,borderRadius:"50%",background:"rgba(200,175,120,0.08)",border:"0.5px solid rgba(200,175,120,0.2)",color:"#c8af78",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>+</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (field.type === "multiselect") {
+    const selected = vendorData[field.key] || [];
+    const toggle = (val) => onChange({ ...vendorData, [field.key]: selected.includes(val) ? selected.filter(x=>x!==val) : [...selected, val] });
+    return (
+      <div style={{ marginBottom:14 }}>
+        <div style={{ fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em",color:"rgba(200,175,120,0.45)",marginBottom:8 }}>
+          {field.label} <span style={{ textTransform:"none",letterSpacing:0,color:"rgba(200,175,120,0.3)" }}>(select all that apply)</span>
+        </div>
+        <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>
+          {(field.options||[]).map(opt=>{
+            const sel = selected.includes(opt);
+            return <button key={opt} onClick={()=>toggle(opt)} style={{ fontSize:11,padding:"5px 12px",borderRadius:20,border:`0.5px solid ${sel?"rgba(200,175,120,0.45)":"rgba(200,175,120,0.15)"}`,background:sel?"rgba(200,175,120,0.1)":"none",color:sel?"#c8af78":"rgba(200,175,120,0.45)",cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s" }}>{opt}</button>;
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  if (field.type === "number") {
+    return (
+      <div style={{ marginBottom:14 }}>
+        <div style={{ fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em",color:"rgba(200,175,120,0.45)",marginBottom:8 }}>{field.label}</div>
+        <input type="number" min={1} placeholder={field.placeholder} value={value||""} onChange={e=>onChange({...vendorData,[field.key]:e.target.value})} style={{ background:"#1e1a14",border:"0.5px solid rgba(200,175,120,0.18)",borderRadius:8,padding:"9px 12px",fontSize:13,color:"#e8dcc8",outline:"none",fontFamily:"inherit",width:140 }}/>
+      </div>
+    );
+  }
+
+  // "text" fallback
+  return (
+    <div style={{ marginBottom:14 }}>
+      <div style={{ fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em",color:"rgba(200,175,120,0.45)",marginBottom:8 }}>{field.label}</div>
+      <input type="text" placeholder={field.placeholder} value={value||""} onChange={e=>onChange({...vendorData,[field.key]:e.target.value})} style={{ background:"#1e1a14",border:"0.5px solid rgba(200,175,120,0.18)",borderRadius:8,padding:"9px 12px",fontSize:13,color:"#e8dcc8",outline:"none",fontFamily:"inherit",width:"100%",boxSizing:"border-box" }}/>
+    </div>
+  );
+}
+
 /* ─── Vendor service block (inside Step 2) ───────────────────────────────────── */
-function VendorBlock({ serviceType, serviceId, vendors, bookmarkedIds, vendorData, onChange }) {
+function VendorBlock({ serviceType, serviceConfig, vendors, bookmarkedIds, vendorData, onChange }) {
   const [showVendorModal, setShowVendorModal] = useState(false);
   const [showRefModal, setShowRefModal] = useState(false);
 
-  const isPhotography = serviceType === "Photography";
-  const coverTypes = isPhotography ? PHOTOGRAPHY_TYPES : INVITATION_TYPES;
-const svcVendors = vendors; // already filtered correctly by the parent (StepVendors)
-
-  const toggle = (key, val) => {
-    const arr = vendorData[key] || [];
-    onChange({ ...vendorData, [key]: arr.includes(val) ? arr.filter(x=>x!==val) : [...arr, val] });
-  };
-
-  const pricePerDay = vendorData.vendor?.price_per_day ? Number(vendorData.vendor.price_per_day) : 0;
-  const days = isPhotography ? (Number(vendorData.days) || 1) : 1;
-  const totalCost = pricePerDay * days;
+  const { pricingModel, extraFields } = getServiceFields(serviceConfig);
+  const pricePerUnit = vendorData.vendor?.price_per_day ? Number(vendorData.vendor.price_per_day) : 0;
+  const totalCost = computeVendorTotal(pricingModel, vendorData);
 
   return (
     <div style={{ background:"rgba(200,175,120,0.03)",border:"0.5px solid rgba(200,175,120,0.15)",borderRadius:14,padding:"20px 22px",marginBottom:20 }}>
@@ -514,7 +590,7 @@ const svcVendors = vendors; // already filtered correctly by the parent (StepVen
                   <div style={{ fontSize:13,fontWeight:600,color:"#e8dcc8" }}>{vendorData.vendor.name}</div>
                   <div style={{ fontSize:11,color:"rgba(200,175,120,0.45)" }}>{vendorData.vendor.specialty||serviceType}</div>
                 </div>
-                {pricePerDay>0&&<div style={{ fontSize:12,fontWeight:600,color:"#c8af78" }}>₹{fmt(pricePerDay)}/day</div>}
+                {pricePerUnit>0&&<div style={{ fontSize:12,fontWeight:600,color:"#c8af78" }}>₹{fmt(pricePerUnit)}{pricingModel==="perDay"?"/day":""}</div>}
                 <button onClick={()=>setShowVendorModal(true)} style={{ fontSize:11,color:"rgba(200,175,120,0.45)",background:"none",border:"0.5px solid rgba(200,175,120,0.15)",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontFamily:"inherit" }}>Change</button>
               </div>
             ) : (
@@ -524,44 +600,12 @@ const svcVendors = vendors; // already filtered correctly by the parent (StepVen
             )}
           </div>
 
-          {/* Service-specific fields */}
-          {isPhotography ? (
-            <>
-              <div style={{ marginBottom:14 }}>
-                <div style={{ fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em",color:"rgba(200,175,120,0.45)",marginBottom:8 }}>Number of days</div>
-                <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-                  <button onClick={()=>onChange({...vendorData,days:Math.max(1,(Number(vendorData.days)||1)-1)})} style={{ width:32,height:32,borderRadius:"50%",background:"rgba(200,175,120,0.08)",border:"0.5px solid rgba(200,175,120,0.2)",color:"#c8af78",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>−</button>
-                  <span style={{ fontSize:16,fontWeight:600,color:"#e8dcc8",minWidth:24,textAlign:"center" }}>{vendorData.days||1}</span>
-                  <button onClick={()=>onChange({...vendorData,days:(Number(vendorData.days)||1)+1})} style={{ width:32,height:32,borderRadius:"50%",background:"rgba(200,175,120,0.08)",border:"0.5px solid rgba(200,175,120,0.2)",color:"#c8af78",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>+</button>
-                  {pricePerDay>0&&<span style={{ fontSize:11,color:"rgba(200,175,120,0.4)",marginLeft:8 }}>= ₹{fmt(totalCost)} total</span>}
-                </div>
-              </div>
-              <div style={{ marginBottom:14 }}>
-                <div style={{ fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em",color:"rgba(200,175,120,0.45)",marginBottom:8 }}>Coverage types <span style={{ textTransform:"none",letterSpacing:0,color:"rgba(200,175,120,0.3)" }}>(select all that apply)</span></div>
-                <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>
-                  {coverTypes.map(t=>{
-                    const sel=(vendorData.coverage_types||[]).includes(t);
-                    return <button key={t} onClick={()=>toggle("coverage_types",t)} style={{ fontSize:11,padding:"5px 12px",borderRadius:20,border:`0.5px solid ${sel?"rgba(200,175,120,0.45)":"rgba(200,175,120,0.15)"}`,background:sel?"rgba(200,175,120,0.1)":"none",color:sel?"#c8af78":"rgba(200,175,120,0.45)",cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s" }}>{t}</button>;
-                  })}
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              <div style={{ marginBottom:14 }}>
-                <div style={{ fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em",color:"rgba(200,175,120,0.45)",marginBottom:8 }}>Invitation types</div>
-                <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>
-                  {coverTypes.map(t=>{
-                    const sel=(vendorData.coverage_types||[]).includes(t);
-                    return <button key={t} onClick={()=>toggle("coverage_types",t)} style={{ fontSize:11,padding:"5px 12px",borderRadius:20,border:`0.5px solid ${sel?"rgba(200,175,120,0.45)":"rgba(200,175,120,0.15)"}`,background:sel?"rgba(200,175,120,0.1)":"none",color:sel?"#c8af78":"rgba(200,175,120,0.45)",cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s" }}>{t}</button>;
-                  })}
-                </div>
-              </div>
-              <div style={{ marginBottom:14 }}>
-                <div style={{ fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em",color:"rgba(200,175,120,0.45)",marginBottom:8 }}>Quantity</div>
-                <input type="number" min={1} placeholder="e.g. 200" value={vendorData.quantity||""} onChange={e=>onChange({...vendorData,quantity:e.target.value})} style={{ background:"#1e1a14",border:"0.5px solid rgba(200,175,120,0.18)",borderRadius:8,padding:"9px 12px",fontSize:13,color:"#e8dcc8",outline:"none",fontFamily:"inherit",width:140 }}/>
-              </div>
-            </>
+          {/* Service-specific fields — driven entirely by config, no per-service branching */}
+          {extraFields.map(field => (
+            <ExtraField key={field.key} field={field} vendorData={vendorData} onChange={onChange} />
+          ))}
+          {pricingModel === "perDay" && pricePerUnit > 0 && Number(vendorData.days) > 1 && (
+            <p style={{ fontSize:11,color:"rgba(200,175,120,0.4)",marginTop:-8,marginBottom:14 }}>= ₹{fmt(totalCost)} total</p>
           )}
 
           {/* Notes */}
@@ -592,7 +636,7 @@ const svcVendors = vendors; // already filtered correctly by the parent (StepVen
         </>
       )}
 
-      {showVendorModal&&<VendorPickerModal vendors={svcVendors} bookmarkedIds={bookmarkedIds} serviceType={serviceType} onSelect={v=>{onChange({...vendorData,vendor:v});setShowVendorModal(false);}} onClose={()=>setShowVendorModal(false)}/>}
+      {showVendorModal&&<VendorPickerModal vendors={vendors} bookmarkedIds={bookmarkedIds} serviceType={serviceType} onSelect={v=>{onChange({...vendorData,vendor:v});setShowVendorModal(false);}} onClose={()=>setShowVendorModal(false)}/>}
       {showRefModal&&<RefEventModal bookmarkedIds={bookmarkedIds} title={`Reference for ${serviceType}`} onSelect={ev=>{onChange({...vendorData,reference_event:ev});setShowRefModal(false);}} onClose={()=>setShowRefModal(false)}/>}
     </div>
   );
@@ -600,45 +644,47 @@ const svcVendors = vendors; // already filtered correctly by the parent (StepVen
 
 /* ─── STEP 2 — Vendors ────────────────────────────────────────────────────────── */
 function StepVendors({ vendors, vendorSelections, setVendorSelections, bookmarkedIds, onNext, onBack }) {
- const photoVendors = vendors.filter(v => {
-  const sid = String(v.service_id || "").trim();
-  return sid === "1" || sid === ""; // unassigned vendors default to Photography, matching the public listing page
-});
-const inviteVendors = vendors.filter(v => String(v.service_id || "").trim() === "5");
+  // NOTE: previously hardcoded `sid === "1"` / `sid === "5"` — service IDs
+  // now come straight from each entry in VENDOR_SERVICE_CONFIGS, so adding
+  // service #3 doesn't require touching this filtering logic at all.
+  const vendorsForService = (serviceId, includeUnassigned) => vendors.filter(v => {
+    const sid = String(v.service_id || "").trim();
+    if (sid === String(serviceId)) return true;
+    return includeUnassigned && !sid;
+  });
 
-  const atLeastOne = vendorSelections.photography.enabled || vendorSelections.invitations.enabled;
-  const photoOk = !vendorSelections.photography.enabled || vendorSelections.photography.vendor;
-  const inviteOk = !vendorSelections.invitations.enabled || vendorSelections.invitations.vendor;
-  const canNext = atLeastOne && photoOk && inviteOk;
+  const serviceBlocks = VENDOR_SERVICE_CONFIGS.map(cfg => ({
+    key: cfg.id,
+    config: cfg,
+    vendors: vendorsForService(cfg.serviceId, cfg.includeUnassigned),
+  }));
+
+  const anyEnabled = serviceBlocks.some(({ key }) => vendorSelections[key]?.enabled);
+  const allOk = serviceBlocks.every(({ key }) => !vendorSelections[key]?.enabled || vendorSelections[key]?.vendor);
+  const canNext = anyEnabled && allOk;
 
   return (
     <div className={styles.stepWrap}>
       <p className={styles.stepDesc}>Select vendors for your event. Toggle a service on to configure it.</p>
 
-      <VendorBlock
-        serviceType="Photography"
-        serviceId="1"
-        vendors={photoVendors}
-        bookmarkedIds={bookmarkedIds}
-        vendorData={vendorSelections.photography}
-        onChange={data=>setVendorSelections(s=>({...s,photography:data}))}
-      />
-
-      <VendorBlock
-        serviceType="Custom Invitations"
-        serviceId="5"
-        vendors={inviteVendors}
-        bookmarkedIds={bookmarkedIds}
-        vendorData={vendorSelections.invitations}
-        onChange={data=>setVendorSelections(s=>({...s,invitations:data}))}
-      />
+      {serviceBlocks.map(({ key, config, vendors: svcVendors }) => (
+        <VendorBlock
+          key={key}
+          serviceType={config.title || config.singular || key}
+          serviceConfig={config}
+          vendors={svcVendors}
+          bookmarkedIds={bookmarkedIds}
+          vendorData={vendorSelections[key] || { enabled: false, vendor: null, notes: "", reference_event: null }}
+          onChange={data => setVendorSelections(s => ({ ...s, [key]: data }))}
+        />
+      ))}
 
       <div className={styles.btnRow}>
         <button className={styles.btnSecondary} onClick={onBack}>Back</button>
         <button className={styles.btnPrimary} onClick={onNext} disabled={!canNext}>Next — View budget</button>
       </div>
-      {!canNext&&atLeastOne&&<p style={{ fontSize:11,color:"rgba(200,175,120,0.35)",marginTop:8 }}>Please select a vendor for each enabled service.</p>}
-      {!atLeastOne&&<p style={{ fontSize:11,color:"rgba(200,175,120,0.35)",marginTop:8 }}>Add at least one vendor service to continue.</p>}
+      {!canNext&&anyEnabled&&<p style={{ fontSize:11,color:"rgba(200,175,120,0.35)",marginTop:8 }}>Please select a vendor for each enabled service.</p>}
+      {!anyEnabled&&<p style={{ fontSize:11,color:"rgba(200,175,120,0.35)",marginTop:8 }}>Add at least one vendor service to continue.</p>}
     </div>
   );
 }
@@ -646,7 +692,6 @@ const inviteVendors = vendors.filter(v => String(v.service_id || "").trim() === 
 /* ─── STEP 3 — Budget ─────────────────────────────────────────────────────────── */
 function StepBudget({ form, vendorSelections, budget, onNext, onBack }) {
   const rows = budget.rows;
-  const subtotal = budget.subtotal;
   const contingency = budget.contingency;
   const total = budget.total;
 
@@ -679,7 +724,7 @@ function StepBudget({ form, vendorSelections, budget, onNext, onBack }) {
       </div>
 
       <div style={{ background:"rgba(200,175,120,0.04)",border:"0.5px solid rgba(200,175,120,0.12)",borderRadius:10,padding:"12px 16px",marginBottom:20,fontSize:12,color:"rgba(200,175,120,0.45)",lineHeight:1.7 }}>
-        This is an estimate based on vendor day rates. Final pricing will be confirmed with each vendor. Advance payment (30%) will be collected once admin approves your event.
+        This is an estimate based on vendor rates. Final pricing will be confirmed with each vendor. Advance payment (30%) will be collected once admin approves your event.
       </div>
 
       <div className={styles.btnRow}>
@@ -719,9 +764,6 @@ function RefImageBlock({ label, event }) {
 }
 
 function StepReview({ form, vendorSelections, budget, submitting, submitError, onBack, onSubmit }) {
-  const photoSel = vendorSelections.photography;
-  const inviteSel = vendorSelections.invitations;
-
   return (
     <div className={styles.stepWrap}>
       <p className={styles.stepDesc}>Review everything before submitting. Your event will be reviewed by admin within 24 hours.</p>
@@ -741,30 +783,28 @@ function StepReview({ form, vendorSelections, budget, submitting, submitError, o
         </div>
       </div>
 
-      {/* Photography */}
-      {photoSel.enabled && photoSel.vendor && (
-        <div style={{ background:"rgba(200,175,120,0.03)",border:"0.5px solid rgba(200,175,120,0.15)",borderRadius:14,padding:"20px 22px",marginBottom:20 }}>
-          <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.12em",color:"rgba(200,175,120,0.5)",marginBottom:14 }}>Photography</div>
-          <ReviewItem label="Vendor" value={photoSel.vendor.name}/>
-          <ReviewItem label="Days" value={photoSel.days ? `${photoSel.days} day${photoSel.days>1?"s":""}` : "1 day"}/>
-          <ReviewItem label="Coverage" value={(photoSel.coverage_types||[]).join(", ") || "—"}/>
-          <ReviewItem label="Notes" value={photoSel.notes}/>
-          <ReviewItem label="Rate" value={photoSel.vendor.price_per_day ? `₹${fmt(photoSel.vendor.price_per_day)} / day` : "To be confirmed"}/>
-          {photoSel.reference_event&&<div style={{ marginTop:14 }}><RefImageBlock label="Reference for Photography" event={photoSel.reference_event}/></div>}
-        </div>
-      )}
-
-      {/* Invitations */}
-      {inviteSel.enabled && inviteSel.vendor && (
-        <div style={{ background:"rgba(200,175,120,0.03)",border:"0.5px solid rgba(200,175,120,0.15)",borderRadius:14,padding:"20px 22px",marginBottom:20 }}>
-          <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.12em",color:"rgba(200,175,120,0.5)",marginBottom:14 }}>Custom Invitations</div>
-          <ReviewItem label="Vendor" value={inviteSel.vendor.name}/>
-          <ReviewItem label="Type" value={(inviteSel.coverage_types||[]).join(", ") || "—"}/>
-          <ReviewItem label="Quantity" value={inviteSel.quantity ? `${inviteSel.quantity} pieces` : "—"}/>
-          <ReviewItem label="Notes" value={inviteSel.notes}/>
-          {inviteSel.reference_event&&<div style={{ marginTop:14 }}><RefImageBlock label="Reference for Invitations" event={inviteSel.reference_event}/></div>}
-        </div>
-      )}
+      {/* One review block per enabled service — generic, not photography/invitations-specific */}
+      {VENDOR_SERVICE_CONFIGS.map(cfg => {
+        const sel = vendorSelections[cfg.id];
+        if (!sel?.enabled || !sel?.vendor) return null;
+        const { pricingModel, extraFields } = getServiceFields(cfg);
+        return (
+          <div key={cfg.id} style={{ background:"rgba(200,175,120,0.03)",border:"0.5px solid rgba(200,175,120,0.15)",borderRadius:14,padding:"20px 22px",marginBottom:20 }}>
+            <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.12em",color:"rgba(200,175,120,0.5)",marginBottom:14 }}>{cfg.title || cfg.singular}</div>
+            <ReviewItem label="Vendor" value={sel.vendor.name}/>
+            {extraFields.map(f => (
+              <ReviewItem
+                key={f.key}
+                label={f.label}
+                value={Array.isArray(sel[f.key]) ? sel[f.key].join(", ") : sel[f.key]}
+              />
+            ))}
+            <ReviewItem label="Notes" value={sel.notes}/>
+            <ReviewItem label="Rate" value={sel.vendor.price_per_day ? `₹${fmt(sel.vendor.price_per_day)}${pricingModel==="perDay"?" / day":""}` : "To be confirmed"}/>
+            {sel.reference_event&&<div style={{ marginTop:14 }}><RefImageBlock label={`Reference for ${cfg.title || cfg.singular}`} event={sel.reference_event}/></div>}
+          </div>
+        );
+      })}
 
       {/* Budget summary */}
       <div style={{ background:"rgba(200,175,120,0.05)",border:"0.5px solid rgba(200,175,120,0.2)",borderRadius:14,padding:"20px 22px",marginBottom:20 }}>
@@ -823,11 +863,15 @@ export default function CreateEventPage() {
     reference_event: prefillEvent || null,
   });
 
-  // Step 2 vendor selections
-  const [vendorSelections, setVendorSelections] = useState({
-    photography: { enabled: false, vendor: null, days: 1, coverage_types: [], notes: "", reference_event: null },
-    invitations:  { enabled: false, vendor: null, coverage_types: [], quantity: "", notes: "", reference_event: null },
-  });
+  // Step 2 vendor selections — keyed by serviceConfig.id, one empty slot
+  // per configured service. Adding service #3 to VENDOR_SERVICE_CONFIGS
+  // means it shows up here automatically, no state shape change needed.
+  const [vendorSelections, setVendorSelections] = useState(() =>
+    Object.fromEntries(VENDOR_SERVICE_CONFIGS.map(cfg => [
+      cfg.id,
+      { enabled: false, vendor: null, notes: "", reference_event: null },
+    ]))
+  );
 
   // Fetch availability + vendors
   useEffect(() => {
@@ -845,17 +889,21 @@ export default function CreateEventPage() {
     }).catch(()=>{});
   }, []);
 
-  // Compute budget
+  // Compute budget — generic across every configured service instead of
+  // reading vendorSelections.photography / .invitations by name.
   const budget = (() => {
     const rows = [];
-    const ps = vendorSelections.photography;
-    const is = vendorSelections.invitations;
-    if (ps.enabled && ps.vendor?.price_per_day) {
-      const days = Number(ps.days) || 1;
-      rows.push({ label: "Photography", sub: `${ps.vendor.name} × ${days} day${days>1?"s":""}`, amt: Number(ps.vendor.price_per_day) * days });
-    }
-    if (is.enabled && is.vendor?.price_per_day) {
-      rows.push({ label: "Custom Invitations", sub: is.vendor.name, amt: Number(is.vendor.price_per_day) });
+    for (const cfg of VENDOR_SERVICE_CONFIGS) {
+      const sel = vendorSelections[cfg.id];
+      if (!sel?.enabled || !sel?.vendor?.price_per_day) continue;
+      const { pricingModel } = getServiceFields(cfg);
+      const amt = computeVendorTotal(pricingModel, sel);
+      const days = Number(sel.days) || 1;
+      rows.push({
+        label: cfg.title || cfg.singular,
+        sub: pricingModel === "perDay" && days > 1 ? `${sel.vendor.name} × ${days} days` : sel.vendor.name,
+        amt,
+      });
     }
     const subtotal = rows.reduce((s,r)=>s+r.amt, 0);
     const contingency = Math.round(subtotal * 0.05);
@@ -866,33 +914,26 @@ export default function CreateEventPage() {
   const handleSubmit = useCallback(async () => {
     setSubmitting(true); setSubmitError("");
 
-    const ps = vendorSelections.photography;
-    const is = vendorSelections.invitations;
-
     const vendorsPayload = [];
-    if (ps.enabled && ps.vendor) {
-      vendorsPayload.push({
-        vendor_id: ps.vendor.id,
-        service_type: "Photography",
-        quoted_price: Number(ps.vendor.price_per_day||0) * (Number(ps.days)||1),
-        vendor_notes: ps.notes || "",
-        coverage_types: ps.coverage_types,
-        days: ps.days || 1,
-        reference_event_id: ps.reference_event?.id || null,
-        reference_event_image: ps.reference_event?.img || null,
-      });
-    }
-    if (is.enabled && is.vendor) {
-      vendorsPayload.push({
-        vendor_id: is.vendor.id,
-        service_type: "Custom Invitations",
-        quoted_price: Number(is.vendor.price_per_day||0),
-        vendor_notes: is.notes || "",
-        coverage_types: is.coverage_types,
-        quantity: is.quantity,
-        reference_event_id: is.reference_event?.id || null,
-        reference_event_image: is.reference_event?.img || null,
-      });
+    for (const cfg of VENDOR_SERVICE_CONFIGS) {
+      const sel = vendorSelections[cfg.id];
+      if (!sel?.enabled || !sel?.vendor) continue;
+      const { pricingModel, extraFields } = getServiceFields(cfg);
+      const quoted_price = computeVendorTotal(pricingModel, sel);
+      const entry = {
+        vendor_id: sel.vendor.id,
+        service_type: cfg.title || cfg.singular,
+        quoted_price,
+        vendor_notes: sel.notes || "",
+        reference_event_id: sel.reference_event?.id || null,
+        reference_event_image: sel.reference_event?.img || null,
+      };
+      // fold config-declared extra fields (days, coverage_types, quantity, ...)
+      // straight into the payload so the backend keeps receiving the same
+      // shape it always has for photography/invitations, and any new
+      // service's fields ride along automatically.
+      for (const f of extraFields) entry[f.key] = sel[f.key];
+      vendorsPayload.push(entry);
     }
 
     const payload = {

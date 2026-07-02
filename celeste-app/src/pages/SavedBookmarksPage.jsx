@@ -14,7 +14,7 @@ function classifyItem(item) {
   const id = item?.id ?? item;
   const type = item?.type;
 
-  // Explicit vendor types set when bookmarking from PhotographyPage / ProfilePage
+  // Explicit vendor types set when bookmarking from VendorListingPage / VendorProfilePage
   const vendorTypes = ['Photography', 'Vendor', 'Custom Invitations',
     ...VENDOR_SERVICE_CONFIGS.map(s => s.bookmarkType)];
   if (type && vendorTypes.includes(type)) return 'vendor';

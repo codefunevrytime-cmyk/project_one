@@ -1,11 +1,11 @@
-# TODO: Change Blog to Explore_Event & Update Nav Order
+# 1 booking and event req only one , all details like image to click to redirect to original source 
 
-## Steps:
-- [x] Step 1: Read and analyze celeste-app/src/styles/global.css for blog references (blog styles present, will update for events)
-- [x] Step 2: Updated Blog nav links and reordered to Home | Explore Event | Product | About | Contact in all HTML files
-- [x] Step 3: Created explore_event.html with events theme content and correct nav; recommend deleting old blog.html
-- [ ] Step 4: Check/update React files if needed (BlogPage.jsx → ExploreEventPage.jsx?, blogData.js → exploreEventData.js, Navbar.jsx 'Contacts'→'Contact')
-- [ ] Step 5: Verify global.css and other potential files (search confirmed none)
-- [ ] Step 6: Test nav links by opening landing.html in browser
-- [ ] Complete: attempt_completion
+# 2 when adding event direct from explore page event card to be real image and also from bookmakrs 
 
+# 3 proper image or fdirect page redirect in choosing event and vendor image 
+
+# 4 multiple different vendor 
+
+# 5 in admin instead 0f vendors " services " and inside services option to access different service by dropdown in particular service all vendirs 
+
+# 6  

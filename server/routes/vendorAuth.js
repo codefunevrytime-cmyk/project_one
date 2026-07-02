@@ -48,6 +48,11 @@ async function ensureTables() {
   await pool.query(`
     ALTER TABLE queries ADD COLUMN IF NOT EXISTS contact_revealed BOOLEAN DEFAULT false
   `);
+
+  // services.category column — VendorProfile.jsx (frontend) picks its form
+  // config using service_category, which comes from this column via the
+  // vendors -> services join.
+  await pool.query(`ALTER TABLE services ADD COLUMN IF NOT EXISTS category TEXT`).catch(() => {});
 }
 ensureTables().catch(console.error);
 
@@ -65,17 +70,49 @@ function vendorAuth(req, res, next) {
 }
 
 // POST /api/vendor-auth/signup
+// Accepts `service_category` (e.g. 'photography', 'catering', 'decor', etc
+// — matching VendorProfile.jsx's SERVICE_CONFIGS keys). If provided:
+//   1. Finds or creates a matching row in `services` with that category.
+//   2. Creates a `vendors` row up front, linked to that service.
+//   3. Links the new vendor_user to that vendor row immediately.
 router.post('/signup', async (req, res) => {
   try {
-    const { name, email, password, phone } = req.body;
+    const { name, email, password, phone, service_category } = req.body;
     const exists = await pool.query('SELECT id FROM vendor_users WHERE email = $1', [email]);
     if (exists.rows.length > 0) return res.status(400).json({ error: 'Email already registered' });
+
     const hash = await bcrypt.hash(password, 10);
     const result = await pool.query(
       'INSERT INTO vendor_users (name, email, password, phone) VALUES ($1, $2, $3, $4) RETURNING id, name, email, phone, status',
       [name, email, hash, phone || null]
     );
-    const user  = result.rows[0];
+    const user = result.rows[0];
+
+    if (service_category) {
+      let serviceRow = await pool.query(
+        'SELECT id FROM services WHERE LOWER(category) = LOWER($1) LIMIT 1',
+        [service_category]
+      );
+
+      let serviceId;
+      if (serviceRow.rows.length > 0) {
+        serviceId = serviceRow.rows[0].id;
+      } else {
+        const insSvc = await pool.query(
+          'INSERT INTO services (name, description, category) VALUES ($1, $2, $3) RETURNING id',
+          [service_category, `${service_category} vendors`, service_category]
+        );
+        serviceId = insSvc.rows[0].id;
+      }
+
+      const insVendor = await pool.query(
+        'INSERT INTO vendors (name, service_id, is_active) VALUES ($1, $2, true) RETURNING id',
+        [name, serviceId]
+      );
+      await pool.query('UPDATE vendor_users SET vendor_id = $1 WHERE id = $2', [insVendor.rows[0].id, user.id]);
+      user.vendor_id = insVendor.rows[0].id;
+    }
+
     const token = jwt.sign({ vendorUserId: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
     res.json({ token, user });
   } catch (err) {
@@ -100,9 +137,6 @@ router.post('/login', async (req, res) => {
 });
 
 // GET /api/vendor-auth/me
-// Joined through vendors -> services so service_category (services.category)
-// comes back on the user object — VendorLayout.jsx reads vendorUser.service_category
-// for the sidebar badge.
 router.get('/me', vendorAuth, async (req, res) => {
   try {
     const result = await pool.query(
@@ -171,7 +205,6 @@ router.post('/enquiries/:id/reply', vendorAuth, async (req, res) => {
 // POST /api/vendor-auth/enquiries/:id/request-contact
 router.post('/enquiries/:id/request-contact', vendorAuth, async (req, res) => {
   try {
-    // Check if already requested
     const existing = await pool.query(
       'SELECT id FROM vendor_contact_requests WHERE vendor_user_id = $1 AND enquiry_id = $2',
       [req.vendorUserId, req.params.id]
@@ -189,9 +222,6 @@ router.post('/enquiries/:id/request-contact', vendorAuth, async (req, res) => {
 });
 
 // GET /api/vendor-auth/profile  — get linked vendor profile
-// Joined through vendors -> services so service_category (services.category)
-// and service_name (services.name) come back on the `vendor` object —
-// VendorProfile.jsx reads vendor.service_category to pick the right form config.
 router.get('/profile', vendorAuth, async (req, res) => {
   try {
     const userRes = await pool.query('SELECT * FROM vendor_users WHERE id = $1', [req.vendorUserId]);
@@ -232,17 +262,24 @@ const multerStorage = multer.diskStorage({
 });
 const upload = multer({ storage: multerStorage });
 
+// ── UPDATED ──────────────────────────────────────────────────────────────
+// Now reads and persists `price_per_day` — the average price computed on
+// the frontend (VendorProfile.jsx) from whichever services the vendor
+// ticked and priced individually. This is the ONLY price value ever shown
+// on the public profile / listing pages; per-service prices stay internal
+// to the vendor's own edit form (stored in the `prices` JSONB column, but
+// never rendered publicly).
 router.put('/profile', vendorAuth, upload.single('photo'), async (req, res) => {
   try {
     const userRes = await pool.query('SELECT * FROM vendor_users WHERE id = $1', [req.vendorUserId]);
     const user = userRes.rows[0];
 
     let vendorId = user.vendor_id;
-    const { name, specialty, contact, location, bio, travel_info, delivery_time, payment_terms } = req.body;
-    const services    = req.body.services    ? JSON.parse(req.body.services)    : [];
-    const event_types = req.body.event_types ? JSON.parse(req.body.event_types) : [];
-    const prices      = req.body.prices      ? JSON.parse(req.body.prices)      : {};
-    const photo_url   = req.file ? `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}` : null;
+    const { name, specialty, contact, location, bio, travel_info, delivery_time, payment_terms, price_per_day } = req.body;
+    const services = req.body.services ? JSON.parse(req.body.services) : [];
+    const prices   = req.body.prices   ? JSON.parse(req.body.prices)   : {};
+    const photo_url = req.file ? `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}` : null;
+    const priceVal  = price_per_day ? Number(price_per_day) : null;
 
     // Ensure vendors table has these columns
     await pool.query(`ALTER TABLE vendors ADD COLUMN IF NOT EXISTS location TEXT`).catch(() => {});
@@ -255,23 +292,25 @@ router.put('/profile', vendorAuth, upload.single('photo'), async (req, res) => {
     await pool.query(`ALTER TABLE vendors ADD COLUMN IF NOT EXISTS prices JSONB`).catch(() => {});
 
     if (!vendorId) {
-      // Create new vendor record linked to this vendor user
+      // Fallback path: only runs if a vendor_user somehow has no vendor_id
+      // yet (e.g. signed up before the service-category signup fix, or
+      // without picking a service). Now also sets price_per_day.
       const ins = await pool.query(
-        `INSERT INTO vendors (name, specialty, contact, location, bio, travel_info, delivery_time, payment_terms, services, event_types, prices, is_active, photo_url)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,true,$12) RETURNING id`,
-        [name, specialty, contact, location, bio, travel_info, delivery_time, payment_terms, JSON.stringify(services), JSON.stringify(event_types), JSON.stringify(prices), photo_url]
+        `INSERT INTO vendors (name, specialty, contact, location, bio, travel_info, delivery_time, payment_terms, services, prices, is_active, photo_url, price_per_day)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true,$11,$12) RETURNING id`,
+        [name, specialty, contact, location, bio, travel_info, delivery_time, payment_terms, JSON.stringify(services), JSON.stringify(prices), photo_url, priceVal]
       );
       vendorId = ins.rows[0].id;
       await pool.query('UPDATE vendor_users SET vendor_id = $1 WHERE id = $2', [vendorId, req.vendorUserId]);
     } else {
       const photoClause = photo_url ? `, photo_url = '${photo_url}'` : '';
       await pool.query(
-        `UPDATE vendors SET name=$1, specialty=$2, contact=$3, location=$4, bio=$5, travel_info=$6, delivery_time=$7, payment_terms=$8, services=$9, event_types=$10, prices=$11 ${photoClause} WHERE id=$12`,
-        [name, specialty, contact, location, bio, travel_info, delivery_time, payment_terms, JSON.stringify(services), JSON.stringify(event_types), JSON.stringify(prices), vendorId]
+        `UPDATE vendors SET name=$1, specialty=$2, contact=$3, location=$4, bio=$5, travel_info=$6, delivery_time=$7, payment_terms=$8, services=$9, prices=$10, price_per_day=$11 ${photoClause} WHERE id=$12`,
+        [name, specialty, contact, location, bio, travel_info, delivery_time, payment_terms, JSON.stringify(services), JSON.stringify(prices), priceVal, vendorId]
       );
     }
 
-    res.json({ success: true, vendor_id: vendorId });
+    res.json({ success: true, vendor_id: vendorId, price_per_day: priceVal });
   } catch (err) {
     console.error('Vendor profile update error:', err);
     res.status(500).json({ error: err.message });
