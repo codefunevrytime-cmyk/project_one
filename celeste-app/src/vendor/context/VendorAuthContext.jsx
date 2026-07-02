@@ -1,7 +1,9 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 const VendorAuthContext = createContext(null);
-const API = 'http://localhost:5000/api';
+import { API_URL } from '../../config/api';
+
+const API = API_URL;
 const TOKEN_KEY = 'vendor_token';
 
 export function VendorAuthProvider({ children }) {

@@ -3,7 +3,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { VENDOR_SERVICE_CONFIGS } from '../context/data/vendorServiceConfig';
 
-const API = 'http://localhost:5000/api';
+import { API_URL } from '../config/api';
+
+const API = API_URL;
 
 export default function VendorRegistrationPage() {
   const navigate = useNavigate();
@@ -58,25 +60,28 @@ export default function VendorRegistrationPage() {
     setLoading(true);
 
     try {
-      // Prepare payload
+      // Prepare payload for vendor-auth/signup
       const payload = {
-        ...basicInfo,
-        services_offered: selectedServices,
-        primary_service: primaryService,
-        service_details: serviceDetails,
+        name: basicInfo.name,
+        email: basicInfo.email,
+        password: basicInfo.password,
+        phone: basicInfo.phone,
+        service_category: primaryService, // Use primary service as category
       };
 
-      const res = await fetch(`${API}/vendors/register`, {
+      const res = await fetch(`${API}/vendor-auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
       const data = await res.json();
-      
-      if (data.success) {
+
+      if (data.token) {
+        // Store token
+        localStorage.setItem('vendor_token', data.token);
         setSuccess(true);
-        setTimeout(() => navigate('/vendor/login'), 3000);
+        setTimeout(() => navigate('/vendor/dashboard'), 3000);
       } else {
         setError(data.error || 'Registration failed');
       }

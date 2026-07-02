@@ -5,7 +5,9 @@ import { useModal } from '../hooks/useModal';
 import Footer from '../components/Footer';
 import { testimonialData } from '../context/data/testimonialData';
 
-const API = 'http://localhost:5000/api';
+import { API_URL } from '../config/api';
+
+const API = API_URL;
 
 /* Hero Slider Data */
 const heroSlides = [

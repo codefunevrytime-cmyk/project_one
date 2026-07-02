@@ -32,7 +32,7 @@ import PaymentCheckout from './pages/PaymentCheckout';
 import PaymentsHistory from './pages/PaymentsHistory';
 import ProtectedRoute from './components/ProtectedRoute';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+import { API_URL } from './config/api';
 
 // ── Decides which payments page to show based on real payment history ─────────
 function PaymentsGate() {
@@ -42,7 +42,7 @@ function PaymentsGate() {
 
   useEffect(() => {
     if (!user?.email) { setChecking(false); return; }
-    fetch(`${API_BASE}/api/payments/history?email=${encodeURIComponent(user.email)}`)
+    fetch(`${API_URL}/payments/history?email=${encodeURIComponent(user.email)}`)
       .then(r => r.json())
       .then(d => { setHasPayments(Array.isArray(d) && d.length > 0); setChecking(false); })
       .catch(() => setChecking(false));

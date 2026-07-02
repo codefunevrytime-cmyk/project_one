@@ -3,7 +3,9 @@ import { useState, useEffect } from 'react';
 import { useVendorAuth } from '../context/VendorAuthContext';
 import './VendorEventRequests.css';
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import { API_URL } from '../../config/api';
+
+const API = API_URL;
 
 export default function VendorEventRequests() {
   const [requests, setRequests] = useState([]);

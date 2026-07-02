@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { DEFAULT_VENDOR_SERVICE, VENDOR_SERVICE_CONFIGS, getVendorServiceConfig } from '../../context/data/vendorServiceConfig';
 
-const API = 'http://localhost:5000/api';
+import { API_URL } from '../../config/api';
+
+const API = API_URL;
 const token = () => localStorage.getItem('adminToken');
 
 export default function AdminVendors() {
