@@ -5,7 +5,9 @@ import { eventsData } from '../context/data/eventsData';
 import { PHOTOGRAPHERS } from '../context/data/photographyData';
 import { VENDOR_SERVICE_CONFIGS } from '../context/data/vendorServiceConfig';
 
-const API = 'http://localhost:5000/api';
+import { API_URL } from '../config/api';
+
+const API = API_URL;
 
 // ── Classify a bookmarked item ────────────────────────────────────────────────
 // Items stored in AuthContext bookmarkedEventIds are raw IDs (numbers or strings).

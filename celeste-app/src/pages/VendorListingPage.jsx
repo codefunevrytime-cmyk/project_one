@@ -7,7 +7,9 @@ import PriceSlider from "../components/PriceSlider";
 import { BookmarkButton, FilterOption, FilterPanel, FilterSection, SearchBar } from "../components/CommonControls";
 import './VendorListingPage.css';
 
-const API = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'http://localhost:5000/api';
+import { API_URL } from '../config/api';
+
+const API = API_URL;
 const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function mapVendorToCard(vendor, portfolio, tags, serviceConfig) {

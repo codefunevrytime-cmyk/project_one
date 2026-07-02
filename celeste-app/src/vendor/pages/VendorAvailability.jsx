@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 
-const API = 'http://localhost:5000/api';
+import { API_URL } from '../../config/api';
+
+const API = API_URL;
 const token = () => localStorage.getItem('vendor_token');
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const DAY_NAMES = ['Su','Mo','Tu','We','Th','Fr','Sa'];

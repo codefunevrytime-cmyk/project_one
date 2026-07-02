@@ -2,7 +2,9 @@
 import { useState, useEffect } from 'react';
 import './AdminEventRequests.css';
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+import { API_URL } from '../../config/api';
+
+const API = API_URL;
 
 const STATUS_OPTIONS = [
   { value: 'pending',         label: 'Pending' },
@@ -36,7 +38,7 @@ export default function AdminEventRequests() {
   async function fetchEvents() {
     try {
       const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
-      const res = await fetch(`${API}/api/events/admin/all`, {
+      const res = await fetch(`${API}/events/admin/all`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
@@ -52,7 +54,7 @@ export default function AdminEventRequests() {
     setStatusUpdating(s => ({ ...s, [eventId]: true }));
     try {
       const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
-      await fetch(`${API}/api/events/admin/${eventId}/status`, {
+      await fetch(`${API}/events/admin/${eventId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ status, admin_notes: notes[eventId] || '' })
@@ -77,7 +79,7 @@ export default function AdminEventRequests() {
       const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
 
       // Cancel the event
-      await fetch(`${API}/api/events/admin/${eventId}/status`, {
+      await fetch(`${API}/events/admin/${eventId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ status: 'cancelled', admin_notes: notes[eventId] || 'Terminated by admin — deal not finalised' })
@@ -85,7 +87,7 @@ export default function AdminEventRequests() {
 
       // Trigger refund if advance was paid
       if (hasPaid) {
-        const refRes = await fetch(`${API}/api/payments/refund`, {
+        const refRes = await fetch(`${API}/payments/refund`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ booking_id: eventId, refund_pct: 100 })

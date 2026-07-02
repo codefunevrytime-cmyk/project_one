@@ -7,7 +7,9 @@ import styles from "./CreateEventPage.module.css";
 import { VENDOR_SERVICE_CONFIGS } from "../context/data/vendorServiceConfig";
 
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:5000";
+import { API_URL } from '../config/api';
+
+const API = API_URL;
 
 /* ─── draft persistence — so navigating away to /explore or a vendor
    listing page to "pick" something doesn't lose in-progress form state ── */
@@ -704,13 +706,13 @@ export default function CreateEventPage() {
 
   // Fetch availability + vendors
   useEffect(() => {
-    fetch(`${API}/api/availability`).then(r=>r.json()).then(d=>setAvailability(Array.isArray(d)?d:[])).catch(()=>{});
-    fetch(`${API}/api/vendors`).then(r=>r.json()).then(async data=>{
+    fetch(`${API}/availability`).then(r=>r.json()).then(d=>setAvailability(Array.isArray(d)?d:[])).catch(()=>{});
+    fetch(`${API}/vendors`).then(r=>r.json()).then(async data=>{
       if(!Array.isArray(data)) return;
       const active = data.filter(v=>v.is_active);
       const enriched = await Promise.all(active.map(async v=>{
         try {
-          const p = await fetch(`${API}/api/vendors/${v.id}/portfolio`).then(r=>r.json());
+          const p = await fetch(`${API}/vendors/${v.id}/portfolio`).then(r=>r.json());
           return { ...v, portfolio: Array.isArray(p)?p:[] };
         } catch { return { ...v, portfolio:[] }; }
       }));
@@ -795,7 +797,7 @@ export default function CreateEventPage() {
     };
 
     try {
-      const res = await fetch(`${API}/api/events`, {
+      const res = await fetch(`${API}/events`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("celeste_token") || localStorage.getItem("token")}` },
         body: JSON.stringify(payload),

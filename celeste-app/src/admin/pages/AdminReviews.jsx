@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 
-const API = 'http://localhost:5000/api';
+import { API_URL } from '../../config/api';
+
+const API = API_URL;
 const token = () => localStorage.getItem('adminToken');
 
 export default function AdminReviews() {

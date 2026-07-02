@@ -2,7 +2,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:5000";
+import { API_URL } from '../config/api';
+
+const API = API_URL;
 
 /* ─── Date helper ────────────────────────────────────────────────────────────
    Safely parses event_date whether it arrives as a plain "YYYY-MM-DD" string
@@ -488,7 +490,7 @@ export default function MyEvents() {
 
   const fetchEvents = useCallback(() => {
     const token = localStorage.getItem("celeste_token") || localStorage.getItem("token");
-    fetch(`${API}/api/events/my`, { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${API}/events/my`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => { setEvents(Array.isArray(data) ? data : []); setLoading(false); })
       .catch(() => setLoading(false));
@@ -501,7 +503,7 @@ export default function MyEvents() {
     setCancelling(true);
     try {
       const token = localStorage.getItem("celeste_token") || localStorage.getItem("token");
-      await fetch(`${API}/api/events/${cancelTarget.id}/cancel`, {
+      await fetch(`${API}/events/${cancelTarget.id}/cancel`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       });
@@ -555,7 +557,7 @@ export default function MyEvents() {
       )}
 
       {/* Tab nav */}
-      <nav style={{ display:"flex", padding:"0 32px", background:"#1a1510", gap:0 }}>
+      <nav style={{ display:"flex", padding:"0 32px", background:"#1a1510", gap:0 ,zIndex:1}}>
         {TABS.map(({ key, list }) => (
           <button key={key} onClick={()=>setActiveTab(key)} style={{
             fontFamily:"inherit", fontSize:11.5, fontWeight:400, letterSpacing:"0.18em", textTransform:"uppercase",
@@ -577,7 +579,7 @@ export default function MyEvents() {
       {/* Main content */}
       <main style={{ padding:"28px 32px 60px", maxWidth:900, margin:"0 auto" }}>
         {loading ? (
-          <div style={{ padding:"60px 0", textAlign:"center", color:"rgba(200,175,120,0.4)", fontSize:13 }}>Loading your events…</div>
+          <div style={{ padding:"60px 0", textAlign:"center", color:"rgba(113, 92, 46, 0.4)", fontSize:13 }}>Loading your events…</div>
         ) : (() => {
           const currentList = TABS.find(t=>t.key===activeTab)?.list || [];
           if (currentList.length === 0) {

@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { AuthContext } from './auth-context';
 import { clearUserSession } from './authStorage';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
+import { API_BASE, API_URL } from '../config/api';
+
+const API = API_URL;
 const BOOKMARKS_KEY = 'celeste_bookmarks';
 const TOKEN_KEY     = 'celeste_token';
 

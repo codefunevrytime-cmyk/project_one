@@ -2,6 +2,16 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 
+// Ensure queries table has event_type and event_date columns
+(async () => {
+  try {
+    await pool.query(`ALTER TABLE queries ADD COLUMN IF NOT EXISTS event_type TEXT`);
+    await pool.query(`ALTER TABLE queries ADD COLUMN IF NOT EXISTS event_date DATE`);
+  } catch (err) {
+    // Ignore errors if columns already exist
+  }
+})();
+
 // GET all queries (admin)
 router.get('/', async (req, res) => {
   try {
@@ -17,10 +27,10 @@ router.get('/', async (req, res) => {
 // POST new query (from client)
 router.post('/', async (req, res) => {
   try {
-    const { client_name, email, phone, message } = req.body;
+    const { client_name, email, phone, message, vendor_id, event_type, event_date } = req.body;
     await pool.query(
-      'INSERT INTO queries (client_name, email, phone, message) VALUES ($1, $2, $3, $4)',
-      [client_name, email, phone, message]
+      'INSERT INTO queries (client_name, email, phone, message, vendor_id, event_type, event_date) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+      [client_name, email, phone, message, vendor_id || null, event_type || null, event_date || null]
     );
     res.json({ success: true });
   } catch (err) {

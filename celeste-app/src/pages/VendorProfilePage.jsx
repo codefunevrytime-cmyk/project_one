@@ -8,7 +8,9 @@ import './VendorProfilePage.css';
 import ClientMessaging from '../components/ClientMessaging';
 
 
-const API = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'http://localhost:5000/api';
+import { API_URL } from '../config/api';
+
+const API = API_URL;
 
 const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -573,6 +575,7 @@ const photographer = dbVendor
       client_name: contactForm.name,
       email:       contactForm.email || '',
       phone:       contactForm.phone,
+      vendor_id:   resolvedVendorId,
       message:     `[${serviceConfig.singular}: ${photographer.name}]\nDate: ${contactForm.date || 'Not specified'}\n${contactForm.details}`,
     };
     try {
@@ -605,14 +608,11 @@ const photographer = dbVendor
       client_name: bookingForm.name,
       email: bookingForm.email || '',
       phone: bookingForm.phone,
-      event_type: bookingForm.eventType || 'Event',
-      event_date: bookingForm.date || null,
-      message: `[${serviceConfig.singular}: ${photographer.name}] - Direct Booking Request\nDate: ${bookingForm.date || 'Not specified'}`,
-      reference_event_id: photographer?.id || null,
-      reference_image: photographer?.photo_url || null,
+      vendor_id: resolvedVendorId,
+      message: `[${serviceConfig.singular}: ${photographer.name}] - Direct Booking Request\nEvent Type: ${bookingForm.eventType || 'Event'}\nDate: ${bookingForm.date || 'Not specified'}`,
     };
     try {
-      const res = await fetch(`${API}/bookings`, {
+      const res = await fetch(`${API}/queries`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

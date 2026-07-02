@@ -8,7 +8,9 @@ import ClientAdminChat from '../components/ClientAdminChat';
 import { useAuth } from '../hooks/useAuth';
 
 
-const API = "http://localhost:5000/api";
+import { API_URL } from '../config/api';
+
+const API = API_URL;
 
 const EVENT_PRICE_MAX = 120000;
 const EMPTY_FILTERS = { type: new Set(), venue: new Set(), year: new Set(), scale: new Set(), price: [0, EVENT_PRICE_MAX] };

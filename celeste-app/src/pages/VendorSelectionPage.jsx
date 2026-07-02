@@ -3,13 +3,15 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import styles from "./CreateEventPage.module.css";
 
-const API = "http://localhost:5000/api";
+import { API_URL } from '../config/api';
+
+const API = API_URL;
 
 export default function VendorSelectionPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, bookmarks } = useAuth();
-  
+  const { user, isBookmarked } = useAuth();
+
   const eventData = location.state?.eventData || {};
   const [vendors, setVendors] = useState([]);
   const [bookmarkedVendors, setBookmarkedVendors] = useState([]);
@@ -26,10 +28,10 @@ export default function VendorSelectionPage() {
   useEffect(() => {
     // Filter bookmarked vendors from all vendors
     if (vendors.length > 0) {
-      const bookmarked = vendors.filter(v => bookmarks[v.id]);
+      const bookmarked = vendors.filter(v => isBookmarked(v.id));
       setBookmarkedVendors(bookmarked);
     }
-  }, [vendors, bookmarks]);
+  }, [vendors, isBookmarked]);
 
   const fetchVendors = async () => {
     try {
@@ -72,35 +74,18 @@ export default function VendorSelectionPage() {
       alert("Please select a vendor to continue");
       return;
     }
-    
+
     // Calculate quoted price with buffer
     const basePrice = selectedVendor.price_per_day || 20000;
     const bufferPrice = Math.round(basePrice * 1.15); // 15% buffer
-    
+
     // Check if this is a reselection for an existing booking
     const reselectBookingId = location.state?.reselectBookingId;
-    
+
     if (reselectBookingId) {
-      // Update existing booking with new vendor
-      fetch(`${API}/bookings/${reselectBookingId}/reselect-vendor`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          vendor_id: selectedVendor.id,
-          quoted_price: bufferPrice
-        })
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          navigate("/my-events", { state: { vendorReselected: true } });
-        } else {
-          alert("Failed to update vendor. Please try again.");
-        }
-      })
-      .catch(() => {
-        alert("Error updating vendor. Please try again.");
-      });
+      // Navigate to my-events with vendor reselection info
+      // Note: Backend booking update not implemented yet
+      navigate("/my-events", { state: { vendorReselected: true, selectedVendor, quotedPrice: bufferPrice } });
     } else {
       // New event flow
       navigate("/create-event", {

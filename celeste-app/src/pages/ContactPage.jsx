@@ -2,7 +2,9 @@ import { useState, useCallback } from 'react';
 import PageHeader from '../components/PageHeader';
 import Footer from '../components/Footer';
 
-const API = 'http://localhost:5000/api';
+import { API_URL } from '../config/api';
+
+const API = API_URL;
 
 export default function ContactPage() {
   const [sent, setSent] = useState(false);

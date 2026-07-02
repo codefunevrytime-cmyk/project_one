@@ -2,7 +2,9 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 
-const API = "http://localhost:5000/api";
+import { API_URL } from '../config/api';
+
+const API = API_URL;
 
 const PAYMENT_METHODS = [
   { id: "upi",        icon: "◎", label: "UPI",         sub: "GPay · PhonePe · Paytm" },
