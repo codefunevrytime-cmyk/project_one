@@ -6,6 +6,8 @@ const token = () => localStorage.getItem('adminToken');
 
 export default function AdminVendors() {
   const [vendors, setVendors] = useState([]);
+  const [services, setServices] = useState([]);
+  const [serviceFilter, setServiceFilter] = useState('all');
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [portfolio, setPortfolio] = useState([]);
   const [tags, setTags] = useState([]);
@@ -40,6 +42,16 @@ export default function AdminVendors() {
     setLoading(false);
   };
 
+  const fetchServices = async () => {
+    try {
+      const res = await fetch(`${API}/services`);
+      const data = await res.json();
+      setServices(Array.isArray(data) ? data : []);
+    } catch {
+      // Ignore service fetch errors silently.
+    }
+  };
+
   const fetchPortfolio = async (vendorId) => {
     try {
       const res = await fetch(`${API}/vendors/${vendorId}/portfolio`);
@@ -60,7 +72,7 @@ export default function AdminVendors() {
     }
   };
 
-  useEffect(() => { fetchVendors(); }, []);
+  useEffect(() => { fetchVendors(); fetchServices(); }, []);
 
   const selectVendor = (vendor) => {
     setSelectedVendor(vendor);
@@ -156,6 +168,10 @@ export default function AdminVendors() {
   const workTags = tags.filter(t => t.tag_type === 'work');
   const vendorServiceLabel = (serviceId) => getVendorServiceConfig(serviceId || DEFAULT_VENDOR_SERVICE.serviceId).title;
 
+  const filteredVendors = serviceFilter === 'all'
+    ? vendors
+    : vendors.filter(v => String(v.service_id) === String(serviceFilter));
+
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
@@ -187,14 +203,49 @@ export default function AdminVendors() {
       {/* Vendors List */}
       {activeTab === 'vendors' && (
         <div>
+          {/* Service filter buttons — sourced from services table */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+            <button
+              onClick={() => setServiceFilter('all')}
+              style={{
+                padding: '7px 16px', borderRadius: 20, border: `1px solid ${serviceFilter === 'all' ? '#1a1008' : '#e8e0d5'}`,
+                fontSize: 12, fontFamily: 'inherit', cursor: 'pointer', fontWeight: 500,
+                background: serviceFilter === 'all' ? '#1a1008' : '#fff',
+                color: serviceFilter === 'all' ? '#ffa01e' : '#5a4a36',
+              }}
+            >
+              All Services ({vendors.length})
+            </button>
+            {services.map(s => {
+              const count = vendors.filter(v => String(v.service_id) === String(s.id)).length;
+              const isActive = String(serviceFilter) === String(s.id);
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => setServiceFilter(s.id)}
+                  style={{
+                    padding: '7px 16px', borderRadius: 20, border: `1px solid ${isActive ? '#1a1008' : '#e8e0d5'}`,
+                    fontSize: 12, fontFamily: 'inherit', cursor: 'pointer', fontWeight: 500,
+                    background: isActive ? '#1a1008' : '#fff',
+                    color: isActive ? '#ffa01e' : '#5a4a36',
+                  }}
+                >
+                  {s.name} ({count})
+                </button>
+              );
+            })}
+          </div>
+
           {loading ? <p style={{ color: '#9e8e7a', fontSize: 13 }}>Loading...</p> :
-            vendors.length === 0 ? (
+            filteredVendors.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '60px', background: '#fff', borderRadius: 12, border: '1px solid #e8e0d5' }}>
-                <p style={{ color: '#9e8e7a', fontSize: 13 }}>No vendors yet. Add one first.</p>
+                <p style={{ color: '#9e8e7a', fontSize: 13 }}>
+                  {vendors.length === 0 ? 'No vendors yet. Add one first.' : 'No vendors found for this service.'}
+                </p>
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-                {vendors.map(v => (
+                {filteredVendors.map(v => (
                   <div key={v.id} style={{ background: '#fff', borderRadius: 12, border: `1px solid ${v.is_active ? '#e8e0d5' : '#fecaca'}`, overflow: 'hidden' }}>
                     {v.photo_url && <img src={v.photo_url} alt={v.name} style={{ width: '100%', height: 140, objectFit: 'cover' }} />}
                     {!v.photo_url && <div style={{ width: '100%', height: 140, background: '#f7f5f2', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>📷</div>}

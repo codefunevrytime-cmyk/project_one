@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import AdminGallery from './AdminGallery';
 import AdminReviews from './AdminReviews';
-import AdminBookings from './AdminBookings';
 import AdminAvailability from './AdminAvailability';
 import AdminQueries from './AdminQueries';
 import AdminVendors from './AdminVendors';
@@ -16,17 +15,16 @@ const MENU = [
   { id: 'gallery',      label: 'Gallery',             icon: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z' },
   { id: 'vendors',      label: 'Vendors',              icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100 8 4 4 0 000-8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75' },
   { id: 'vendor-apps',  label: 'Vendor Applications',  icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
+  { id: 'events',       label: 'Event Requests',       icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4' },
   { id: 'reviews',      label: 'Reviews',              icon: 'M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z' },
-  { id: 'bookings',     label: 'Bookings',             icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
   { id: 'availability', label: 'Availability',         icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
   { id: 'queries',      label: 'Queries',              icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z' },
   { id: 'messages',     label: 'Messages',             icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' },
-  { id: 'events',       label: 'Event Requests',       icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4' },
 ];
 
 const SECTION_LABELS = {
   gallery: 'Gallery', vendors: 'Vendors', 'vendor-apps': 'Vendor Applications',
-  reviews: 'Reviews', bookings: 'Bookings', availability: 'Availability',
+  reviews: 'Reviews', availability: 'Availability',
   queries: 'Queries', messages: 'Messages', events: 'Event Requests',
 };
 
@@ -39,7 +37,6 @@ export default function AdminDashboard({ onLogout }) {
       case 'vendors':      return <AdminVendors />;
       case 'vendor-apps':  return <AdminVendorApplications />;
       case 'reviews':      return <AdminReviews />;
-      case 'bookings':     return <AdminBookings />;
       case 'availability': return <AdminAvailability />;
       case 'queries':      return <AdminQueries />;
       case 'messages':     return <AdminMessages />;

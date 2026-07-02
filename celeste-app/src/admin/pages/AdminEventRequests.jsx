@@ -27,8 +27,11 @@ export default function AdminEventRequests() {
   const [expanded, setExpanded] = useState(null);
   const [statusUpdating, setStatusUpdating] = useState({});
   const [notes, setNotes] = useState({});
+  const [actionMsg, setActionMsg] = useState('');
 
   useEffect(() => { fetchEvents(); }, []);
+
+  const showMsg = (msg) => { setActionMsg(msg); setTimeout(() => setActionMsg(''), 3000); };
 
   async function fetchEvents() {
     try {
@@ -60,6 +63,45 @@ export default function AdminEventRequests() {
     }
   }
 
+  async function terminateEvent(eventId, paymentStatus) {
+    const hasPaid = paymentStatus === 'advance_paid';
+    const confirmed = window.confirm(
+      hasPaid
+        ? 'This client has paid an advance. Terminating will trigger a refund. Are you sure?'
+        : 'Are you sure you want to terminate this event request?'
+    );
+    if (!confirmed) return;
+
+    setStatusUpdating(s => ({ ...s, [eventId]: true }));
+    try {
+      const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
+
+      // Cancel the event
+      await fetch(`${API}/api/events/admin/${eventId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: 'cancelled', admin_notes: notes[eventId] || 'Terminated by admin — deal not finalised' })
+      });
+
+      // Trigger refund if advance was paid
+      if (hasPaid) {
+        const refRes = await fetch(`${API}/api/payments/refund`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ booking_id: eventId, refund_pct: 100 })
+        });
+        const refData = await refRes.json();
+        showMsg(refData.success ? 'Event terminated. Full refund initiated.' : 'Event terminated. Refund failed — check Razorpay dashboard.');
+      } else {
+        showMsg('Event terminated successfully.');
+      }
+
+      setEvents(ev => ev.map(e => e.id === eventId ? { ...e, status: 'cancelled' } : e));
+    } finally {
+      setStatusUpdating(s => ({ ...s, [eventId]: false }));
+    }
+  }
+
   if (loading) return <div className="aer-loading">Loading event requests…</div>;
 
   const grouped = {
@@ -83,6 +125,10 @@ export default function AdminEventRequests() {
           ))}
         </div>
       </div>
+
+      {actionMsg && (
+        <div className="aer-action-msg">{actionMsg}</div>
+      )}
 
       {events.length === 0 && (
         <div className="aer-empty">No event requests yet.</div>
@@ -124,6 +170,28 @@ export default function AdminEventRequests() {
                     <span>Phone</span><span>{ev.client_phone || '—'}</span>
                   </div>
                 </div>
+
+                {/* Reference / cover image */}
+                {(ev.reference_event_image || ev.reference_event_id) && (
+                  <div className="aer-section">
+                    <div className="aer-section-title">Reference</div>
+                    <div className="aer-ref-preview">
+                      {ev.reference_event_image && (
+                        <div className="aer-ref-thumb">
+                          <img src={ev.reference_event_image} alt={ev.reference_event_title || 'Event cover'} />
+                        </div>
+                      )}
+                      {ev.reference_event_id && (
+                        <button
+                          className="aer-view-img-btn"
+                          onClick={() => window.open(`/explore?open=${ev.reference_event_id}`, '_blank')}
+                        >
+                          VIEW IMAGE
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Vendor statuses */}
                 {ev.vendors?.length > 0 && (
@@ -175,6 +243,16 @@ export default function AdminEventRequests() {
                         {opt.label}
                       </button>
                     ))}
+
+                    {!['cancelled', 'confirmed'].includes(ev.status) && (
+                      <button
+                        className="aer-terminate-btn"
+                        disabled={statusUpdating[ev.id]}
+                        onClick={() => terminateEvent(ev.id, ev.payment_status)}
+                      >
+                        ✕ Terminate
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

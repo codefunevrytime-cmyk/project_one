@@ -1,6 +1,6 @@
 // src/pages/VendorListingPage.jsx
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { YEARS } from "../context/data/photographyData";
 import { DEFAULT_VENDOR_SERVICE } from "../context/data/vendorServiceConfig";
 import PriceSlider from "../components/PriceSlider";
@@ -18,7 +18,6 @@ function mapVendorToCard(vendor, portfolio, tags, serviceConfig) {
     : [serviceConfig.defaultSpecialty];
   const portfolioTags = [...new Set(portfolio.flatMap(p => p.tags || []))].slice(0, 3);
 
-  // Handle pricing packages
   let pricePerDay = vendor.price_per_day ? Number(vendor.price_per_day) : 0;
   let pricingPackages = null;
   let priceRange = null;
@@ -34,7 +33,7 @@ function mapVendorToCard(vendor, portfolio, tags, serviceConfig) {
         const minPrice = Math.min(...prices);
         const maxPrice = Math.max(...prices);
         priceRange = { min: minPrice, max: maxPrice };
-        pricePerDay = minPrice; // used for sorting/filtering
+        pricePerDay = minPrice;
       }
     } catch {
       // fall back to single price
@@ -43,7 +42,6 @@ function mapVendorToCard(vendor, portfolio, tags, serviceConfig) {
 
   return {
     id: `db_${vendor.id}`, _dbId: vendor.id, name: vendor.name,
-    // NOTE: hardcoded to Lucknow until vendors carry a real location field.
     location: vendor.location || 'Lucknow',
     rating: 5.0, reviews: 0, pricePerDay,
     pricingPackages, priceRange,
@@ -85,13 +83,6 @@ function RatingStars({ rating }) {
   );
 }
 
-/* ── Shared display normalizer ──────────────────────────────────────────────
-   Both DB vendors and static/demo vendors get rendered by the same card and
-   expand panel. Rather than branching on `vendor.isDbItem` in six separate
-   JSX spots (badge, price row, meta grid, footer, CTA...), compute the
-   handful of values that actually differ ONCE here and pass plain strings
-   downward. Adding a new vendor shape later only means teaching this one
-   function about it, not touching every render site. ───────────────────── */
 function getVendorDisplay(vendor, serviceConfig) {
   if (vendor.isDbItem) {
     const priceLabel = vendor.priceRange
@@ -179,7 +170,7 @@ const EP_STYLES = `
 `;
 
 // ── ExpandPanel with image carousel ──────────────────────────────────────────
-function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked, onBookmark, navigate, serviceConfig }) {
+function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked, onBookmark, navigate, serviceConfig, pickContext, onAddToEvent }) {
   const related = getRelated(vendor, allVendors);
   const [activeIdx, setActiveIdx] = useState(0);
   const [sliding, setSliding] = useState(false);
@@ -204,6 +195,7 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
   const next = () => goTo((activeIdx + 1) % total);
 
   const currentImg = images[activeIdx];
+  const isPicking = pickContext?.type === 'vendor';
 
   return (
     <div className="ep-wrap">
@@ -322,7 +314,10 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
             {vendor.isDbItem ? (
               <>
                 <div style={{ fontSize:12, color:'#9e8e7a' }}>{total} portfolio image{total !== 1 ? 's' : ''}</div>
-                <button className="ep-cta ep-cta-amber">Enquire Now</button>
+                <button className="ep-cta ep-cta-amber" onClick={() => navigate(`${serviceConfig.path}/${vendor._dbId}`)}>View Profile</button>
+                {isPicking && (
+                  <button className="ep-cta" onClick={() => onAddToEvent(vendor)}>+ Add to Event</button>
+                )}
               </>
             ) : (
               <>
@@ -332,7 +327,11 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
                   <span className="ep-price-unit">{display.priceUnit}</span>
                 </div>
                 <button className="ep-cta" onClick={() => navigate(`${serviceConfig.path}/${vendor.id}`)}>View Profile</button>
-                <button className="ep-cta">Add to Your Event</button>
+                {isPicking ? (
+                  <button className="ep-cta" onClick={() => onAddToEvent(vendor)}>+ Add to Event</button>
+                ) : (
+                  <button className="ep-cta">Add to Your Event</button>
+                )}
               </>
             )}
           </div>
@@ -357,11 +356,12 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
 }
 
 // ── VendorCard ────────────────────────────────────────────────────────────────
-function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark, serviceConfig }) {
+function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark, serviceConfig, pickContext, onAddToEvent }) {
   const [hovered, setHovered] = useState(false);
   const navigate = useNavigate();
   const display = useMemo(() => getVendorDisplay(vendor, serviceConfig), [vendor, serviceConfig]);
   const handleBookmark = (e) => { e.stopPropagation(); onBookmark(vendor.id); };
+  const isPicking = pickContext?.type === 'vendor';
 
   return (
     <div
@@ -449,9 +449,13 @@ function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark,
           <button
             className="vendor-cta"
             style={vendor.isDbItem ? { color: '#D4860A', borderColor: 'rgba(212,134,10,0.4)' } : undefined}
-            onClick={e => { e.stopPropagation(); navigate(`${serviceConfig.path}/${vendor.isDbItem ? vendor._dbId : vendor.id}`); }}
+            onClick={e => {
+              e.stopPropagation();
+              if (isPicking) { onAddToEvent(vendor); return; }
+              navigate(`${serviceConfig.path}/${vendor.isDbItem ? vendor._dbId : vendor.id}`);
+            }}
           >
-            View Profile
+            {isPicking ? '+ Add to Event' : 'View Profile'}
           </button>
         </div>
 
@@ -475,6 +479,32 @@ export default function VendorListingPage({ bookmarks, onBookmarkToggle, service
   const [openId, setOpenId]               = useState(null);
   const [dbVendors, setDbVendors]         = useState([]);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // ── Pick mode: arrived here from Create Event to select a vendor ───────
+  const pickContext = location.state?.celestePick?.type === 'vendor' ? location.state.celestePick : null;
+
+  const handleAddToEvent = (vendor) => {
+    if (!pickContext) return;
+    navigate('/create-event', {
+      state: {
+        celestePickResult: {
+          type: 'vendor',
+          serviceKey: pickContext.serviceKey,
+          vendor: vendor.isDbItem
+            ? {
+                id: vendor._dbId,
+                name: vendor.name,
+                specialty: vendor.specialty,
+                price_per_day: vendor.pricePerDay,
+                photo_url: vendor.cover,
+                portfolio: vendor.portfolio,
+              }
+            : vendor,
+        },
+      },
+    });
+  };
 
   useEffect(() => {
     const fetchVendors = async () => {
@@ -499,10 +529,6 @@ export default function VendorListingPage({ bookmarks, onBookmarkToggle, service
     fetchVendors();
   }, [serviceConfig]);
 
-  // NOTE: still keyed off `serviceConfig.staticData` (fixed from the old
-  // `serviceConfig.id === 'photography'` special case) — every service now
-  // supplies its own static/demo vendors through config, none of it lives
-  // hardcoded in this component.
   const allVendors = useMemo(() => {
     const staticVendors = serviceConfig.staticData || [];
     return [...staticVendors, ...dbVendors];
@@ -529,12 +555,6 @@ export default function VendorListingPage({ bookmarks, onBookmarkToggle, service
 
   const filtered = useMemo(() => {
     let list = allVendors.filter(p => {
-      // FIX: price range and minimum rating were previously skipped entirely
-      // for DB vendors (`if (!p.isDbItem) { ... }`), even though DB vendors
-      // now carry real pricePerDay/priceRange data. Both filters now apply
-      // to every vendor; rating still only exists as real data on the
-      // demo/static set, so it's harmlessly a no-op for DB vendors (rating
-      // defaults to 5.0) until real vendor ratings exist.
       const effectivePrice = p.priceRange ? p.priceRange.min : p.pricePerDay;
       if (effectivePrice > 0 && (effectivePrice < priceRange[0] || effectivePrice > priceRange[1])) return false;
       if (p.rating < minRating) return false;
@@ -559,6 +579,22 @@ export default function VendorListingPage({ bookmarks, onBookmarkToggle, service
 
   return (
     <div className="photo-page">
+      {pickContext && (
+        <div style={{
+          background: '#D4860A', color: '#0F0D0A', padding: '10px 32px',
+          fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between', position: 'sticky', top: 64, zIndex: 60,
+        }}>
+          <span>Picking a vendor for your event — click "Add to Event" on the vendor you want.</span>
+          <button
+            onClick={() => navigate('/create-event')}
+            style={{ background: 'rgba(15,13,10,0.15)', border: '1px solid rgba(15,13,10,0.3)', borderRadius: 6, padding: '4px 12px', fontSize: 12, cursor: 'pointer', color: '#0F0D0A', fontFamily: 'inherit' }}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
       <div className="photo-page-header">
         <div className="photo-page-header-inner">
           <div>
@@ -632,6 +668,8 @@ export default function VendorListingPage({ bookmarks, onBookmarkToggle, service
                 onBookmark={() => toggleBookmark(openVendor.id)}
                 navigate={navigate}
                 serviceConfig={serviceConfig}
+                pickContext={pickContext}
+                onAddToEvent={handleAddToEvent}
               />
             )}
           </div>
@@ -648,7 +686,10 @@ export default function VendorListingPage({ bookmarks, onBookmarkToggle, service
                 <VendorCard key={v.id} vendor={v} isOpen={openId===v.id}
                   onOpen={handleOpen} onClose={handleClose}
                   isBookmarked={!!bookmarks[v.id]} onBookmark={toggleBookmark}
-                  serviceConfig={serviceConfig} />
+                  serviceConfig={serviceConfig}
+                  pickContext={pickContext}
+                  onAddToEvent={handleAddToEvent}
+                />
               ))}
             </div>
           )}

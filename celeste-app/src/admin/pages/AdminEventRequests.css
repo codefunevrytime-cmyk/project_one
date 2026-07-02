@@ -205,3 +205,70 @@
 }
 
 .aer-status-btn:disabled:not(.aer-status-btn-active) { opacity: 0.35; cursor: not-allowed; }
+
+/* ── Action message banner ── */
+.aer-action-msg {
+  background: rgba(95,207,122,0.1);
+  border: 1px solid rgba(95,207,122,0.3);
+  border-radius: 8px;
+  padding: 10px 16px;
+  margin-bottom: 20px;
+  font-size: 13px;
+  color: #5fcf7a;
+}
+
+/* ── Reference image preview ── */
+.aer-ref-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px;
+}
+
+.aer-ref-thumb {
+  width: 300px;
+  height: 200px;
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: rgba(255,255,255,0.06);
+}
+
+.aer-ref-thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+.aer-view-img-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  background: #d4a843;
+  color: #1a1008;
+  border: 1px solid #d4a843;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.aer-view-img-btn:hover { background: #e0b955; }
+
+/* ── Terminate button ── */
+.aer-terminate-btn {
+  background: rgba(248,113,113,0.1);
+  border: 1px solid rgba(248,113,113,0.3);
+  border-radius: 6px;
+  color: #f87171;
+  font-size: 12px;
+  padding: 6px 14px;
+  cursor: pointer;
+  margin-left: auto;
+  transition: all 0.2s;
+}
+
+.aer-terminate-btn:hover:not(:disabled) {
+  background: rgba(248,113,113,0.18);
+}
+
+.aer-terminate-btn:disabled { opacity: 0.4; cursor: not-allowed; }

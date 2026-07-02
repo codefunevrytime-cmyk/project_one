@@ -21,7 +21,6 @@ app.use('/api/reviews',      require('./routes/reviews'));
 app.use('/api/availability', require('./routes/availability'));
 app.use('/api/gallery',      require('./routes/gallery'));
 app.use('/api/queries',      require('./routes/queries'));
-app.use('/api/bookings',     require('./routes/bookings'));
 app.use('/api/admin',        require('./routes/admin'));
 app.use('/api/vendors',      require('./routes/vendors'));
 app.use('/api/services',     require('./routes/services'));

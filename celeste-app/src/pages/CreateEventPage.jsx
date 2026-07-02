@@ -9,6 +9,29 @@ import { VENDOR_SERVICE_CONFIGS } from "../context/data/vendorServiceConfig";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
+/* ─── draft persistence — so navigating away to /explore or a vendor
+   listing page to "pick" something doesn't lose in-progress form state ── */
+const DRAFT_KEY = "celeste_create_event_draft";
+
+function saveEventDraft(step, form, vendorSelections) {
+  try {
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ step, form, vendorSelections }));
+  } catch {
+    // ignore storage errors (private browsing, quota, etc.)
+  }
+}
+function loadEventDraft() {
+  try {
+    const raw = sessionStorage.getItem(DRAFT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+function clearEventDraft() {
+  try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+}
+
 /* ─── constants ─────────────────────────────────────────────────────────────── */
 const STEPS = ["Basics", "Vendors", "Budget", "Review"];
 
@@ -33,15 +56,10 @@ const DAY_NAMES = ["Su","Mo","Tu","We","Th","Fr","Sa"];
 
 /* ─── Fallback extra-field defaults for services that haven't yet been
    migrated to declare `extraFields`/`pricingModel` on their serviceConfig
-   entry. This makes the refactor backward-compatible: today's photography
-   and invitations behavior is preserved exactly, but every field they need
-   is now defined ONCE as data instead of branched in JSX. When you add
-   service #3, either give it a real config entry (preferred, see the note
-   in vendorServiceConfig.js) or add a fallback here as a stopgap — either
-   way VendorBlock itself never needs to change. ─────────────────────────── */
+   entry. ─────────────────────────────────────────────────────────────── */
 const FALLBACK_SERVICE_FIELDS = {
   photography: {
-    pricingModel: "perDay", // total = vendor.price_per_day * days
+    pricingModel: "perDay",
     extraFields: [
       {
         key: "days", type: "counter", label: "Number of days", min: 1,
@@ -53,7 +71,7 @@ const FALLBACK_SERVICE_FIELDS = {
     ],
   },
   "custom-invitations": {
-    pricingModel: "flat", // total = vendor.price_per_day (flat package rate)
+    pricingModel: "flat",
     extraFields: [
       {
         key: "coverage_types", type: "multiselect", label: "Invitation types",
@@ -81,7 +99,7 @@ function computeVendorTotal(pricingModel, vendorData) {
   const pricePerUnit = vendorData.vendor?.price_per_day ? Number(vendorData.vendor.price_per_day) : 0;
   if (pricingModel === "flat") return pricePerUnit;
   const days = Number(vendorData.days) || 1;
-  return pricePerUnit * days; // "perDay" and any unrecognised model default here
+  return pricePerUnit * days;
 }
 
 /* ─── small helpers ──────────────────────────────────────────────────────────── */
@@ -180,203 +198,6 @@ function DatePickerField({ value, onChange, availability }) {
   );
 }
 
-/* ─── Reference Event Picker Modal ───────────────────────────────────────────── */
-function RefEventModal({ bookmarkedIds, onSelect, onClose, title="Pick a reference event" }) {
-  const [search, setSearch]       = useState("");
-  const [tab, setTab]             = useState("explore");
-  const [filterType, setFilterType] = useState("");
-  const [galleryEvents, setGalleryEvents] = useState([]);
-  const [loading, setLoading]     = useState(true);
-
-  useEffect(() => {
-    fetch(`${API}/api/gallery`)
-      .then(r => r.json())
-      .then(data => { setGalleryEvents(Array.isArray(data) ? data : []); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, []);
-
-  const normaliseGallery = (g) => ({
-    id:        `gallery_${g.id}`,
-    _galleryId: g.id,
-    title:     g.title || "Untitled",
-    type:      g.event_type || "Event",
-    img:       g.image_url || null,
-    city:      g.venue || "",
-    dateLabel: g.event_date ? new Date(g.event_date).toLocaleDateString("en-IN", { month:"short", year:"numeric" }) : "",
-    price:     g.price ? `₹${Number(g.price).toLocaleString("en-IN")}` : "",
-    pills:     Array.isArray(g.tags) ? g.tags : [],
-    scale:     g.scale || "",
-    extraImages: g.gallery_images || [],
-  });
-
-  const normaliseStatic = (e) => ({
-    id:        String(e.id),
-    title:     e.title,
-    type:      e.type,
-    img:       e.img || null,
-    city:      e.city || e.venueName || "",
-    dateLabel: e.dateLabel || "",
-    price:     e.price || "",
-    pills:     e.pills || [],
-  });
-
-  const allEvents = [
-    ...galleryEvents.map(normaliseGallery),
-    ...eventsData.map(normaliseStatic),
-  ];
-
-  const bookmarkedList = allEvents.filter(e =>
-    bookmarkedIds.includes(e.id) ||
-    bookmarkedIds.includes(String(e._galleryId)) ||
-    bookmarkedIds.includes(e._galleryId)
-  );
-
-  const allTypes = [...new Set(allEvents.map(e => e.type).filter(Boolean))].sort();
-
-  const displayList = tab === "bookmarks" ? bookmarkedList : allEvents;
-  const filtered = displayList.filter(e => {
-    const matchSearch = !search ||
-      e.title.toLowerCase().includes(search.toLowerCase()) ||
-      e.type.toLowerCase().includes(search.toLowerCase()) ||
-      e.city.toLowerCase().includes(search.toLowerCase());
-    const matchType = !filterType || e.type === filterType;
-    return matchSearch && matchType;
-  });
-
-  return (
-    <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20 }}>
-      <div style={{ background:"#1c1812",border:"0.5px solid rgba(200,175,120,0.2)",borderRadius:16,width:"100%",maxWidth:860,maxHeight:"88vh",display:"flex",flexDirection:"column",boxShadow:"0 24px 64px rgba(0,0,0,0.7)" }}>
-
-        <div style={{ padding:"18px 24px",borderBottom:"0.5px solid rgba(200,175,120,0.1)",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0 }}>
-          <div>
-            <div style={{ fontSize:15,fontWeight:600,color:"#e8dcc8" }}>{title}</div>
-            <div style={{ fontSize:11,color:"rgba(200,175,120,0.4)",marginTop:2 }}>
-              {loading ? "Loading events…" : `${filtered.length} events`}
-            </div>
-          </div>
-          <button onClick={onClose} style={{ background:"none",border:"none",cursor:"pointer",color:"rgba(200,175,120,0.4)",fontSize:22,lineHeight:1,padding:"4px 8px" }}>✕</button>
-        </div>
-
-        <div style={{ padding:"12px 24px",borderBottom:"0.5px solid rgba(200,175,120,0.08)",display:"flex",alignItems:"center",gap:10,flexShrink:0,flexWrap:"wrap" }}>
-          {["explore","bookmarks"].map(t=>(
-            <button key={t} onClick={()=>setTab(t)} style={{ background:tab===t?"rgba(200,175,120,0.12)":"none",border:`0.5px solid ${tab===t?"rgba(200,175,120,0.4)":"rgba(200,175,120,0.12)"}`,borderRadius:20,padding:"5px 14px",fontSize:12,color:tab===t?"#c8af78":"rgba(200,175,120,0.45)",cursor:"pointer",fontFamily:"inherit" }}>
-              {t==="bookmarks" ? `Bookmarks (${bookmarkedList.length})` : "All Events"}
-            </button>
-          ))}
-
-          <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginLeft:4 }}>
-            <button onClick={()=>setFilterType("")} style={{ fontSize:11,padding:"4px 10px",borderRadius:20,border:`0.5px solid ${!filterType?"rgba(200,175,120,0.4)":"rgba(200,175,120,0.1)"}`,background:!filterType?"rgba(200,175,120,0.1)":"none",color:!filterType?"#c8af78":"rgba(200,175,120,0.4)",cursor:"pointer",fontFamily:"inherit" }}>All</button>
-            {allTypes.map(t=>(
-              <button key={t} onClick={()=>setFilterType(t===filterType?"":t)} style={{ fontSize:11,padding:"4px 10px",borderRadius:20,border:`0.5px solid ${filterType===t?"rgba(200,175,120,0.4)":"rgba(200,175,120,0.1)"}`,background:filterType===t?"rgba(200,175,120,0.1)":"none",color:filterType===t?"#c8af78":"rgba(200,175,120,0.4)",cursor:"pointer",fontFamily:"inherit" }}>{t}</button>
-            ))}
-          </div>
-
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search events…" style={{ marginLeft:"auto",background:"#1e1a14",border:"0.5px solid rgba(200,175,120,0.15)",borderRadius:8,padding:"7px 12px",fontSize:12,color:"#e8dcc8",outline:"none",fontFamily:"inherit",width:180 }}/>
-        </div>
-
-        <div style={{ overflowY:"auto",padding:16,display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12 }}>
-          {loading && (
-            <div style={{ gridColumn:"1/-1",textAlign:"center",padding:40,color:"rgba(200,175,120,0.3)",fontSize:13 }}>Loading events from database…</div>
-          )}
-          {!loading && filtered.length===0 && (
-            <div style={{ gridColumn:"1/-1",textAlign:"center",padding:40,color:"rgba(200,175,120,0.3)",fontSize:13 }}>No events found</div>
-          )}
-          {!loading && filtered.map(ev=>(
-            <div key={ev.id} onClick={()=>onSelect(ev)} style={{ cursor:"pointer",borderRadius:10,overflow:"hidden",border:"0.5px solid rgba(200,175,120,0.12)",background:"#211c14",transition:"border-color 0.15s,transform 0.15s" }}
-              onMouseEnter={e=>{ e.currentTarget.style.borderColor="rgba(200,175,120,0.45)"; e.currentTarget.style.transform="translateY(-2px)"; }}
-              onMouseLeave={e=>{ e.currentTarget.style.borderColor="rgba(200,175,120,0.12)"; e.currentTarget.style.transform="translateY(0)"; }}>
-
-              <div style={{ height:120,overflow:"hidden",position:"relative",background:"#2a2018" }}>
-                {ev.img
-                  ? <img src={ev.img} alt={ev.title} style={{ width:"100%",height:"100%",objectFit:"cover",transition:"transform 0.3s" }}
-                      onMouseEnter={e=>e.target.style.transform="scale(1.05)"}
-                      onMouseLeave={e=>e.target.style.transform="scale(1)"}/>
-                  : <div style={{ width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:36 }}>{getEmoji(ev.type)}</div>
-                }
-                <div style={{ position:"absolute",bottom:6,left:8,fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em",color:"#c8af78",background:"rgba(0,0,0,0.7)",padding:"2px 8px",borderRadius:20 }}>{ev.type}</div>
-                {ev.extraImages?.length > 0 && (
-                  <div style={{ position:"absolute",top:6,right:8,fontSize:9,color:"rgba(200,175,120,0.8)",background:"rgba(0,0,0,0.6)",padding:"2px 7px",borderRadius:20 }}>+{ev.extraImages.length} photos</div>
-                )}
-                {ev.scale && (
-                  <div style={{ position:"absolute",top:6,left:8,fontSize:9,color:"rgba(200,175,120,0.7)",background:"rgba(0,0,0,0.6)",padding:"2px 7px",borderRadius:20 }}>{ev.scale}</div>
-                )}
-              </div>
-
-              <div style={{ padding:"10px 12px" }}>
-                <div style={{ fontSize:12,fontWeight:600,color:"#e8dcc8",marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{ev.title}</div>
-                <div style={{ fontSize:10,color:"rgba(200,175,120,0.4)",marginBottom:ev.price?4:0 }}>
-                  {[ev.city, ev.dateLabel].filter(Boolean).join(" · ")}
-                </div>
-                {ev.price && <div style={{ fontSize:11,fontWeight:600,color:"#c8af78" }}>{ev.price}</div>}
-                {ev.pills?.length > 0 && (
-                  <div style={{ display:"flex",flexWrap:"wrap",gap:4,marginTop:6 }}>
-                    {ev.pills.slice(0,2).map((p,i)=>(
-                      <span key={i} style={{ fontSize:9,padding:"2px 7px",borderRadius:20,background:"rgba(200,175,120,0.08)",color:"rgba(200,175,120,0.5)",border:"0.5px solid rgba(200,175,120,0.12)" }}>{p}</span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─── Vendor Picker Modal ─────────────────────────────────────────────────────── */
-function VendorPickerModal({ vendors, bookmarkedIds, serviceType, onSelect, onClose }) {
-  const [tab, setTab] = useState("all");
-  const [search, setSearch] = useState("");
-
-  const bookmarkedVendorDbIds = bookmarkedIds
-    .filter(id => String(id).startsWith("db_"))
-    .map(id => String(id).replace("db_",""));
-  const bookmarkedVendors = vendors.filter(v => bookmarkedVendorDbIds.includes(String(v.id)));
-
-  const displayList = tab === "bookmarks" ? bookmarkedVendors : vendors;
-  const filtered = displayList.filter(v => !search || v.name.toLowerCase().includes(search.toLowerCase()));
-
-  return (
-    <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.78)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:24 }}>
-      <div style={{ background:"#1c1812",border:"0.5px solid rgba(200,175,120,0.2)",borderRadius:16,width:"100%",maxWidth:640,maxHeight:"80vh",display:"flex",flexDirection:"column",boxShadow:"0 24px 64px rgba(0,0,0,0.6)" }}>
-        <div style={{ padding:"20px 24px",borderBottom:"0.5px solid rgba(200,175,120,0.1)",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0 }}>
-          <div style={{ fontSize:15,fontWeight:600,color:"#e8dcc8" }}>Choose {serviceType} vendor</div>
-          <button onClick={onClose} style={{ background:"none",border:"none",cursor:"pointer",color:"rgba(200,175,120,0.4)",fontSize:20 }}>✕</button>
-        </div>
-        <div style={{ padding:"12px 24px",borderBottom:"0.5px solid rgba(200,175,120,0.08)",display:"flex",alignItems:"center",gap:12,flexShrink:0,flexWrap:"wrap" }}>
-          {["all","bookmarks"].map(t=>(
-            <button key={t} onClick={()=>setTab(t)} style={{ background:tab===t?"rgba(200,175,120,0.12)":"none",border:`0.5px solid ${tab===t?"rgba(200,175,120,0.4)":"rgba(200,175,120,0.12)"}`,borderRadius:20,padding:"5px 14px",fontSize:12,color:tab===t?"#c8af78":"rgba(200,175,120,0.45)",cursor:"pointer",fontFamily:"inherit",textTransform:"capitalize" }}>
-              {t==="bookmarks"?`Bookmarks (${bookmarkedVendors.length})`:t.charAt(0).toUpperCase()+t.slice(1)}
-            </button>
-          ))}
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search…" style={{ marginLeft:"auto",background:"#1e1a14",border:"0.5px solid rgba(200,175,120,0.15)",borderRadius:8,padding:"7px 12px",fontSize:12,color:"#e8dcc8",outline:"none",fontFamily:"inherit",width:160 }}/>
-        </div>
-        <div style={{ overflowY:"auto",padding:16,display:"flex",flexDirection:"column",gap:10 }}>
-          {filtered.length===0&&<div style={{ textAlign:"center",padding:40,color:"rgba(200,175,120,0.3)",fontSize:13 }}>No vendors found</div>}
-          {filtered.map(v=>{
-            const cover = v.portfolio?.[0]?.image_url || v.photo_url;
-            return (
-              <div key={v.id} onClick={()=>onSelect(v)} style={{ display:"flex",alignItems:"center",gap:14,padding:"12px 16px",borderRadius:10,border:"0.5px solid rgba(200,175,120,0.12)",background:"#211c14",cursor:"pointer",transition:"border-color 0.15s" }}
-                onMouseEnter={e=>e.currentTarget.style.borderColor="rgba(200,175,120,0.4)"}
-                onMouseLeave={e=>e.currentTarget.style.borderColor="rgba(200,175,120,0.12)"}>
-                <div style={{ width:52,height:52,borderRadius:8,overflow:"hidden",flexShrink:0,background:"#2a2018" }}>
-                  {cover?<img src={cover} alt={v.name} style={{ width:"100%",height:"100%",objectFit:"cover" }}/>:<div style={{ width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22 }}>📷</div>}
-                </div>
-                <div style={{ flex:1,minWidth:0 }}>
-                  <div style={{ fontSize:13,fontWeight:600,color:"#e8dcc8",marginBottom:2 }}>{v.name}</div>
-                  <div style={{ fontSize:11,color:"rgba(200,175,120,0.45)" }}>{v.specialty||serviceType}</div>
-                </div>
-                {v.price_per_day&&<div style={{ fontSize:13,fontWeight:600,color:"#c8af78",flexShrink:0 }}>₹{fmt(v.price_per_day)}<span style={{ fontSize:10,color:"rgba(200,175,120,0.4)",fontWeight:400 }}>/day</span></div>}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ─── Field wrapper ───────────────────────────────────────────────────────────── */
 function Field({ label, hint, children, required }) {
   return (
@@ -389,9 +210,7 @@ function Field({ label, hint, children, required }) {
 }
 
 /* ─── STEP 1 — Basics ─────────────────────────────────────────────────────────── */
-function StepBasics({ form, setForm, availability, bookmarkedIds, onNext }) {
-  const [showRefModal, setShowRefModal] = useState(false);
-
+function StepBasics({ form, setForm, availability, onNext, onBrowseReference }) {
   const canNext = form.event_name && form.event_type && form.event_date && form.location && form.reference_event;
 
   const setF = key => val => setForm(f => ({ ...f, [key]: val }));
@@ -477,28 +296,20 @@ function StepBasics({ form, setForm, availability, bookmarkedIds, onNext }) {
               </div>
               <p className={styles.refPanelEmptyText}>No reference selected</p>
               <p className={styles.refPanelEmptySub}>Required — pick an event that matches your vision</p>
-              <button onClick={()=>setShowRefModal(true)} style={{ marginTop:8,background:"rgba(200,175,120,0.1)",border:"0.5px solid rgba(200,175,120,0.3)",borderRadius:8,padding:"8px 18px",fontSize:12,color:"#c8af78",cursor:"pointer",fontFamily:"inherit" }}>Browse events</button>
+              <button onClick={onBrowseReference} style={{ marginTop:8,background:"rgba(200,175,120,0.1)",border:"0.5px solid rgba(200,175,120,0.3)",borderRadius:8,padding:"8px 18px",fontSize:12,color:"#c8af78",cursor:"pointer",fontFamily:"inherit" }}>Browse events</button>
             </div>
           )}
 
           {form.reference_event && (
-            <button onClick={()=>setShowRefModal(true)} style={{ marginTop:10,width:"100%",background:"none",border:"0.5px solid rgba(200,175,120,0.2)",borderRadius:8,padding:"7px 0",fontSize:12,color:"rgba(200,175,120,0.5)",cursor:"pointer",fontFamily:"inherit" }}>Change reference</button>
+            <button onClick={onBrowseReference} style={{ marginTop:10,width:"100%",background:"none",border:"0.5px solid rgba(200,175,120,0.2)",borderRadius:8,padding:"7px 0",fontSize:12,color:"rgba(200,175,120,0.5)",cursor:"pointer",fontFamily:"inherit" }}>Change reference</button>
           )}
         </div>
       </div>
-
-      {showRefModal && <RefEventModal bookmarkedIds={bookmarkedIds} onSelect={ev=>{setF("reference_event")(ev);setShowRefModal(false);}} onClose={()=>setShowRefModal(false)}/>}
     </div>
   );
 }
 
-/* ─── Generic extra-field renderer ────────────────────────────────────────────
-   Replaces the old isPhotography ? <days counter + coverage pills> :
-   <quantity input + invitation pills> block. Every service's "shape" (a
-   counter, a multiselect pill group, a plain number input, free text) is
-   described as data in FALLBACK_SERVICE_FIELDS / serviceConfig.extraFields,
-   and rendered here once. Adding a new field type later means adding one
-   case to this switch, not a new branch per service. ─────────────────────── */
+/* ─── Generic extra-field renderer ────────────────────────────────────────────── */
 function ExtraField({ field, vendorData, onChange }) {
   const value = vendorData[field.key];
 
@@ -543,7 +354,6 @@ function ExtraField({ field, vendorData, onChange }) {
     );
   }
 
-  // "text" fallback
   return (
     <div style={{ marginBottom:14 }}>
       <div style={{ fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em",color:"rgba(200,175,120,0.45)",marginBottom:8 }}>{field.label}</div>
@@ -553,10 +363,7 @@ function ExtraField({ field, vendorData, onChange }) {
 }
 
 /* ─── Vendor service block (inside Step 2) ───────────────────────────────────── */
-function VendorBlock({ serviceType, serviceConfig, vendors, bookmarkedIds, vendorData, onChange }) {
-  const [showVendorModal, setShowVendorModal] = useState(false);
-  const [showRefModal, setShowRefModal] = useState(false);
-
+function VendorBlock({ serviceType, serviceConfig, vendorData, onChange, onPickVendor, onPickVendorRef }) {
   const { pricingModel, extraFields } = getServiceFields(serviceConfig);
   const pricePerUnit = vendorData.vendor?.price_per_day ? Number(vendorData.vendor.price_per_day) : 0;
   const totalCost = computeVendorTotal(pricingModel, vendorData);
@@ -576,7 +383,7 @@ function VendorBlock({ serviceType, serviceConfig, vendors, bookmarkedIds, vendo
 
       {vendorData.enabled && (
         <>
-          {/* Vendor selector */}
+          {/* Vendor selector — redirects to the actual vendor listing page */}
           <div style={{ marginBottom:16 }}>
             <div style={{ fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em",color:"rgba(200,175,120,0.45)",marginBottom:8 }}>Vendor</div>
             {vendorData.vendor ? (
@@ -591,16 +398,16 @@ function VendorBlock({ serviceType, serviceConfig, vendors, bookmarkedIds, vendo
                   <div style={{ fontSize:11,color:"rgba(200,175,120,0.45)" }}>{vendorData.vendor.specialty||serviceType}</div>
                 </div>
                 {pricePerUnit>0&&<div style={{ fontSize:12,fontWeight:600,color:"#c8af78" }}>₹{fmt(pricePerUnit)}{pricingModel==="perDay"?"/day":""}</div>}
-                <button onClick={()=>setShowVendorModal(true)} style={{ fontSize:11,color:"rgba(200,175,120,0.45)",background:"none",border:"0.5px solid rgba(200,175,120,0.15)",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontFamily:"inherit" }}>Change</button>
+                <button onClick={onPickVendor} style={{ fontSize:11,color:"rgba(200,175,120,0.45)",background:"none",border:"0.5px solid rgba(200,175,120,0.15)",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontFamily:"inherit" }}>Change</button>
               </div>
             ) : (
-              <button onClick={()=>setShowVendorModal(true)} style={{ width:"100%",padding:"12px",background:"#1e1a14",border:"0.5px dashed rgba(200,175,120,0.25)",borderRadius:10,fontSize:13,color:"rgba(200,175,120,0.45)",cursor:"pointer",fontFamily:"inherit",textAlign:"center" }}>
+              <button onClick={onPickVendor} style={{ width:"100%",padding:"12px",background:"#1e1a14",border:"0.5px dashed rgba(200,175,120,0.25)",borderRadius:10,fontSize:13,color:"rgba(200,175,120,0.45)",cursor:"pointer",fontFamily:"inherit",textAlign:"center" }}>
                 + Select {serviceType} vendor
               </button>
             )}
           </div>
 
-          {/* Service-specific fields — driven entirely by config, no per-service branching */}
+          {/* Service-specific fields */}
           {extraFields.map(field => (
             <ExtraField key={field.key} field={field} vendorData={vendorData} onChange={onChange} />
           ))}
@@ -614,7 +421,7 @@ function VendorBlock({ serviceType, serviceConfig, vendors, bookmarkedIds, vendo
             <textarea value={vendorData.notes||""} onChange={e=>onChange({...vendorData,notes:e.target.value})} placeholder="Specific requirements, style preferences…" rows={2} style={{ width:"100%",background:"#1e1a14",border:"0.5px solid rgba(200,175,120,0.18)",borderRadius:8,padding:"9px 12px",fontSize:13,color:"#e8dcc8",outline:"none",fontFamily:"inherit",resize:"vertical",boxSizing:"border-box" }}/>
           </div>
 
-          {/* Vendor-specific reference event */}
+          {/* Vendor-specific reference event — redirects to Explore */}
           <div>
             <div style={{ fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em",color:"rgba(200,175,120,0.45)",marginBottom:8 }}>Reference event for this vendor <span style={{ textTransform:"none",letterSpacing:0,color:"rgba(200,175,120,0.3)" }}>(shows vendor what style you want)</span></div>
             {vendorData.reference_event ? (
@@ -624,29 +431,23 @@ function VendorBlock({ serviceType, serviceConfig, vendors, bookmarkedIds, vendo
                   <div style={{ fontSize:12,fontWeight:600,color:"#e8dcc8" }}>{vendorData.reference_event.title}</div>
                   <div style={{ fontSize:10,color:"rgba(200,175,120,0.4)" }}>{vendorData.reference_event.type} · {vendorData.reference_event.city}</div>
                 </div>
-                <button onClick={()=>setShowRefModal(true)} style={{ fontSize:11,color:"rgba(200,175,120,0.45)",background:"none",border:"0.5px solid rgba(200,175,120,0.15)",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontFamily:"inherit" }}>Change</button>
+                <button onClick={onPickVendorRef} style={{ fontSize:11,color:"rgba(200,175,120,0.45)",background:"none",border:"0.5px solid rgba(200,175,120,0.15)",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontFamily:"inherit" }}>Change</button>
                 <button onClick={()=>onChange({...vendorData,reference_event:null})} style={{ fontSize:11,color:"rgba(200,175,120,0.35)",background:"none",border:"none",cursor:"pointer",padding:"4px 6px" }}>✕</button>
               </div>
             ) : (
-              <button onClick={()=>setShowRefModal(true)} style={{ width:"100%",padding:"10px",background:"#1e1a14",border:"0.5px dashed rgba(200,175,120,0.2)",borderRadius:10,fontSize:12,color:"rgba(200,175,120,0.4)",cursor:"pointer",fontFamily:"inherit",textAlign:"center" }}>
+              <button onClick={onPickVendorRef} style={{ width:"100%",padding:"10px",background:"#1e1a14",border:"0.5px dashed rgba(200,175,120,0.2)",borderRadius:10,fontSize:12,color:"rgba(200,175,120,0.4)",cursor:"pointer",fontFamily:"inherit",textAlign:"center" }}>
                 + Pick reference for {serviceType}
               </button>
             )}
           </div>
         </>
       )}
-
-      {showVendorModal&&<VendorPickerModal vendors={vendors} bookmarkedIds={bookmarkedIds} serviceType={serviceType} onSelect={v=>{onChange({...vendorData,vendor:v});setShowVendorModal(false);}} onClose={()=>setShowVendorModal(false)}/>}
-      {showRefModal&&<RefEventModal bookmarkedIds={bookmarkedIds} title={`Reference for ${serviceType}`} onSelect={ev=>{onChange({...vendorData,reference_event:ev});setShowRefModal(false);}} onClose={()=>setShowRefModal(false)}/>}
     </div>
   );
 }
 
 /* ─── STEP 2 — Vendors ────────────────────────────────────────────────────────── */
-function StepVendors({ vendors, vendorSelections, setVendorSelections, bookmarkedIds, onNext, onBack }) {
-  // NOTE: previously hardcoded `sid === "1"` / `sid === "5"` — service IDs
-  // now come straight from each entry in VENDOR_SERVICE_CONFIGS, so adding
-  // service #3 doesn't require touching this filtering logic at all.
+function StepVendors({ vendors, vendorSelections, setVendorSelections, onNext, onBack, onPickVendor, onPickVendorRef }) {
   const vendorsForService = (serviceId, includeUnassigned) => vendors.filter(v => {
     const sid = String(v.service_id || "").trim();
     if (sid === String(serviceId)) return true;
@@ -667,15 +468,15 @@ function StepVendors({ vendors, vendorSelections, setVendorSelections, bookmarke
     <div className={styles.stepWrap}>
       <p className={styles.stepDesc}>Select vendors for your event. Toggle a service on to configure it.</p>
 
-      {serviceBlocks.map(({ key, config, vendors: svcVendors }) => (
+      {serviceBlocks.map(({ key, config }) => (
         <VendorBlock
           key={key}
           serviceType={config.title || config.singular || key}
           serviceConfig={config}
-          vendors={svcVendors}
-          bookmarkedIds={bookmarkedIds}
           vendorData={vendorSelections[key] || { enabled: false, vendor: null, notes: "", reference_event: null }}
           onChange={data => setVendorSelections(s => ({ ...s, [key]: data }))}
+          onPickVendor={() => onPickVendor(key, config)}
+          onPickVendorRef={() => onPickVendorRef(key)}
         />
       ))}
 
@@ -690,7 +491,7 @@ function StepVendors({ vendors, vendorSelections, setVendorSelections, bookmarke
 }
 
 /* ─── STEP 3 — Budget ─────────────────────────────────────────────────────────── */
-function StepBudget({ form, vendorSelections, budget, onNext, onBack }) {
+function StepBudget({ budget, onNext, onBack }) {
   const rows = budget.rows;
   const contingency = budget.contingency;
   const total = budget.total;
@@ -768,7 +569,6 @@ function StepReview({ form, vendorSelections, budget, submitting, submitError, o
     <div className={styles.stepWrap}>
       <p className={styles.stepDesc}>Review everything before submitting. Your event will be reviewed by admin within 24 hours.</p>
 
-      {/* Event details */}
       <div style={{ background:"rgba(200,175,120,0.03)",border:"0.5px solid rgba(200,175,120,0.15)",borderRadius:14,padding:"20px 22px",marginBottom:20 }}>
         <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.12em",color:"rgba(200,175,120,0.5)",marginBottom:14 }}>Event details</div>
         <ReviewItem label="Event name" value={form.event_name}/>
@@ -783,7 +583,6 @@ function StepReview({ form, vendorSelections, budget, submitting, submitError, o
         </div>
       </div>
 
-      {/* One review block per enabled service — generic, not photography/invitations-specific */}
       {VENDOR_SERVICE_CONFIGS.map(cfg => {
         const sel = vendorSelections[cfg.id];
         if (!sel?.enabled || !sel?.vendor) return null;
@@ -806,7 +605,6 @@ function StepReview({ form, vendorSelections, budget, submitting, submitError, o
         );
       })}
 
-      {/* Budget summary */}
       <div style={{ background:"rgba(200,175,120,0.05)",border:"0.5px solid rgba(200,175,120,0.2)",borderRadius:14,padding:"20px 22px",marginBottom:20 }}>
         <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.12em",color:"rgba(200,175,120,0.5)",marginBottom:14 }}>Budget summary</div>
         {budget.rows.map((r,i)=>(
@@ -841,7 +639,7 @@ function StepReview({ form, vendorSelections, budget, submitting, submitError, o
 export default function CreateEventPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, bookmarkedEventIds } = useAuth();
+  const { user } = useAuth();
 
   const prefillEvent = location.state?.referenceEvent ?? null;
 
@@ -851,7 +649,6 @@ export default function CreateEventPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
-  // Step 1 form
   const [form, setForm] = useState({
     event_name: "",
     event_type: prefillEvent?.type || "",
@@ -863,15 +660,47 @@ export default function CreateEventPage() {
     reference_event: prefillEvent || null,
   });
 
-  // Step 2 vendor selections — keyed by serviceConfig.id, one empty slot
-  // per configured service. Adding service #3 to VENDOR_SERVICE_CONFIGS
-  // means it shows up here automatically, no state shape change needed.
   const [vendorSelections, setVendorSelections] = useState(() =>
     Object.fromEntries(VENDOR_SERVICE_CONFIGS.map(cfg => [
       cfg.id,
       { enabled: false, vendor: null, notes: "", reference_event: null },
     ]))
   );
+
+  // ── Restore draft (if we navigated away to pick a reference event or a
+  //    vendor) and merge in whatever was picked on the return trip. ──────
+  useEffect(() => {
+    const draft = loadEventDraft();
+    const pickResult = location.state?.celestePickResult;
+
+    if (draft) {
+      setStep(draft.step ?? 0);
+      setForm(draft.form);
+      setVendorSelections(draft.vendorSelections || {});
+    }
+
+    if (pickResult) {
+      if (pickResult.type === "globalRef") {
+        setForm(f => ({ ...f, reference_event: pickResult.event }));
+      } else if (pickResult.type === "vendorRef") {
+        setVendorSelections(vs => ({
+          ...vs,
+          [pickResult.serviceKey]: { ...(vs[pickResult.serviceKey] || {}), reference_event: pickResult.event },
+        }));
+      } else if (pickResult.type === "vendor") {
+        setVendorSelections(vs => ({
+          ...vs,
+          [pickResult.serviceKey]: { ...(vs[pickResult.serviceKey] || {}), vendor: pickResult.vendor, enabled: true },
+        }));
+      }
+    }
+
+    if (draft || pickResult) {
+      clearEventDraft();
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Fetch availability + vendors
   useEffect(() => {
@@ -889,8 +718,22 @@ export default function CreateEventPage() {
     }).catch(()=>{});
   }, []);
 
-  // Compute budget — generic across every configured service instead of
-  // reading vendorSelections.photography / .invitations by name.
+  // ── Navigation-based pickers ────────────────────────────────────────────
+  const handleBrowseReference = () => {
+    saveEventDraft(step, form, vendorSelections);
+    navigate("/explore", { state: { celestePick: { type: "globalRef" } } });
+  };
+
+  const handlePickVendorRef = (serviceKey) => {
+    saveEventDraft(step, form, vendorSelections);
+    navigate("/explore", { state: { celestePick: { type: "vendorRef", serviceKey } } });
+  };
+
+  const handlePickVendor = (serviceKey, serviceConfig) => {
+    saveEventDraft(step, form, vendorSelections);
+    navigate(serviceConfig.path, { state: { celestePick: { type: "vendor", serviceKey } } });
+  };
+
   const budget = (() => {
     const rows = [];
     for (const cfg of VENDOR_SERVICE_CONFIGS) {
@@ -928,10 +771,6 @@ export default function CreateEventPage() {
         reference_event_id: sel.reference_event?.id || null,
         reference_event_image: sel.reference_event?.img || null,
       };
-      // fold config-declared extra fields (days, coverage_types, quantity, ...)
-      // straight into the payload so the backend keeps receiving the same
-      // shape it always has for photography/invitations, and any new
-      // service's fields ride along automatically.
       for (const f of extraFields) entry[f.key] = sel[f.key];
       vendorsPayload.push(entry);
     }
@@ -985,7 +824,6 @@ export default function CreateEventPage() {
         </div>
       </header>
 
-      {/* Step nav */}
       <nav className={styles.stepNav}>
         {STEPS.map((label, i) => (
           <button
@@ -1006,8 +844,8 @@ export default function CreateEventPage() {
             form={form}
             setForm={setForm}
             availability={availability}
-            bookmarkedIds={bookmarkedEventIds || []}
             onNext={() => setStep(1)}
+            onBrowseReference={handleBrowseReference}
           />
         )}
         {step === 1 && (
@@ -1015,15 +853,14 @@ export default function CreateEventPage() {
             vendors={allVendors}
             vendorSelections={vendorSelections}
             setVendorSelections={setVendorSelections}
-            bookmarkedIds={bookmarkedEventIds || []}
             onNext={() => setStep(2)}
             onBack={() => setStep(0)}
+            onPickVendor={handlePickVendor}
+            onPickVendorRef={handlePickVendorRef}
           />
         )}
         {step === 2 && (
           <StepBudget
-            form={form}
-            vendorSelections={vendorSelections}
             budget={budget}
             onNext={() => setStep(3)}
             onBack={() => setStep(1)}

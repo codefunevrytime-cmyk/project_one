@@ -41,9 +41,10 @@ function getBookmarkPayload(event) {
 }
 
 // ── Expand Panel ──────────────────────────────────────────────────────────
-function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, onBookmark }) {
+function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, onBookmark, pickContext, onAddToEvent }) {
   const related = getRelated(event, allEvents);
   const navigate = useNavigate();
+  const isPicking = Boolean(pickContext);
 
   const venue       = event.venue       || "—";
   const scale       = event.scale       || "—";
@@ -71,6 +72,15 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
   const prevImg = () => goTo((activeIdx - 1 + total) % total);
   const nextImg = () => goTo((activeIdx + 1) % total);
   const currentImg = images[activeIdx] || null;
+
+  const handleCtaClick = () => {
+    if (isPicking) {
+      onAddToEvent(event);
+    } else {
+      onClose();
+      navigate("/create-event", { state: { referenceEvent: event } });
+    }
+  };
 
   return (
     <div className="ep-wrap">
@@ -129,6 +139,9 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
 
         /* Description */
         .ep-desc { font-size:14px; color:#8a7060; line-height:1.78; }
+
+        /* Pick-mode note in footer */
+        .ep-pick-note { font-size:11px; color:#9e8e7a; }
       `}</style>
 
       {/* top: image | details */}
@@ -278,8 +291,9 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
 
           {/* footer */}
           <div className="ep-footer">
-            <button className="ep-cta" onClick={() => { onClose(); navigate("/create-event", { state: { referenceEvent: event } }); }}>
-              Add to Your Event
+            {isPicking && <span className="ep-pick-note">Picking a reference for your event</span>}
+            <button className="ep-cta" onClick={handleCtaClick}>
+              {isPicking ? '+ Add to Event' : 'Add to Your Event'}
             </button>
           </div>
         </div>
@@ -311,12 +325,18 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
 // ── EventCard ─────────────────────────────────────────────────────────────
 // forceExpanded: when true, only render the ExpandPanel (used when rendered
 //               above the grid in ExplorePage). The card thumbnail is skipped.
-export function EventCard({ event, isBookmarked, onBookmarkToggle, allEvents = [], openId, onOpen, onClose, forceExpanded = false }) {
+// pickContext:   when set (from ExplorePage), the card is in "pick mode" —
+//               used to select a reference event for Create Event. Both the
+//               grid card and the expand panel swap their CTA to
+//               "+ Add to Event" and call onAddToEvent instead of navigating
+//               straight to /create-event.
+export function EventCard({ event, isBookmarked, onBookmarkToggle, allEvents = [], openId, onOpen, onClose, forceExpanded = false, pickContext = null, onAddToEvent }) {
   const [hovered, setHovered] = useState(false);
   const [imgIdx, setImgIdx] = useState(0);
   const isOpen = openId === event.id;
   const images = getImages(event);
   const total  = images.length;
+  const isPicking = Boolean(pickContext);
 
   const prevImg = (e) => { e.stopPropagation(); setImgIdx(i => (i - 1 + total) % total); };
   const nextImg = (e) => { e.stopPropagation(); setImgIdx(i => (i + 1) % total); };
@@ -325,6 +345,11 @@ export function EventCard({ event, isBookmarked, onBookmarkToggle, allEvents = [
   const handleBookmark = (e) => {
     e.stopPropagation();
     onBookmarkToggle(getBookmarkPayload(event));
+  };
+
+  const handleCardAddToEvent = (e) => {
+    e.stopPropagation();
+    onAddToEvent(event);
   };
 
   // When forceExpanded, only render the panel — used for the above-grid slot
@@ -337,6 +362,8 @@ export function EventCard({ event, isBookmarked, onBookmarkToggle, allEvents = [
         onRelatedClick={(r) => onOpen(r.id)}
         isBookmarked={isBookmarked}
         onBookmark={() => onBookmarkToggle(getBookmarkPayload(event))}
+        pickContext={pickContext}
+        onAddToEvent={onAddToEvent}
       />
     );
   }
@@ -455,7 +482,7 @@ export function EventCard({ event, isBookmarked, onBookmarkToggle, allEvents = [
           </div>
 
           {/* Location + date */}
-          <div className={styles.meta} style={{ marginBottom: 8 }}>
+          <div className={styles.meta} style={{ marginBottom: isPicking ? 10 : 8 }}>
             <span className={styles.location}>
               <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M8 1.5C5.5 1.5 3.5 3.5 3.5 6c0 3.5 4.5 8.5 4.5 8.5s4.5-5 4.5-8.5c0-2.5-2-4.5-4.5-4.5z"/>
@@ -465,6 +492,25 @@ export function EventCard({ event, isBookmarked, onBookmarkToggle, allEvents = [
             </span>
             <span className={styles.planner}>{event.month} {event.year}</span>
           </div>
+
+          {/* Outside "Add to Event" button — only shown while picking a
+              reference event for Create Event. Mirrors the vendor card's
+              "+ Add to Event" CTA on VendorListingPage. */}
+          {isPicking && (
+            <button
+              onClick={handleCardAddToEvent}
+              style={{
+                width: '100%', padding: '9px 0', marginTop: 2,
+                background: 'rgba(212,134,10,0.12)', border: '0.5px solid rgba(212,134,10,0.4)',
+                borderRadius: 8, color: '#D4860A', fontSize: 12.5, fontWeight: 600,
+                fontFamily: 'inherit', cursor: 'pointer', transition: 'background 0.15s, color 0.15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#D4860A'; e.currentTarget.style.color = '#fff'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(212,134,10,0.12)'; e.currentTarget.style.color = '#D4860A'; }}
+            >
+              + Add to Event
+            </button>
+          )}
         </div>
       </div>
 

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useLocation, useNavigate } from "react-router-dom";
 import { MONTH_IDX } from "../context/data/events";
 import { EventCard } from "../components/EventCard";
 import { Sidebar } from "../components/Sidebar";
@@ -58,7 +58,40 @@ function mapGalleryToEvent(item) {
 export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClearType }) {
   const [allEvents, setAllEvents] = useState([]);
   const [loading, setLoading] = useState(true);
-const { user } = useAuth();
+  const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // ── Pick mode: arrived here from Create Event to select a reference
+  //    event, either as the global event reference or a per-vendor one. ──
+  const pickContext = location.state?.celestePick
+    && (location.state.celestePick.type === 'globalRef' || location.state.celestePick.type === 'vendorRef')
+    ? location.state.celestePick
+    : null;
+
+  const handleAddToEvent = (event) => {
+    if (!pickContext) return;
+    const images = Array.isArray(event.images) && event.images.length > 0
+      ? event.images
+      : (event.image_url ? [event.image_url] : []);
+    const refPayload = {
+      id: event.id,
+      title: event.title,
+      type: event.type,
+      img: event.image_url || images[0] || null,
+      city: event.venue || '',
+      dateLabel: `${event.month || ''} ${event.year || ''}`.trim(),
+      price: event.price ? `₹${Number(event.price).toLocaleString('en-IN')}` : '',
+    };
+    navigate('/create-event', {
+      state: {
+        celestePickResult:
+          pickContext.type === 'globalRef'
+            ? { type: 'globalRef', event: refPayload }
+            : { type: 'vendorRef', serviceKey: pickContext.serviceKey, event: refPayload },
+      },
+    });
+  };
 
   const [filters, setFilters] = useState(() => {
     if (selectedType) return { ...cloneFilters(EMPTY_FILTERS), type: new Set([selectedType]) };
@@ -199,6 +232,30 @@ const { user } = useAuth();
       <Sidebar filters={filters} onChange={handleFilterChange} onClear={clearAll} />
 
       <main className={styles.main}>
+        {/* Pick-mode banner — shown when arriving here from Create Event to
+            choose a reference event, either the event-level reference or a
+            per-vendor one. */}
+        {pickContext && (
+          <div style={{
+            background: '#D4860A', color: '#1a1008', padding: '10px 20px',
+            borderRadius: 10, fontSize: 13, fontWeight: 600, display: 'flex',
+            alignItems: 'center', justifyContent: 'space-between', marginBottom: 16,
+            gap: 12, flexWrap: 'wrap',
+          }}>
+            <span>
+              {pickContext.type === 'vendorRef'
+                ? 'Picking a reference event for this vendor — click "+ Add to Event" on the one you want.'
+                : 'Picking a reference event for your event — click "+ Add to Event" on the one you want.'}
+            </span>
+            <button
+              onClick={() => navigate('/create-event')}
+              style={{ background: 'rgba(26,16,8,0.15)', border: '1px solid rgba(26,16,8,0.3)', borderRadius: 6, padding: '4px 12px', fontSize: 12, cursor: 'pointer', color: '#1a1008', fontFamily: 'inherit', flexShrink: 0 }}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
         {/* top bar */}
         <div className={styles.topBar}>
           <div className={styles.searchBox}>
@@ -262,6 +319,8 @@ const { user } = useAuth();
                       onOpen={handleOpen}
                       onClose={handleClose}
                       forceExpanded
+                      pickContext={pickContext}
+                      onAddToEvent={handleAddToEvent}
                     />
                   </div>
                 )}
@@ -278,6 +337,8 @@ const { user } = useAuth();
                       openId={openId}
                       onOpen={handleOpen}
                       onClose={handleClose}
+                      pickContext={pickContext}
+                      onAddToEvent={handleAddToEvent}
                     />
                   ))}
                 </div>
