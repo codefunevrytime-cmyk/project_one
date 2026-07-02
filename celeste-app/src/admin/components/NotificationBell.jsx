@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { API_URL } from '../../config/api';
 
-const API = 'http://localhost:5000/api';
+const API = API_URL;
 const token = () => localStorage.getItem('adminToken');
 const POLL_MS = 12000;
 
@@ -26,10 +27,42 @@ function timeAgo(dateStr) {
 async function safeJson(url, opts) {
   try {
     const res = await fetch(url, opts);
-    const data = await res.json();
-    return Array.isArray(data) ? data : [];
-  } catch {
-    return [];
+    const text = await res.text();
+    let data;
+
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch (parseError) {
+      return {
+        ok: false,
+        status: res.status,
+        error: `Invalid JSON response from ${url}`,
+        parseError,
+        data: null,
+      };
+    }
+
+    if (!res.ok) {
+      return {
+        ok: false,
+        status: res.status,
+        error: data?.error || res.statusText || `HTTP ${res.status}`,
+        data,
+      };
+    }
+
+    return {
+      ok: true,
+      status: res.status,
+      data,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      status: null,
+      error: err.message || 'Network error',
+      data: null,
+    };
   }
 }
 
@@ -60,7 +93,9 @@ export default function NotificationBell({ onNavigate }) {
     try { return new Set(JSON.parse(localStorage.getItem('adm_notif_read') || '[]')); }
     catch { return new Set(); }
   });
+  const readIdsRef = useRef(readIds);
   const prevCountRef = useRef(0);
+  const initialLoadRef = useRef(true);
   const panelRef = useRef(null);
   const bellRef = useRef(null);
 
@@ -84,14 +119,36 @@ export default function NotificationBell({ onNavigate }) {
   };
 
   const fetchAll = useCallback(async () => {
-    const headers = { Authorization: `Bearer ${token()}` };
+    const currentToken = token();
+    if (!currentToken) {
+      localStorage.removeItem('adminToken');
+      window.location.replace('/admin');
+      throw new Error('Unauthorized: missing admin token');
+    }
 
-    const [vendorApps, reviews, queries, convos] = await Promise.all([
-      safeJson(`${API}/vendor-auth/all`, { headers }),
-      safeJson(`${API}/reviews?all=true`, { headers }),
-      safeJson(`${API}/queries`, { headers }),
-      safeJson(`${API}/messages/admin`, { headers }),
-    ]);
+    const headers = { Authorization: `Bearer ${currentToken}` };
+    const endpointMap = {
+      vendorApps: await safeJson(`${API}/vendor-auth/all`, { headers }),
+      reviews: await safeJson(`${API}/reviews?all=true`, { headers }),
+      queries: await safeJson(`${API}/queries`, { headers }),
+      convos: await safeJson(`${API}/messages/admin`, { headers }),
+    };
+
+    for (const [name, result] of Object.entries(endpointMap)) {
+      if (!result.ok) {
+        const message = `Notifications fetch failed for ${name}: ${result.error || 'unknown error'}`;
+        if (result.status === 401 || result.status === 403) {
+          localStorage.removeItem('adminToken');
+          window.location.replace('/admin');
+        }
+        throw new Error(message);
+      }
+    }
+
+    const vendorApps = Array.isArray(endpointMap.vendorApps.data) ? endpointMap.vendorApps.data : [];
+    const reviews = Array.isArray(endpointMap.reviews.data) ? endpointMap.reviews.data : [];
+    const queries = Array.isArray(endpointMap.queries.data) ? endpointMap.queries.data : [];
+    const convos = Array.isArray(endpointMap.convos.data) ? endpointMap.convos.data : [];
 
     const list = [];
 
@@ -147,21 +204,29 @@ export default function NotificationBell({ onNavigate }) {
     let cancelled = false;
 
     const tick = async () => {
-      const list = await fetchAll();
-      if (cancelled) return;
+      try {
+        const list = await fetchAll();
+        if (cancelled) return;
 
-      const unreadCount = list.filter(i => !readIds.has(i.id)).length;
+        const unreadCount = list.filter(i => !readIdsRef.current.has(i.id)).length;
 
-      if (unreadCount > prevCountRef.current) {
-        const delta = unreadCount - prevCountRef.current;
-        setRinging(true);
-        setBump(delta);
-        playBellSound();
-        setTimeout(() => setRinging(false), 900);
-        setTimeout(() => setBump(0), 3000);
+        if (!initialLoadRef.current && unreadCount > prevCountRef.current) {
+          const delta = unreadCount - prevCountRef.current;
+          setRinging(true);
+          setBump(delta);
+          playBellSound();
+          setTimeout(() => setRinging(false), 900);
+          setTimeout(() => setBump(0), 3000);
+        }
+
+        prevCountRef.current = unreadCount;
+        initialLoadRef.current = false;
+        setItems(list);
+      } catch (err) {
+        if (cancelled) return;
+        console.error('Notification polling failed:', err);
+        setItems([]);
       }
-      prevCountRef.current = unreadCount;
-      setItems(list);
     };
 
     tick();
@@ -187,6 +252,7 @@ export default function NotificationBell({ onNavigate }) {
     setReadIds(prev => {
       const next = new Set(prev);
       next.add(id);
+      readIdsRef.current = next;
       persistRead(next);
       return next;
     });
@@ -196,6 +262,7 @@ export default function NotificationBell({ onNavigate }) {
     setReadIds(prev => {
       const next = new Set(prev);
       items.forEach(i => next.add(i.id));
+      readIdsRef.current = next;
       persistRead(next);
       return next;
     });
@@ -226,6 +293,7 @@ export default function NotificationBell({ onNavigate }) {
       <button
         ref={bellRef}
         onClick={() => setOpen(v => !v)}
+        aria-label={open ? 'Close notifications' : 'Open notifications'}
         style={{
           width: 36, height: 36, borderRadius: 9,
           background: open ? '#e8e8f8' : '#f0f0f7', border: 'none', cursor: 'pointer',
@@ -235,7 +303,7 @@ export default function NotificationBell({ onNavigate }) {
           animation: ringing ? 'bellRing 0.7s ease' : 'none',
         }}
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/>
         </svg>
         {unread.length > 0 && (

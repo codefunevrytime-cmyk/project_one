@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useSlider } from '../hooks/useSlider';
 import { useModal } from '../hooks/useModal';
@@ -8,6 +8,7 @@ import { testimonialData } from '../context/data/testimonialData';
 import { API_URL } from '../config/api';
 
 const API = API_URL;
+const LANDING_SLOTS = 9; // total tiles in the homepage 3x3 grid
 
 /* Hero Slider Data */
 const heroSlides = [
@@ -16,7 +17,11 @@ const heroSlides = [
   { tag: 'Wildlife Edition', title: 'Moments Frozen in Time', sub: 'Rare wildlife encounters, beautifully preserved in every frame.', btnText: 'Book a Session', btnLink: '#contact' },
 ];
 
-/* ── Complete 9-image hardcoded gallery (3×3 grid) ── */
+/* ── Complete 9-image hardcoded gallery (3×3 grid) ──
+   These are placeholder tiles. As real images get marked "Show on Landing
+   Page" from the admin Gallery, they take priority (newest first) and
+   these placeholders are dropped off one by one from the end of the list.
+   Once 9 real images are marked, none of these show at all. */
 const hardcodedGallery = [
   {
     id: 'hc-1',
@@ -248,7 +253,44 @@ function ContactSection() {
 /* ── Landing Page ── */
 export default function LandingPage() {
   const { current: heroCurrent, goTo: goToHero } = useSlider(heroSlides.length, 4000);
-  const { isOpen, open, close, navigate, currentIndex } = useModal(hardcodedGallery.length);
+
+  // ── Real gallery images marked "Show on Landing Page" in Admin ─────────
+  const [liveGallery, setLiveGallery] = useState([]);
+  const [galleryLoaded, setGalleryLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API}/gallery?landing=true`);
+        const data = await res.json();
+        if (!cancelled) setLiveGallery(Array.isArray(data) ? data : []);
+      } catch {
+        // Silently fall back to placeholders if the API is unreachable.
+      }
+      if (!cancelled) setGalleryLoaded(true);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Map real gallery rows onto the same shape the grid/modal expect.
+  const mappedLiveGallery = liveGallery.map(g => ({
+    id: `g-${g.id}`,
+    image_url: g.image_url,
+    title: g.title || 'Untitled',
+    tag: (g.tags && g.tags[0]) || g.event_type || '',
+    location: g.venue || '',
+    description: g.description || '',
+  }));
+
+  // Real images fill slots first; placeholders fill whatever's left,
+  // and disappear one by one as more real images get marked.
+  const remainingSlots = Math.max(0, LANDING_SLOTS - mappedLiveGallery.length);
+  const displayGallery = galleryLoaded
+    ? [...mappedLiveGallery, ...hardcodedGallery.slice(0, remainingSlots)]
+    : hardcodedGallery; // avoid a flash of empty grid while loading
+
+  const { isOpen, open, close, navigate, currentIndex } = useModal(displayGallery.length);
 
   return (
     <>
@@ -273,14 +315,14 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Gallery Grid — 9 images, 3×3 ── */}
+      {/* ── Gallery Grid — real images first, placeholders fill the rest ── */}
       <section id="gallery">
         <div className="section-label">Our Work</div>
         <h2 className="section-title">Visual Stories</h2>
         <div className="section-line"></div>
 
         <div className="gallery-grid">
-          {hardcodedGallery.map((item, index) => (
+          {displayGallery.map((item, index) => (
             <div
               key={item.id}
               className="gallery-item"
@@ -315,7 +357,7 @@ export default function LandingPage() {
       <GalleryModal
         isOpen={isOpen}
         onClose={close}
-        item={hardcodedGallery[currentIndex] || null}
+        item={displayGallery[currentIndex] || null}
         onPrev={() => navigate(-1)}
         onNext={() => navigate(1)}
       />
@@ -336,7 +378,6 @@ export default function LandingPage() {
     </>
   );
 }
-
 // 223 - 47 - 2 - 
 // 183 - 39 - 2
 // 164 - 40 - 6

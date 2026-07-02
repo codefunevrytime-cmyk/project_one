@@ -14,10 +14,23 @@ function getEmoji(type) {
   return EVENT_CATEGORIES.find((c) => c.type === type)?.icon ?? "📅";
 }
 
+// "More like this" — only events that share at least 1 tag with the
+// current event are eligible. Events with more overlapping tags are
+// prioritized first (3 matches > 2 matches > 1 match). Events with zero
+// shared tags are excluded entirely, regardless of event type.
 function getRelated(event, allEvents) {
+  const eventTags = Array.isArray(event.tags) ? event.tags : [];
+  if (eventTags.length === 0) return [];
+
   return allEvents
-    .filter((e) => e.id !== event.id && e.type === event.type)
-    .concat(allEvents.filter((e) => e.id !== event.id && e.type !== event.type))
+    .filter((e) => e.id !== event.id)
+    .map((e) => {
+      const eTags = Array.isArray(e.tags) ? e.tags : [];
+      const matchCount = eTags.filter((tag) => eventTags.includes(tag)).length;
+      return { ...e, _matchCount: matchCount };
+    })
+    .filter((e) => e._matchCount > 0)
+    .sort((a, b) => b._matchCount - a._matchCount)
     .slice(0, 5);
 }
 

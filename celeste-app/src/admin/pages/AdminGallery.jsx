@@ -7,6 +7,7 @@ const token = () => localStorage.getItem('adminToken');
 
 const EVENT_TYPES = ['Wedding', 'Birthday', 'Corporate', 'Concert', 'Festival', 'Sports', 'Outdoor', 'Expo', 'Cultural', 'Charity', 'Food'];
 const SCALE_OPTIONS = ['Small', 'Medium', 'Large'];
+const LANDING_SLOTS = 9; // matches the 3x3 grid on LandingPage.jsx
 
 const inputStyle = {
   width: '100%', padding: '9px 12px', border: '1px solid #e8e0d5',
@@ -26,10 +27,12 @@ export default function AdminGallery() {
     title: '', description: '', event_date: '',
     price: '', tags: '', event_type: '', venue: '', scale: ''
   });
+  const [showOnLanding, setShowOnLanding] = useState(false);
   const [file, setFile]       = useState(null);
   const [preview, setPreview] = useState(null);
   const [success, setSuccess] = useState('');
   const [filterType, setFilterType] = useState('');
+  const [viewMode, setViewMode] = useState('all'); // 'all' | 'landing'
 
   // Extra images panel
   const [selectedGalleryItem, setSelectedGalleryItem] = useState(null);
@@ -85,6 +88,7 @@ export default function AdminGallery() {
     fd.append('event_type',  form.event_type);
     fd.append('venue',       form.venue);
     fd.append('scale',       form.scale);
+    fd.append('show_on_landing', showOnLanding);
 
     try {
       const res  = await fetch(`${API}/gallery`, {
@@ -94,10 +98,11 @@ export default function AdminGallery() {
       });
       const data = await res.json();
       if (data.success) {
-        setSuccess('Image uploaded successfully!');
+        setSuccess(showOnLanding ? 'Image uploaded and added to Landing Page!' : 'Image uploaded successfully!');
         setFile(null);
         setPreview(null);
         setForm({ title: '', description: '', event_date: '', price: '', tags: '', event_type: '', venue: '', scale: '' });
+        setShowOnLanding(false);
         fetchImages();
         setTimeout(() => setSuccess(''), 3000);
       }
@@ -118,6 +123,19 @@ export default function AdminGallery() {
       fetchImages();
     } catch {
       // Ignore delete errors silently.
+    }
+  };
+
+  // ── Toggle whether an item shows on the public Landing Page ────────────
+  const handleToggleLanding = async (id) => {
+    try {
+      await fetch(`${API}/gallery/${id}/landing`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+      fetchImages();
+    } catch {
+      // Ignore toggle errors silently.
     }
   };
 
@@ -176,6 +194,10 @@ export default function AdminGallery() {
     const extras = img.gallery_images?.length || 0;
     return 1 + extras;
   };
+
+  const landingImages = images.filter(img => img.show_on_landing);
+  const displayedImages = viewMode === 'landing' ? landingImages : images;
+  const landingFull = landingImages.length >= LANDING_SLOTS;
 
   return (
     <div>
@@ -259,6 +281,30 @@ export default function AdminGallery() {
           <label style={labelStyle}>Description</label>
           <textarea value={form.description} onChange={set('description')} placeholder="Brief description..." rows={2}
             style={{ ...inputStyle, resize: 'vertical' }} />
+        </div>
+
+        {/* Show on Landing Page */}
+        <div style={{
+          marginBottom: 20, padding: '12px 16px', borderRadius: 8,
+          background: showOnLanding ? '#fdf6e3' : '#f7f5f2',
+          border: `1px solid ${showOnLanding ? '#c9a84c' : '#e8e0d5'}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: 13, color: '#5a4a36' }}>
+            <input
+              type="checkbox"
+              checked={showOnLanding}
+              onChange={e => setShowOnLanding(e.target.checked)}
+              style={{ width: 16, height: 16, cursor: 'pointer' }}
+            />
+            <span>
+              <strong style={{ color: '#1a1008' }}>Show on Landing Page</strong>
+              {' '}— replaces one of the placeholder photos in the homepage gallery
+            </span>
+          </label>
+          <span style={{ fontSize: 11, color: landingFull ? '#b91c1c' : '#9e8e7a', flexShrink: 0, marginLeft: 12 }}>
+            {landingImages.length}/{LANDING_SLOTS} slots used
+          </span>
         </div>
 
         {/* Image picker */}
@@ -347,32 +393,72 @@ export default function AdminGallery() {
         </div>
       )}
 
-      {/* ── Filter pills ── */}
-      <div style={{ marginBottom: 20, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {['', ...EVENT_TYPES].map(t => (
-          <button key={t} onClick={() => setFilterType(t)}
-            style={{ padding: '6px 14px', borderRadius: 20, border: '1px solid #e8e0d5', background: filterType === t ? '#1a1008' : '#f7f5f2', color: filterType === t ? '#ffa01e' : '#5a4a36', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
-            {t === '' ? 'All' : t}
-          </button>
-        ))}
+      {/* ── View mode: All Gallery vs Landing Page Selection ── */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+        <button
+          onClick={() => setViewMode('all')}
+          style={{
+            padding: '8px 18px', borderRadius: 8, border: 'none', fontSize: 13,
+            fontFamily: 'inherit', cursor: 'pointer', fontWeight: 500,
+            background: viewMode === 'all' ? '#1a1008' : '#f7f5f2',
+            color: viewMode === 'all' ? '#ffa01e' : '#5a4a36',
+          }}
+        >
+          All Gallery ({images.length})
+        </button>
+        <button
+          onClick={() => setViewMode('landing')}
+          style={{
+            padding: '8px 18px', borderRadius: 8, border: 'none', fontSize: 13,
+            fontFamily: 'inherit', cursor: 'pointer', fontWeight: 500,
+            background: viewMode === 'landing' ? '#1a1008' : '#f7f5f2',
+            color: viewMode === 'landing' ? '#ffa01e' : '#5a4a36',
+          }}
+        >
+          ★ Landing Page ({landingImages.length}/{LANDING_SLOTS})
+        </button>
       </div>
+
+      {viewMode === 'landing' && (
+        <div style={{ background: '#fdf6e3', border: '1px solid #f0e0b0', borderRadius: 10, padding: '14px 18px', marginBottom: 20, fontSize: 12, color: '#8a5a00', lineHeight: 1.6 }}>
+          These images show on the homepage gallery instead of the placeholder stock photos. There are {LANDING_SLOTS} slots on the homepage —
+          as long as fewer than {LANDING_SLOTS} images are marked here, the remaining slots are filled automatically with placeholders. Once you fill all {LANDING_SLOTS},
+          the placeholders disappear completely.
+        </div>
+      )}
+
+      {/* ── Filter pills (only relevant in All Gallery view) ── */}
+      {viewMode === 'all' && (
+        <div style={{ marginBottom: 20, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {['', ...EVENT_TYPES].map(t => (
+            <button key={t} onClick={() => setFilterType(t)}
+              style={{ padding: '6px 14px', borderRadius: 20, border: '1px solid #e8e0d5', background: filterType === t ? '#1a1008' : '#f7f5f2', color: filterType === t ? '#ffa01e' : '#5a4a36', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+              {t === '' ? 'All' : t}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* ── Image Grid ── */}
       <div>
         <h3 style={{ fontSize: 15, fontWeight: 500, color: '#1a1008', marginBottom: 16 }}>
-          {filterType ? `${filterType} Events` : 'All Images'} ({images.length})
+          {viewMode === 'landing'
+            ? `Landing Page Images (${landingImages.length})`
+            : `${filterType ? `${filterType} Events` : 'All Images'} (${images.length})`}
         </h3>
 
         {loading ? (
           <p style={{ color: '#9e8e7a', fontSize: 13 }}>Loading…</p>
-        ) : images.length === 0 ? (
+        ) : displayedImages.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px 20px', background: '#fff', borderRadius: 12, border: '1px solid #e8e0d5' }}>
-            <p style={{ color: '#9e8e7a', fontSize: 13 }}>No images found.</p>
+            <p style={{ color: '#9e8e7a', fontSize: 13 }}>
+              {viewMode === 'landing' ? 'No images marked for the landing page yet.' : 'No images found.'}
+            </p>
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-            {images.map(img => (
-              <div key={img.id} style={{ background: '#fff', borderRadius: 12, border: `1px solid ${selectedGalleryItem?.id === img.id ? '#c9a84c' : '#e8e0d5'}`, overflow: 'hidden' }}>
+            {displayedImages.map(img => (
+              <div key={img.id} style={{ background: '#fff', borderRadius: 12, border: `1px solid ${img.show_on_landing ? '#c9a84c' : (selectedGalleryItem?.id === img.id ? '#c9a84c' : '#e8e0d5')}`, overflow: 'hidden' }}>
 
                 {/* Image + badges */}
                 <div style={{ position: 'relative' }}>
@@ -391,6 +477,12 @@ export default function AdminGallery() {
                   {totalImages(img) > 1 && (
                     <span style={{ position: 'absolute', bottom: 10, right: 10, fontSize: 10, padding: '3px 9px', borderRadius: 20, background: 'rgba(201,168,76,0.9)', color: '#1a1008', fontWeight: 600 }}>
                       {totalImages(img)} photos
+                    </span>
+                  )}
+                  {/* Landing page badge */}
+                  {img.show_on_landing && (
+                    <span style={{ position: 'absolute', bottom: 10, left: 10, fontSize: 10, padding: '3px 9px', borderRadius: 20, background: '#c9a84c', color: '#1a1008', fontWeight: 700 }}>
+                      ★ Landing
                     </span>
                   )}
                 </div>
@@ -431,7 +523,7 @@ export default function AdminGallery() {
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                     <button onClick={() => openExtraPanel(img)}
                       style={{ flex: 1, fontSize: 11, color: '#c9a84c', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.35)', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontFamily: 'inherit' }}>
                       + More Photos ({totalImages(img)})
@@ -441,6 +533,23 @@ export default function AdminGallery() {
                       Delete
                     </button>
                   </div>
+
+                  <button
+                    onClick={() => handleToggleLanding(img.id)}
+                    disabled={!img.show_on_landing && landingFull}
+                    style={{
+                      width: '100%', fontSize: 11, fontFamily: 'inherit', cursor: (!img.show_on_landing && landingFull) ? 'not-allowed' : 'pointer',
+                      padding: '6px 10px', borderRadius: 6,
+                      background: img.show_on_landing ? '#fdf6e3' : '#f7f5f2',
+                      border: `1px solid ${img.show_on_landing ? '#c9a84c' : '#e8e0d5'}`,
+                      color: img.show_on_landing ? '#8a5a00' : '#5a4a36',
+                      fontWeight: 500,
+                      opacity: (!img.show_on_landing && landingFull) ? 0.5 : 1,
+                    }}
+                    title={!img.show_on_landing && landingFull ? `All ${LANDING_SLOTS} landing slots are full` : ''}
+                  >
+                    {img.show_on_landing ? '★ Remove from Landing Page' : '☆ Add to Landing Page'}
+                  </button>
                 </div>
               </div>
             ))}

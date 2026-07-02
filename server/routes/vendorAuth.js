@@ -221,31 +221,24 @@ router.post('/enquiries/:id/request-contact', vendorAuth, async (req, res) => {
   }
 });
 
-// GET /api/vendor-auth/profile  — get linked vendor profile
-router.get('/profile', vendorAuth, async (req, res) => {
+// GET /api/vendor-auth/reviews — reviews for the logged-in vendor (approved + pending)
+router.get('/reviews', vendorAuth, async (req, res) => {
   try {
-    const userRes = await pool.query('SELECT * FROM vendor_users WHERE id = $1', [req.vendorUserId]);
-    const user = userRes.rows[0];
-    if (!user.vendor_id) return res.json({ user, vendor: null, portfolio: [], tags: [] });
+    const userRes = await pool.query('SELECT vendor_id FROM vendor_users WHERE id = $1', [req.vendorUserId]);
+    const vendorId = userRes.rows[0]?.vendor_id;
+    if (!vendorId) return res.json([]);
 
-    const [vendorRes, portRes, tagsRes] = await Promise.all([
-      pool.query(
-        `SELECT v.*, s.name AS service_name, s.category AS service_category
-         FROM vendors v
-         LEFT JOIN services s ON v.service_id = s.id
-         WHERE v.id = $1`,
-        [user.vendor_id]
-      ),
-      pool.query('SELECT * FROM vendor_portfolio WHERE vendor_id = $1 ORDER BY created_at DESC', [user.vendor_id]),
-      pool.query('SELECT * FROM vendor_tags WHERE vendor_id = $1', [user.vendor_id]),
-    ]);
+    // auto-migration, matching the pattern used elsewhere in this file
+    await pool.query(`ALTER TABLE reviews ADD COLUMN IF NOT EXISTS sub_service TEXT`).catch(() => {});
 
-    res.json({
-      user,
-      vendor: vendorRes.rows[0] || null,
-      portfolio: portRes.rows,
-      tags: tagsRes.rows,
-    });
+    const result = await pool.query(
+      `SELECT id, client_name, message, rating, approved, sub_service, created_at
+       FROM reviews
+       WHERE vendor_id = $1
+       ORDER BY created_at DESC`,
+      [vendorId]
+    );
+    res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

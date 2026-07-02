@@ -11,6 +11,9 @@ import VendorLayout from './components/VendorLayout';
 import VendorPending from './pages/VendorPending';
 import VendorEventRequests from './pages/VendorEventRequests';
 import VendorMessages from './pages/VendorMessages';
+import VendorReviews from './pages/VendorReviews'; // add import
+
+
 
 
 
@@ -45,6 +48,8 @@ function VendorRoutes() {
           <Route path="enquiries"      element={<VendorEnquiries />} />
           <Route path="messages"       element={<VendorMessages />} />
           <Route path="event-requests" element={<VendorEventRequests />} />
+          <Route path="reviews" element={<VendorReviews />} />
+
           <Route path="*"              element={<Navigate to="/vendor/dashboard" replace />} />
         </Routes>
       </VendorLayout>
