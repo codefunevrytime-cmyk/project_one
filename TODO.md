@@ -8,13 +8,13 @@
 
 #5 in admin instead 0f vendors " services " and inside services option to access different service by dropdown in particular service all vendirs 
 
-# 6  notification in admin , vendor , my event progress tracker 
+#6 notification in admin , vendor , my event progress tracker 
 
-# 7 vendor review
+#7 vendor review
 
 # 8 different sub service price 
 
-# 9 landing page gallery card size and detials easy for editing again and again no db linking hardcoded data 
+#9 landing page gallery card size and detials easy for editing again and again no db linking hardcoded data 
 
 # 10 FAQ s and reply of quieries via email 
 

@@ -98,10 +98,21 @@ function getServiceFields(serviceConfig) {
 }
 
 function computeVendorTotal(pricingModel, vendorData) {
-  const pricePerUnit = vendorData.vendor?.price_per_day ? Number(vendorData.vendor.price_per_day) : 0;
-  if (pricingModel === "flat") return pricePerUnit;
+  const prices = vendorData.vendor?.prices || {};
+  const selectedServices = vendorData.coverage_types || [];
+
+  let base;
+  if (selectedServices.length > 0) {
+    // Sum the actual per-service prices the vendor set in their profile
+    base = selectedServices.reduce((sum, svc) => sum + (Number(prices[svc]) || 0), 0);
+  } else {
+    // No sub-service picked yet — fall back to the vendor's average price
+    base = vendorData.vendor?.price_per_day ? Number(vendorData.vendor.price_per_day) : 0;
+  }
+
+  if (pricingModel === "flat") return base;
   const days = Number(vendorData.days) || 1;
-  return pricePerUnit * days;
+  return base * days;
 }
 
 /* ─── small helpers ──────────────────────────────────────────────────────────── */
@@ -312,6 +323,7 @@ function StepBasics({ form, setForm, availability, onNext, onBrowseReference }) 
 }
 
 /* ─── Generic extra-field renderer ────────────────────────────────────────────── */
+/* ─── Generic extra-field renderer ────────────────────────────────────────────── */
 function ExtraField({ field, vendorData, onChange }) {
   const value = vendorData[field.key];
 
@@ -331,18 +343,44 @@ function ExtraField({ field, vendorData, onChange }) {
 
   if (field.type === "multiselect") {
     const selected = vendorData[field.key] || [];
+    const prices   = field.prices || {};
     const toggle = (val) => onChange({ ...vendorData, [field.key]: selected.includes(val) ? selected.filter(x=>x!==val) : [...selected, val] });
+
+    if (!field.options || field.options.length === 0) {
+      return (
+        <div style={{ marginBottom:14 }}>
+          <div style={{ fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em",color:"rgba(200,175,120,0.45)",marginBottom:8 }}>{field.label}</div>
+          <p style={{ fontSize:12,color:"rgba(200,175,120,0.3)",fontStyle:"italic" }}>Select a vendor first to see their sub-services and pricing.</p>
+        </div>
+      );
+    }
+
+    const selectedTotal = selected.reduce((s,v)=>s+(Number(prices[v])||0),0);
+
     return (
       <div style={{ marginBottom:14 }}>
         <div style={{ fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em",color:"rgba(200,175,120,0.45)",marginBottom:8 }}>
-          {field.label} <span style={{ textTransform:"none",letterSpacing:0,color:"rgba(200,175,120,0.3)" }}>(select all that apply)</span>
+          {field.label} <span style={{ textTransform:"none",letterSpacing:0,color:"rgba(200,175,120,0.3)" }}>(select all that apply — price shown per service)</span>
         </div>
         <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>
-          {(field.options||[]).map(opt=>{
+          {field.options.map(opt=>{
             const sel = selected.includes(opt);
-            return <button key={opt} onClick={()=>toggle(opt)} style={{ fontSize:11,padding:"5px 12px",borderRadius:20,border:`0.5px solid ${sel?"rgba(200,175,120,0.45)":"rgba(200,175,120,0.15)"}`,background:sel?"rgba(200,175,120,0.1)":"none",color:sel?"#c8af78":"rgba(200,175,120,0.45)",cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s" }}>{opt}</button>;
+            const p = Number(prices[opt]) || 0;
+            return (
+              <button key={opt} onClick={()=>toggle(opt)} style={{ fontSize:11,padding:"5px 12px",borderRadius:20,border:`0.5px solid ${sel?"rgba(200,175,120,0.45)":"rgba(200,175,120,0.15)"}`,background:sel?"rgba(200,175,120,0.1)":"none",color:sel?"#c8af78":"rgba(200,175,120,0.45)",cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s",display:"flex",alignItems:"center",gap:6 }}>
+                <span>{opt}</span>
+                <span style={{ fontSize:10, color:sel?"#c8af78":"rgba(200,175,120,0.35)", opacity:0.85 }}>
+                  {p > 0 ? `₹${p.toLocaleString("en-IN")}` : "POR"}
+                </span>
+              </button>
+            );
           })}
         </div>
+        {selected.length > 0 && (
+          <div style={{ marginTop:10,fontSize:12,color:"#c8af78" }}>
+            Selected sub-services total: <strong>₹{selectedTotal.toLocaleString("en-IN")}</strong>
+          </div>
+        )}
       </div>
     );
   }
@@ -399,8 +437,13 @@ function VendorBlock({ serviceType, serviceConfig, vendorData, onChange, onPickV
                   <div style={{ fontSize:13,fontWeight:600,color:"#e8dcc8" }}>{vendorData.vendor.name}</div>
                   <div style={{ fontSize:11,color:"rgba(200,175,120,0.45)" }}>{vendorData.vendor.specialty||serviceType}</div>
                 </div>
-                {pricePerUnit>0&&<div style={{ fontSize:12,fontWeight:600,color:"#c8af78" }}>₹{fmt(pricePerUnit)}{pricingModel==="perDay"?"/day":""}</div>}
-                <button onClick={onPickVendor} style={{ fontSize:11,color:"rgba(200,175,120,0.45)",background:"none",border:"0.5px solid rgba(200,175,120,0.15)",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontFamily:"inherit" }}>Change</button>
+{(vendorData.coverage_types?.length ? totalCost : pricePerUnit) > 0 && (
+  <div style={{ fontSize:12,fontWeight:600,color:"#c8af78" }}>
+    {vendorData.coverage_types?.length
+      ? `₹${fmt(totalCost)}`
+      : `~₹${fmt(pricePerUnit)}${pricingModel==="perDay" ? "/day" : ""} avg`}
+  </div>
+)}                <button onClick={onPickVendor} style={{ fontSize:11,color:"rgba(200,175,120,0.45)",background:"none",border:"0.5px solid rgba(200,175,120,0.15)",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontFamily:"inherit" }}>Change</button>
               </div>
             ) : (
               <button onClick={onPickVendor} style={{ width:"100%",padding:"12px",background:"#1e1a14",border:"0.5px dashed rgba(200,175,120,0.25)",borderRadius:10,fontSize:13,color:"rgba(200,175,120,0.45)",cursor:"pointer",fontFamily:"inherit",textAlign:"center" }}>
@@ -410,11 +453,24 @@ function VendorBlock({ serviceType, serviceConfig, vendorData, onChange, onPickV
           </div>
 
           {/* Service-specific fields */}
-          {extraFields.map(field => (
-            <ExtraField key={field.key} field={field} vendorData={vendorData} onChange={onChange} />
-          ))}
-          {pricingModel === "perDay" && pricePerUnit > 0 && Number(vendorData.days) > 1 && (
-            <p style={{ fontSize:11,color:"rgba(200,175,120,0.4)",marginTop:-8,marginBottom:14 }}>= ₹{fmt(totalCost)} total</p>
+          {/* Service-specific fields */}
+          {extraFields.map(field => {
+            const effectiveField = field.type === "multiselect"
+              ? {
+                  ...field,
+                  // Use the vendor's own "Services Offered" list instead of the
+                  // generic static options, so names always match their pricing
+                  options: (vendorData.vendor?.services?.length ? vendorData.vendor.services : field.options),
+                  prices:  vendorData.vendor?.prices || {},
+                }
+              : field;
+            return <ExtraField key={field.key} field={effectiveField} vendorData={vendorData} onChange={onChange} />;
+          })}
+          {totalCost > 0 && (
+            <p style={{ fontSize:12,color:"#c8af78",fontWeight:600,marginTop:-8,marginBottom:14 }}>
+              Estimated cost for this vendor: ₹{fmt(totalCost)}
+              {pricingModel === "perDay" && Number(vendorData.days) > 1 ? ` (${vendorData.days} days)` : ""}
+            </p>
           )}
 
           {/* Notes */}
@@ -601,8 +657,15 @@ function StepReview({ form, vendorSelections, budget, submitting, submitError, o
               />
             ))}
             <ReviewItem label="Notes" value={sel.notes}/>
-            <ReviewItem label="Rate" value={sel.vendor.price_per_day ? `₹${fmt(sel.vendor.price_per_day)}${pricingModel==="perDay"?" / day":""}` : "To be confirmed"}/>
-            {sel.reference_event&&<div style={{ marginTop:14 }}><RefImageBlock label={`Reference for ${cfg.title || cfg.singular}`} event={sel.reference_event}/></div>}
+{Array.isArray(sel.coverage_types) && sel.coverage_types.length > 0 && (
+              <ReviewItem
+                label="Sub-services"
+                value={sel.coverage_types
+                  .map(s => `${s} (₹${fmt(sel.vendor?.prices?.[s] || 0)})`)
+                  .join(", ")}
+              />
+            )}
+            <ReviewItem label="Total cost" value={`₹${fmt(computeVendorTotal(pricingModel, sel))}`} />            {sel.reference_event&&<div style={{ marginTop:14 }}><RefImageBlock label={`Reference for ${cfg.title || cfg.singular}`} event={sel.reference_event}/></div>}
           </div>
         );
       })}

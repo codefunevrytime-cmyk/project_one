@@ -10,8 +10,6 @@ const NAV = [
   { to: '/vendor/enquiries',      label: 'Enquiries',      icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z' },
   { to: '/vendor/messages',       label: 'Messages',       icon: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z' },
   { to: '/vendor/event-requests', label: 'Event Requests', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z' },
-  { to: '/vendor/reviews', label: 'Reviews', icon: 'M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z' },
-
 ];
 
 // Service category → accent color + badge label, mirrors VendorProfile config
@@ -34,8 +32,16 @@ export default function VendorLayout({ children }) {
     ? vendorUser.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
     : 'V';
 
-  const category = (vendorUser?.service_category || vendorUser?.category || 'photography').toLowerCase();
-  const meta = CATEGORY_META[category] || CATEGORY_META.photography;
+  // ── FIX ────────────────────────────────────────────────────────────────
+  // Previously this defaulted to 'photography' whenever service_category
+  // was missing/NULL (e.g. the vendor's linked `services` row had no
+  // category set — see services.js fix). That silently showed every
+  // uncategorized vendor as Photography with no indication anything was
+  // wrong. Now we only look up CATEGORY_META if a real category came
+  // back, and show an explicit "not set" badge otherwise so the gap is
+  // visible instead of hidden.
+  const rawCategory = (vendorUser?.service_category || vendorUser?.category || '').toLowerCase();
+  const meta = CATEGORY_META[rawCategory] || null;
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#080c14', fontFamily: "'DM Sans', sans-serif" }}>
@@ -71,15 +77,27 @@ export default function VendorLayout({ children }) {
         {/* Service category badge */}
         {!collapsed && (
           <div style={{ padding: '12px 16px 0' }}>
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 7,
-              padding: '6px 12px', borderRadius: 8,
-              background: `${meta.color}16`, border: `1px solid ${meta.color}40`,
-              fontSize: 11, color: meta.color, fontWeight: 500,
-            }}>
-              <span>{meta.icon}</span>
-              <span>{meta.label}</span>
-            </div>
+            {meta ? (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 7,
+                padding: '6px 12px', borderRadius: 8,
+                background: `${meta.color}16`, border: `1px solid ${meta.color}40`,
+                fontSize: 11, color: meta.color, fontWeight: 500,
+              }}>
+                <span>{meta.icon}</span>
+                <span>{meta.label}</span>
+              </div>
+            ) : (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 7,
+                padding: '6px 12px', borderRadius: 8,
+                background: 'rgba(220,60,60,0.1)', border: '1px solid rgba(220,60,60,0.3)',
+                fontSize: 11, color: '#ff8080', fontWeight: 500,
+              }}>
+                <span>⚠️</span>
+                <span>Category not set — contact admin</span>
+              </div>
+            )}
           </div>
         )}
 

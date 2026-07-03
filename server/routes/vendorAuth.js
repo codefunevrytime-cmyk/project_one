@@ -129,8 +129,21 @@ router.post('/login', async (req, res) => {
     const user  = result.rows[0];
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
+
     const token = jwt.sign({ vendorUserId: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email, phone: user.phone, status: user.status, vendor_id: user.vendor_id } });
+
+    // Fetch full profile including service_category, same shape as /me
+    const fullRes = await pool.query(
+      `SELECT vu.id, vu.name, vu.email, vu.phone, vu.status, vu.vendor_id,
+              s.category AS service_category
+       FROM vendor_users vu
+       LEFT JOIN vendors v  ON vu.vendor_id = v.id
+       LEFT JOIN services s ON v.service_id = s.id
+       WHERE vu.id = $1`,
+      [user.id]
+    );
+
+    res.json({ token, user: fullRes.rows[0] });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -262,6 +275,37 @@ const upload = multer({ storage: multerStorage });
 // on the public profile / listing pages; per-service prices stay internal
 // to the vendor's own edit form (stored in the `prices` JSONB column, but
 // never rendered publicly).
+// GET /api/vendor-auth/profile  — get linked vendor profile
+router.get('/profile', vendorAuth, async (req, res) => {
+  try {
+    const userRes = await pool.query('SELECT * FROM vendor_users WHERE id = $1', [req.vendorUserId]);
+    const user = userRes.rows[0];
+    if (!user.vendor_id) return res.json({ user, vendor: null, portfolio: [], tags: [] });
+
+    const [vendorRes, portRes, tagsRes] = await Promise.all([
+      pool.query(
+        `SELECT v.*, s.name AS service_name, s.category AS service_category
+         FROM vendors v
+         LEFT JOIN services s ON v.service_id = s.id
+         WHERE v.id = $1`,
+        [user.vendor_id]
+      ),
+      pool.query('SELECT * FROM vendor_portfolio WHERE vendor_id = $1 ORDER BY created_at DESC', [user.vendor_id]),
+      pool.query('SELECT * FROM vendor_tags WHERE vendor_id = $1', [user.vendor_id]),
+    ]);
+
+    res.json({
+      user,
+      vendor: vendorRes.rows[0] || null,
+      portfolio: portRes.rows,
+      tags: tagsRes.rows,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 router.put('/profile', vendorAuth, upload.single('photo'), async (req, res) => {
   try {
     const userRes = await pool.query('SELECT * FROM vendor_users WHERE id = $1', [req.vendorUserId]);

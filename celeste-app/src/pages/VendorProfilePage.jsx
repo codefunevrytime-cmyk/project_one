@@ -122,6 +122,10 @@ function ReviewCard({ review }) {
           <div className="pp-review-meta">
             <RatingStars rating={rating} />
             <span className="pp-review-date">{date}</span>
+            {/* NEW: which sub-service this review was left for */}
+            {review.sub_service && (
+              <span className="pp-review-tag" style={{ marginLeft: 4 }}>{review.sub_service}</span>
+            )}
           </div>
         </div>
       </div>
@@ -238,12 +242,13 @@ function PortfolioCarousel({ images }) {
 }
 
 // ── Write Review Form ──────────────────────────────────────────────────────
-function WriteReviewForm({ vendorId, vendorName, user, onReviewSubmitted }) {
+function WriteReviewForm({ vendorId, vendorName, services, user, onReviewSubmitted }) {
   const [reviewText,       setReviewText]       = useState('');
   const [reviewRating,     setReviewRating]     = useState(0);
   const [hoverRating,      setHoverRating]      = useState(0);
   const [budget,           setBudget]           = useState('');
   const [reviewerName,     setReviewerName]     = useState(user?.name || '');
+  const [subService,       setSubService]       = useState(''); // NEW — which service the review is for
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewSuccess,    setReviewSuccess]    = useState('');
   const [reviewError,      setReviewError]      = useState('');
@@ -262,6 +267,7 @@ function WriteReviewForm({ vendorId, vendorName, user, onReviewSubmitted }) {
       rating:      reviewRating,           // 1-5 stars directly
       approved:    false,
       vendor_id:   vendorId || null,
+      sub_service: subService || null,     // NEW — which specific service this review is about
     };
 
     try {
@@ -276,6 +282,7 @@ function WriteReviewForm({ vendorId, vendorName, user, onReviewSubmitted }) {
         setReviewText('');
         setReviewRating(0);
         setBudget('');
+        setSubService(''); // NEW
         if (!user) setReviewerName('');
         setTimeout(() => setReviewSuccess(''), 5000);
         if (onReviewSubmitted) onReviewSubmitted();
@@ -317,6 +324,27 @@ function WriteReviewForm({ vendorId, vendorName, user, onReviewSubmitted }) {
           style={{ marginBottom: 0 }}
         />
       </div>
+
+      {/* NEW: Which specific service is this review about — populated from
+          the vendor's own "Services Offered" list (photographer.services),
+          not a hardcoded list, so it's correct for every service category
+          (photography, invitations, decor, catering, music, makeup, venue). */}
+      {services?.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ display: 'block', fontSize: 12, color: 'var(--pp-text-2)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+            Which service did you take? <span style={{ textTransform: 'none', letterSpacing: 0, opacity: 0.6 }}>(optional)</span>
+          </label>
+          <select
+            className="pp-form-input"
+            value={subService}
+            onChange={e => setSubService(e.target.value)}
+            style={{ marginBottom: 0 }}
+          >
+            <option value="">Select a service…</option>
+            {services.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+      )}
 
       {/* Star rating — 1–5 stars */}
       <div className="pp-star-picker" style={{ marginBottom: 18 }}>
@@ -867,6 +895,7 @@ const photographer = dbVendor
                 <WriteReviewForm
                   vendorId={resolvedVendorId}
                   vendorName={photographer.name}
+                  services={servicesOffered}
                   user={user}
                   onReviewSubmitted={fetchReviews}
                 />
