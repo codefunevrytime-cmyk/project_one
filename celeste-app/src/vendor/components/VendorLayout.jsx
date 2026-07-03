@@ -32,8 +32,16 @@ export default function VendorLayout({ children }) {
     ? vendorUser.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
     : 'V';
 
-  const category = (vendorUser?.service_category || vendorUser?.category || 'photography').toLowerCase();
-  const meta = CATEGORY_META[category] || CATEGORY_META.photography;
+  // ── FIX ────────────────────────────────────────────────────────────────
+  // Previously this defaulted to 'photography' whenever service_category
+  // was missing/NULL (e.g. the vendor's linked `services` row had no
+  // category set — see services.js fix). That silently showed every
+  // uncategorized vendor as Photography with no indication anything was
+  // wrong. Now we only look up CATEGORY_META if a real category came
+  // back, and show an explicit "not set" badge otherwise so the gap is
+  // visible instead of hidden.
+  const rawCategory = (vendorUser?.service_category || vendorUser?.category || '').toLowerCase();
+  const meta = CATEGORY_META[rawCategory] || null;
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#080c14', fontFamily: "'DM Sans', sans-serif" }}>
@@ -69,15 +77,27 @@ export default function VendorLayout({ children }) {
         {/* Service category badge */}
         {!collapsed && (
           <div style={{ padding: '12px 16px 0' }}>
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 7,
-              padding: '6px 12px', borderRadius: 8,
-              background: `${meta.color}16`, border: `1px solid ${meta.color}40`,
-              fontSize: 11, color: meta.color, fontWeight: 500,
-            }}>
-              <span>{meta.icon}</span>
-              <span>{meta.label}</span>
-            </div>
+            {meta ? (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 7,
+                padding: '6px 12px', borderRadius: 8,
+                background: `${meta.color}16`, border: `1px solid ${meta.color}40`,
+                fontSize: 11, color: meta.color, fontWeight: 500,
+              }}>
+                <span>{meta.icon}</span>
+                <span>{meta.label}</span>
+              </div>
+            ) : (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 7,
+                padding: '6px 12px', borderRadius: 8,
+                background: 'rgba(220,60,60,0.1)', border: '1px solid rgba(220,60,60,0.3)',
+                fontSize: 11, color: '#ff8080', fontWeight: 500,
+              }}>
+                <span>⚠️</span>
+                <span>Category not set — contact admin</span>
+              </div>
+            )}
           </div>
         )}
 

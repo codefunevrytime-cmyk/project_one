@@ -28,7 +28,18 @@ async function ensureGalleryImagesTable() {
 }
 ensureGalleryImagesTable().catch(console.error);
 
+// ── Ensure gallery.show_on_landing column exists ─────────────────────────
+// Marks a gallery item to appear in the hardcoded-style 3x3 grid on
+// LandingPage.jsx. As admin marks more items, LandingPage.jsx fills fewer
+// hardcoded placeholder slots (see frontend logic).
+async function ensureLandingColumn() {
+  await pool.query(`ALTER TABLE gallery ADD COLUMN IF NOT EXISTS show_on_landing BOOLEAN DEFAULT false`);
+}
+ensureLandingColumn().catch(console.error);
+
 // ── GET all published gallery items (with extra images array) ─────────────
+// ?event_type=  → filter by event type
+// ?landing=true → only items marked show_on_landing (used by LandingPage.jsx)
 router.get('/', async (req, res) => {
   try {
     let query  = 'SELECT * FROM gallery WHERE is_published = true';
@@ -37,6 +48,10 @@ router.get('/', async (req, res) => {
     if (req.query.event_type) {
       params.push(req.query.event_type);
       query += ` AND event_type = $${params.length}`;
+    }
+
+    if (req.query.landing === 'true') {
+      query += ' AND show_on_landing = true';
     }
 
     query += ' ORDER BY created_at DESC';
@@ -78,15 +93,16 @@ router.get('/', async (req, res) => {
 // ── POST upload new gallery item (admin) ─────────────────────────────────
 router.post('/', upload.single('image'), async (req, res) => {
   try {
-    const { title, description, event_date, price, tags, event_type, venue, scale } = req.body;
+    const { title, description, event_date, price, tags, event_type, venue, scale, show_on_landing } = req.body;
 
     const image_url  = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
     const tagsArray  = tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+    const showOnLanding = show_on_landing === 'true' || show_on_landing === true;
 
     const insertResult = await pool.query(
       `INSERT INTO gallery
-         (title, image_url, description, event_date, price, tags, event_type, venue, scale)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         (title, image_url, description, event_date, price, tags, event_type, venue, scale, show_on_landing)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING id`,
       [
         title,
@@ -98,6 +114,7 @@ router.post('/', upload.single('image'), async (req, res) => {
         event_type  || '',
         venue       || '',
         scale       || '',
+        showOnLanding,
       ]
     );
 
@@ -133,6 +150,21 @@ router.get('/:id/images', async (req, res) => {
       [req.params.id]
     );
     res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── PATCH toggle show_on_landing for a gallery item (admin) ──────────────
+router.patch('/:id/landing', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `UPDATE gallery SET show_on_landing = NOT COALESCE(show_on_landing, false)
+       WHERE id = $1 RETURNING show_on_landing`,
+      [req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json({ success: true, show_on_landing: result.rows[0].show_on_landing });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

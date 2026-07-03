@@ -14,11 +14,38 @@ function getEmoji(type) {
   return EVENT_CATEGORIES.find((c) => c.type === type)?.icon ?? "📅";
 }
 
+// "More like this" — only events that share at least 1 tag with the
+// current event are eligible. Events with more overlapping tags are
+// prioritized first (3 matches > 2 matches > 1 match). Events with zero
+// shared tags are excluded entirely, regardless of event type.
 function getRelated(event, allEvents) {
+  const eventTags = Array.isArray(event.tags) ? event.tags : [];
+  if (eventTags.length === 0) return [];
+
   return allEvents
-    .filter((e) => e.id !== event.id && e.type === event.type)
-    .concat(allEvents.filter((e) => e.id !== event.id && e.type !== event.type))
+    .filter((e) => e.id !== event.id)
+    .map((e) => {
+      const eTags = Array.isArray(e.tags) ? e.tags : [];
+      const matchCount = eTags.filter((tag) => eventTags.includes(tag)).length;
+      return { ...e, _matchCount: matchCount };
+    })
+    .filter((e) => e._matchCount > 0)
+    .sort((a, b) => b._matchCount - a._matchCount)
     .slice(0, 5);
+}
+
+function formatDateDMY(event) {
+  const raw = event?._raw?.event_date;
+  if (raw) {
+    const d = new Date(raw);
+    if (!isNaN(d.getTime())) {
+      const dd = String(d.getDate()).padStart(2, "0");
+      const month = d.toLocaleString("en-IN", { month: "long" });
+      const yyyy = d.getFullYear();
+      return `${dd} ${month} ${yyyy}`;
+    }
+  }
+  return `${event.month || ""} ${event.year || ""}`.trim();
 }
 
 function getImages(event) {
@@ -135,7 +162,7 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
         .ep-scale-badge { position:absolute; top:16px; right:52px; font-size:10px; font-weight:600; padding:4px 10px; border-radius:20px; color:#e8c97a; background:rgba(0,0,0,0.45); backdrop-filter:blur(6px); border:0.5px solid rgba(232,201,122,0.3); z-index:3; }
 
         /* Venue pin */
-        .ep-venue { position:absolute; bottom:16px; left:16px; display:flex; align-items:center; gap:5px; background:rgba(0,0,0,0.45); backdrop-filter:blur(6px); border:0.5px solid rgba(255,255,255,0.15); border-radius:20px; padding:4px 11px; z-index:3; font-size:11px; color:rgba(255,255,255,0.9); }
+        .ep-venue { position:absolute; bottom:16px; left:16px; display:flex; align-items:center; gap:7px; background:rgba(0,0,0,0.45); backdrop-filter:blur(6px); border:0.5px solid rgba(255,255,255,0.15); border-radius:24px; padding:7px 16px; z-index:3; font-size:15px; font-weight:500; color:rgba(255,255,255,0.95); }
 
         /* Description */
         .ep-desc { font-size:14px; color:#8a7060; line-height:1.78; }
@@ -211,7 +238,7 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
           {/* venue pin */}
           {event.venue && (
             <div className="ep-venue">
-              <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
                 <path d="M8 1.5C5.5 1.5 3.5 3.5 3.5 6c0 3.5 4.5 8.5 4.5 8.5s4.5-5 4.5-8.5c0-2.5-2-4.5-4.5-4.5z"/>
                 <circle cx="8" cy="6" r="1.5"/>
               </svg>
@@ -238,23 +265,12 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
         <div className="ep-right">
           <div>
             <div className="ep-name">{event.title}</div>
-            <div className="ep-meta-row">
-              <span className="ep-verified-badge">
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-                  <circle cx="8" cy="8" r="7" fill="#D4860A "/>
-                  <path d="M5 8l2 2 4-4" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                Verified
-              </span>
-              <span style={{ fontSize: 13, color: '#1A1714', fontWeight: 500 }}>{event.month} {event.year}</span>
-            </div>
-
-            {/* meta grid */}
+            
+<br />
+            {/* meta grid — Date + Price only */}
             <div className="ep-grid">
               {[
-                ["Date",     `${event.month} ${event.year}`],
-                ["Location", venue],
-                ["Scale",    scale],
+                ["Date", formatDateDMY(event)],
                 ...(event.price ? [["Price", `₹${Number(event.price).toLocaleString("en-IN")}`]] : []),
               ].map(([label, val]) => (
                 <div key={label} className="ep-cell">

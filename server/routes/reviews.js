@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 
-// Ensure vendor_id column exists (run once on startup)
+// Ensure vendor_id and sub_service columns exist (run once on startup)
 async function ensureVendorIdColumn() {
   try {
     await pool.query(`
@@ -11,6 +11,18 @@ async function ensureVendorIdColumn() {
     `);
   } catch (err) {
     // Column may already exist with different constraint — ignore
+    console.warn('reviews migration note:', err.message);
+  }
+
+  try {
+    // Which specific service the client is reviewing, e.g. "Box Invitations"
+    // — populated from a dropdown on the client review form, sourced from
+    // the vendor's own "Services Offered" list.
+    await pool.query(`
+      ALTER TABLE reviews
+      ADD COLUMN IF NOT EXISTS sub_service TEXT
+    `);
+  } catch (err) {
     console.warn('reviews migration note:', err.message);
   }
 }
@@ -53,19 +65,20 @@ router.get('/', async (req, res) => {
 });
 
 // POST a new review
-// Body: { client_name, message, rating, approved?, vendor_id? }
+// Body: { client_name, message, rating, approved?, vendor_id?, sub_service? }
 router.post('/', async (req, res) => {
   try {
-    const { client_name, message, rating, approved, vendor_id } = req.body;
+    const { client_name, message, rating, approved, vendor_id, sub_service } = req.body;
     await pool.query(
-      `INSERT INTO reviews (client_name, message, rating, approved, vendor_id)
-       VALUES ($1, $2, $3, $4, $5)`,
+      `INSERT INTO reviews (client_name, message, rating, approved, vendor_id, sub_service)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
       [
         client_name,
         message,
         rating,
         approved === true || approved === 'true',
         vendor_id ? Number(vendor_id) : null,
+        sub_service || null,
       ]
     );
     res.json({ success: true });

@@ -183,14 +183,48 @@ export default function AdminEventRequests() {
                           <img src={ev.reference_event_image} alt={ev.reference_event_title || 'Event cover'} />
                         </div>
                       )}
-                      {ev.reference_event_id && (
-                        <button
-                          className="aer-view-img-btn"
-                          onClick={() => window.open(`/explore?open=${ev.reference_event_id}`, '_blank')}
-                        >
-                          VIEW IMAGE
-                        </button>
-                      )}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minWidth: 0 }}>
+                        {/* Reference event title/type, if present */}
+                        {(ev.reference_event_title || ev.reference_event_type) && (
+                          <div style={{ fontSize: 13, color: '#f0e6c8' }}>
+                            {ev.reference_event_title}
+                            {ev.reference_event_type && (
+                              <span style={{ color: 'rgba(240,230,200,0.45)', marginLeft: 6 }}>
+                                ({ev.reference_event_type})
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* NEW — reference event's own price. Previously this
+                            never showed anywhere on the admin side, even
+                            though the client's Create Event flow now sends
+                            reference_event_price with the submission. Needs
+                            the backend /api/events/admin/all route (and the
+                            events table) to actually select/store this
+                            column — if it's missing here it means the
+                            backend hasn't been updated to persist it yet. */}
+                        {ev.reference_event_price > 0 && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 11, color: 'rgba(240,230,200,0.45)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                              Reference event price
+                            </span>
+                            <span style={{ fontSize: 14, fontWeight: 700, color: '#d4a843' }}>
+                              ₹{Number(ev.reference_event_price).toLocaleString('en-IN')}
+                            </span>
+                          </div>
+                        )}
+
+                        {ev.reference_event_id && (
+                          <button
+                            className="aer-view-img-btn"
+                            style={{ alignSelf: 'flex-start' }}
+                            onClick={() => window.open(`/explore?open=${ev.reference_event_id}`, '_blank')}
+                          >
+                            VIEW IMAGE
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}

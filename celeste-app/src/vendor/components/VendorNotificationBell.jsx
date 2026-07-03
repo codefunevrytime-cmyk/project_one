@@ -1,15 +1,18 @@
+// celeste-app/src/vendor/components/VendorNotificationBell.jsx
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useVendorAuth } from '../context/VendorAuthContext';
 
-const API = 'http://localhost:5000/api';
-const token = () => localStorage.getItem('adminToken');
+import { API_URL } from '../../config/api';
+
+const API = API_URL;
+const token = () => localStorage.getItem('vendor_token');
 const POLL_MS = 12000;
 
 const TYPE_META = {
-  vendor_app: { icon: '🧑‍💼', color: '#4B49AC', label: 'Vendor Application' },
-  review:     { icon: '⭐',   color: '#F5A623', label: 'Review' },
-  query:      { icon: '💬',   color: '#00A86B', label: 'Query' },
-  message:    { icon: '✉️',   color: '#3B82F6', label: 'Message' },
-  event_req:  { icon: '📅',   color: '#8B5CF6', label: 'Event Request' },
+  event_req: { icon: '📅', color: '#4c8aff', label: 'Event Request' },
+  message:   { icon: '✉️', color: '#5fcf7a', label: 'Message' },
+  review:    { icon: '⭐', color: '#d4a843', label: 'Review' },
 };
 
 function timeAgo(dateStr) {
@@ -34,7 +37,6 @@ async function safeJson(url, opts) {
   }
 }
 
-// ── Notification sound: plays the uploaded ringtone file ────────────────
 const notificationAudio = typeof Audio !== 'undefined'
   ? new Audio('/sounds/mixkit-magic-notification-ring-2344.wav')
   : null;
@@ -43,31 +45,29 @@ function playBellSound() {
   if (!notificationAudio) return;
   try {
     notificationAudio.currentTime = 0;
-    notificationAudio.volume = 0.55; // tweak to taste, 0–1
-    notificationAudio.play().catch(() => {
-      // Blocked by autoplay policy until user interacts — expected on first load.
-    });
+    notificationAudio.volume = 0.55;
+    notificationAudio.play().catch(() => {});
   } catch {
     // Ignore playback errors.
   }
 }
 
-export default function NotificationBell({ onNavigate }) {
+export default function VendorNotificationBell() {
+  const { vendorUser } = useVendorAuth();
+  const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [open, setOpen] = useState(false);
   const [ringing, setRinging] = useState(false);
-  const [bump, setBump] = useState(0); // shows "+N New" pop
+  const [bump, setBump] = useState(0);
   const [readIds, setReadIds] = useState(() => {
-    try { return new Set(JSON.parse(localStorage.getItem('adm_notif_read') || '[]')); }
+    try { return new Set(JSON.parse(localStorage.getItem('vnd_notif_read') || '[]')); }
     catch { return new Set(); }
   });
   const prevCountRef = useRef(0);
   const panelRef = useRef(null);
   const bellRef = useRef(null);
 
-  // ── Warm up the audio element on first user interaction so the very
-  //    first real play() call isn't blocked by the browser's autoplay
-  //    policy. ────────────────────────────────────────────────────────
+  // Warm up audio on first click so the first real play() isn't blocked
   useEffect(() => {
     const unlock = () => {
       notificationAudio?.play().then(() => {
@@ -81,82 +81,62 @@ export default function NotificationBell({ onNavigate }) {
   }, []);
 
   const persistRead = (set) => {
-    localStorage.setItem('adm_notif_read', JSON.stringify([...set]));
+    localStorage.setItem('vnd_notif_read', JSON.stringify([...set]));
   };
 
   const fetchAll = useCallback(async () => {
     const headers = { Authorization: `Bearer ${token()}` };
+    const vendorId = vendorUser?.vendor_id;
 
-    const [vendorApps, reviews, queries, convos, events] = await Promise.all([
-      safeJson(`${API}/vendor-auth/all`, { headers }),
-      safeJson(`${API}/reviews?all=true`, { headers }),
-      safeJson(`${API}/queries`, { headers }),
-      safeJson(`${API}/messages/admin`, { headers }),
-      safeJson(`${API}/events/admin/all`, { headers }),
+    const [eventReqs, convos, reviews] = await Promise.all([
+      safeJson(`${API}/events/vendor/requests`, { headers }),
+      safeJson(`${API}/messages/vendor`, { headers }),
+      vendorId
+        ? safeJson(`${API}/reviews?all=true&vendor_id=${vendorId}`, { headers })
+        : Promise.resolve([]),
     ]);
 
     const list = [];
 
-    vendorApps.filter(v => v.status === 'pending').forEach(v => {
+    // Pending event requests awaiting this vendor's response
+    eventReqs.filter(r => !r.status || r.status === 'pending').forEach(r => {
       list.push({
-        id: `vendor_app_${v.id}`,
-        type: 'vendor_app',
-        title: 'New vendor application',
-        desc: `${v.name} applied to become a vendor`,
-        time: v.created_at,
-        tab: 'vendor-apps',
-      });
-    });
-
-    reviews.filter(r => !r.approved).forEach(r => {
-      list.push({
-        id: `review_${r.id}`,
-        type: 'review',
-        title: 'New review pending approval',
-        desc: `${r.client_name} left a ${r.rating}★ review${r.vendor_name ? ` for ${r.vendor_name}` : ''}`,
+        id: `event_req_${r.id}`,
+        type: 'event_req',
+        title: 'New event request',
+        desc: `${r.event_name || r.event_type || 'Event'} · ₹${(r.quoted_price || 0).toLocaleString('en-IN')}`,
         time: r.created_at,
-        tab: 'reviews',
+        onClick: () => navigate('/vendor/event-requests'),
       });
     });
 
-    queries.filter(q => !q.replied).forEach(q => {
-      list.push({
-        id: `query_${q.id}`,
-        type: 'query',
-        title: 'New client query',
-        desc: `${q.client_name}: "${(q.message || '').slice(0, 60)}${q.message?.length > 60 ? '…' : ''}"`,
-        time: q.created_at,
-        tab: 'queries',
-      });
-    });
-
+    // Conversations with unread client messages
     convos.filter(c => Number(c.unread_count) > 0).forEach(c => {
       list.push({
         id: `message_${c.id}`,
         type: 'message',
         title: `${c.unread_count} new message${c.unread_count > 1 ? 's' : ''}`,
-        desc: `From ${c.client_name}${c.vendor_name ? ` ↔ ${c.vendor_name}` : ''}: "${(c.last_message || '').slice(0, 60)}"`,
+        desc: `From ${c.client_name}: "${(c.last_message || '').slice(0, 60)}"`,
         time: c.updated_at,
-        tab: 'messages',
+        onClick: () => navigate('/vendor/messages'),
       });
     });
 
-    // ── NEW: new event requests (status still 'pending', i.e. not yet
-    // reviewed by admin) ────────────────────────────────────────────────
-    events.filter(e => e.status === 'pending').forEach(e => {
+    // Recent reviews left for this vendor (approved or pending admin approval)
+    reviews.slice(0, 15).forEach(r => {
       list.push({
-        id: `event_req_${e.id}`,
-        type: 'event_req',
-        title: 'New event request',
-        desc: `${e.client_name} requested ${e.event_type || 'an event'}${e.event_name ? ` — "${e.event_name}"` : ''}`,
-        time: e.created_at,
-        tab: 'events',
+        id: `review_${r.id}`,
+        type: 'review',
+        title: r.approved ? 'New review received' : 'New review — pending approval',
+        desc: `${r.client_name} left a ${r.rating}★ review: "${(r.message || '').slice(0, 60)}${r.message?.length > 60 ? '…' : ''}"`,
+        time: r.created_at,
+        onClick: null,
       });
     });
 
     list.sort((a, b) => new Date(b.time) - new Date(a.time));
     return list;
-  }, []);
+  }, [vendorUser, navigate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -219,19 +199,18 @@ export default function NotificationBell({ onNavigate }) {
   const handleItemClick = (item) => {
     markRead(item.id);
     setOpen(false);
-    if (onNavigate) onNavigate(item.tab);
+    if (item.onClick) item.onClick();
   };
 
   return (
     <div style={{ position: 'relative' }}>
-      {/* "+N New" pop */}
       {bump > 0 && (
         <div style={{
           position: 'absolute', top: -8, right: -6,
           background: '#fc424a', color: '#fff', fontSize: 11, fontWeight: 700,
           padding: '3px 9px', borderRadius: 20, whiteSpace: 'nowrap',
           boxShadow: '0 4px 12px rgba(252,66,74,0.4)',
-          animation: 'notifPopIn 0.3s cubic-bezier(0.34,1.56,0.64,1), notifPopOut 0.3s ease 2.5s forwards',
+          animation: 'vnbPopIn 0.3s cubic-bezier(0.34,1.56,0.64,1), vnbPopOut 0.3s ease 2.5s forwards',
           zIndex: 20,
         }}>
           +{bump} New
@@ -243,11 +222,12 @@ export default function NotificationBell({ onNavigate }) {
         onClick={() => setOpen(v => !v)}
         style={{
           width: 36, height: 36, borderRadius: 9,
-          background: open ? '#e8e8f8' : '#f0f0f7', border: 'none', cursor: 'pointer',
+          background: open ? 'rgba(56,100,220,0.22)' : 'rgba(56,100,220,0.1)',
+          border: '1px solid rgba(56,100,220,0.2)', cursor: 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: '#7978E9', position: 'relative',
+          color: '#8ab0ff', position: 'relative',
           transformOrigin: '50% 0%',
-          animation: ringing ? 'bellRing 0.7s ease' : 'none',
+          animation: ringing ? 'vnbBellRing 0.7s ease' : 'none',
         }}
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -259,7 +239,7 @@ export default function NotificationBell({ onNavigate }) {
             background: '#fc424a', color: '#fff', fontSize: 9.5, fontWeight: 700,
             minWidth: 16, height: 16, borderRadius: 8, padding: '0 3px',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            border: '2px solid #fff',
+            border: '2px solid #080c14',
           }}>
             {unread.length > 9 ? '9+' : unread.length}
           </span>
@@ -269,19 +249,20 @@ export default function NotificationBell({ onNavigate }) {
       {open && (
         <div ref={panelRef} style={{
           position: 'absolute', top: 46, right: 0, width: 360,
-          background: '#fff', borderRadius: 12, border: '1px solid #e8e8f0',
-          boxShadow: '0 20px 60px rgba(75,73,172,0.2), 0 4px 16px rgba(0,0,0,0.08)',
+          background: 'rgba(10,15,28,0.98)', backdropFilter: 'blur(20px)',
+          borderRadius: 12, border: '1px solid rgba(56,100,220,0.2)',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
           zIndex: 100, overflow: 'hidden',
-          animation: 'notifDropIn 0.18s ease',
+          animation: 'vnbDropIn 0.18s ease',
         }}>
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '14px 16px', borderBottom: '1px solid #f0f0f7',
+            padding: '14px 16px', borderBottom: '1px solid rgba(56,100,220,0.1)',
           }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#2d2d6b' }}>Notifications</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#e8eef8' }}>Notifications</span>
             {unread.length > 0 && (
               <button onClick={markAllRead} style={{
-                background: 'none', border: 'none', color: '#7978E9', fontSize: 12,
+                background: 'none', border: 'none', color: '#4c8aff', fontSize: 12,
                 fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
               }}>
                 Mark all read
@@ -291,7 +272,7 @@ export default function NotificationBell({ onNavigate }) {
 
           <div style={{ maxHeight: 420, overflowY: 'auto' }}>
             {items.length === 0 ? (
-              <div style={{ padding: '40px 20px', textAlign: 'center', color: '#b0b0cc', fontSize: 13 }}>
+              <div style={{ padding: '40px 20px', textAlign: 'center', color: 'rgba(160,180,220,0.35)', fontSize: 13 }}>
                 No notifications yet
               </div>
             ) : items.map(item => {
@@ -303,13 +284,13 @@ export default function NotificationBell({ onNavigate }) {
                   onClick={() => handleItemClick(item)}
                   style={{
                     width: '100%', display: 'flex', gap: 12, padding: '13px 16px',
-                    background: isUnread ? 'rgba(121,120,233,0.06)' : 'transparent',
-                    border: 'none', borderBottom: '1px solid #f5f5fa',
-                    cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
+                    background: isUnread ? 'rgba(56,100,220,0.08)' : 'transparent',
+                    border: 'none', borderBottom: '1px solid rgba(56,100,220,0.06)',
+                    cursor: item.onClick ? 'pointer' : 'default', textAlign: 'left', fontFamily: 'inherit',
                     transition: 'background 0.12s',
                   }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(121,120,233,0.1)'}
-                  onMouseLeave={e => e.currentTarget.style.background = isUnread ? 'rgba(121,120,233,0.06)' : 'transparent'}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(56,100,220,0.12)'}
+                  onMouseLeave={e => e.currentTarget.style.background = isUnread ? 'rgba(56,100,220,0.08)' : 'transparent'}
                 >
                   <div style={{
                     width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
@@ -320,17 +301,17 @@ export default function NotificationBell({ onNavigate }) {
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                      <span style={{ fontSize: 12.5, fontWeight: 600, color: '#2d2d6b' }}>{item.title}</span>
+                      <span style={{ fontSize: 12.5, fontWeight: 600, color: '#e8eef8' }}>{item.title}</span>
                       {isUnread && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4c8aff', flexShrink: 0 }} />}
                     </div>
                     <div style={{
-                      fontSize: 12, color: '#6c6c9a', lineHeight: 1.45,
+                      fontSize: 12, color: 'rgba(160,180,220,0.55)', lineHeight: 1.45,
                       overflow: 'hidden', textOverflow: 'ellipsis',
                       display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
                     }}>
                       {item.desc}
                     </div>
-                    <div style={{ fontSize: 10.5, color: '#b0b0cc', marginTop: 4 }}>
+                    <div style={{ fontSize: 10.5, color: 'rgba(160,180,220,0.3)', marginTop: 4 }}>
                       {meta.label} · {timeAgo(item.time)}
                     </div>
                   </div>
@@ -342,7 +323,7 @@ export default function NotificationBell({ onNavigate }) {
       )}
 
       <style>{`
-        @keyframes bellRing {
+        @keyframes vnbBellRing {
           0%, 100% { transform: rotate(0); }
           15% { transform: rotate(18deg); }
           30% { transform: rotate(-16deg); }
@@ -351,14 +332,14 @@ export default function NotificationBell({ onNavigate }) {
           75% { transform: rotate(4deg); }
           90% { transform: rotate(-2deg); }
         }
-        @keyframes notifPopIn {
+        @keyframes vnbPopIn {
           from { opacity: 0; transform: translateY(4px) scale(0.8); }
           to   { opacity: 1; transform: translateY(0) scale(1); }
         }
-        @keyframes notifPopOut {
+        @keyframes vnbPopOut {
           to { opacity: 0; transform: translateY(-6px) scale(0.85); }
         }
-        @keyframes notifDropIn {
+        @keyframes vnbDropIn {
           from { opacity: 0; transform: translateY(-6px); }
           to   { opacity: 1; transform: translateY(0); }
         }

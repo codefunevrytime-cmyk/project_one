@@ -24,7 +24,23 @@ function cloneFilters(f) {
     price: [...(f.price || [0, EVENT_PRICE_MAX])],
   };
 }
+function normalizeImages(raw) {
+  let arr = raw;
 
+  if (typeof arr === "string") {
+    try {
+      arr = JSON.parse(arr);
+    } catch {
+      arr = [];
+    }
+  }
+
+  if (!Array.isArray(arr)) return [];
+
+  return arr
+    .map((item) => (typeof item === "string" ? item : item?.url || item?.image_url || null))
+    .filter(Boolean);
+}
 function mapGalleryToEvent(item) {
   const date  = item.event_date ? new Date(item.event_date) : null;
   const month = date ? date.toLocaleString('en-IN', { month: 'long' }) : 'January';
@@ -34,8 +50,9 @@ function mapGalleryToEvent(item) {
   const scale = (item.scale && item.scale.trim()) ? item.scale.trim() : '';
   const description = item.description || '';
 
-  const images = Array.isArray(item.images) && item.images.length > 0
-    ? item.images
+ const parsedImages = normalizeImages(item.images);
+  const images = parsedImages.length > 0
+    ? parsedImages
     : (item.image_url ? [item.image_url] : []);
 
   return {

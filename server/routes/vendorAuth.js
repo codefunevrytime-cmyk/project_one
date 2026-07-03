@@ -129,8 +129,21 @@ router.post('/login', async (req, res) => {
     const user  = result.rows[0];
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
+
     const token = jwt.sign({ vendorUserId: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email, phone: user.phone, status: user.status, vendor_id: user.vendor_id } });
+
+    // Fetch full profile including service_category, same shape as /me
+    const fullRes = await pool.query(
+      `SELECT vu.id, vu.name, vu.email, vu.phone, vu.status, vu.vendor_id,
+              s.category AS service_category
+       FROM vendor_users vu
+       LEFT JOIN vendors v  ON vu.vendor_id = v.id
+       LEFT JOIN services s ON v.service_id = s.id
+       WHERE vu.id = $1`,
+      [user.id]
+    );
+
+    res.json({ token, user: fullRes.rows[0] });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -221,6 +234,47 @@ router.post('/enquiries/:id/request-contact', vendorAuth, async (req, res) => {
   }
 });
 
+// GET /api/vendor-auth/reviews — reviews for the logged-in vendor (approved + pending)
+router.get('/reviews', vendorAuth, async (req, res) => {
+  try {
+    const userRes = await pool.query('SELECT vendor_id FROM vendor_users WHERE id = $1', [req.vendorUserId]);
+    const vendorId = userRes.rows[0]?.vendor_id;
+    if (!vendorId) return res.json([]);
+
+    // auto-migration, matching the pattern used elsewhere in this file
+    await pool.query(`ALTER TABLE reviews ADD COLUMN IF NOT EXISTS sub_service TEXT`).catch(() => {});
+
+    const result = await pool.query(
+      `SELECT id, client_name, message, rating, approved, sub_service, created_at
+       FROM reviews
+       WHERE vendor_id = $1
+       ORDER BY created_at DESC`,
+      [vendorId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+module.exports = { router, vendorAuth };
+
+// PUT /api/vendor-auth/profile — vendor updates their own vendor record
+const multer = require('multer');
+const path   = require('path');
+const multerStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, 'uploads/'),
+  filename:    (req, file, cb) => cb(null, Date.now() + '-' + Math.round(Math.random()*1e9) + path.extname(file.originalname)),
+});
+const upload = multer({ storage: multerStorage });
+
+// ── UPDATED ──────────────────────────────────────────────────────────────
+// Now reads and persists `price_per_day` — the average price computed on
+// the frontend (VendorProfile.jsx) from whichever services the vendor
+// ticked and priced individually. This is the ONLY price value ever shown
+// on the public profile / listing pages; per-service prices stay internal
+// to the vendor's own edit form (stored in the `prices` JSONB column, but
+// never rendered publicly).
 // GET /api/vendor-auth/profile  — get linked vendor profile
 router.get('/profile', vendorAuth, async (req, res) => {
   try {
@@ -251,24 +305,7 @@ router.get('/profile', vendorAuth, async (req, res) => {
   }
 });
 
-module.exports = { router, vendorAuth };
 
-// PUT /api/vendor-auth/profile — vendor updates their own vendor record
-const multer = require('multer');
-const path   = require('path');
-const multerStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'uploads/'),
-  filename:    (req, file, cb) => cb(null, Date.now() + '-' + Math.round(Math.random()*1e9) + path.extname(file.originalname)),
-});
-const upload = multer({ storage: multerStorage });
-
-// ── UPDATED ──────────────────────────────────────────────────────────────
-// Now reads and persists `price_per_day` — the average price computed on
-// the frontend (VendorProfile.jsx) from whichever services the vendor
-// ticked and priced individually. This is the ONLY price value ever shown
-// on the public profile / listing pages; per-service prices stay internal
-// to the vendor's own edit form (stored in the `prices` JSONB column, but
-// never rendered publicly).
 router.put('/profile', vendorAuth, upload.single('photo'), async (req, res) => {
   try {
     const userRes = await pool.query('SELECT * FROM vendor_users WHERE id = $1', [req.vendorUserId]);

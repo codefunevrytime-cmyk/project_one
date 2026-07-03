@@ -100,8 +100,6 @@ const SERVICE_CONFIGS = {
   },
 };
 
-const DEFAULT_CONFIG = SERVICE_CONFIGS.photography;
-
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const S = {
   heading: { fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 300, color: '#e8eef8', marginBottom: 4 },
@@ -146,6 +144,11 @@ const S = {
     background: 'rgba(40,120,70,0.15)', border: '1px solid rgba(60,180,100,0.25)',
     borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#6ed496', marginBottom: 16,
   },
+  warning: {
+    background: 'rgba(220,60,60,0.1)', border: '1px solid rgba(220,60,60,0.3)',
+    borderRadius: 10, padding: '16px 20px', fontSize: 13, color: '#ff8080', marginBottom: 20,
+    lineHeight: 1.6,
+  },
 };
 
 const fi = e => { e.target.style.borderColor = 'rgba(76,138,255,0.4)'; };
@@ -155,7 +158,8 @@ const fo = e => { e.target.style.borderColor = 'rgba(56,100,220,0.18)'; };
 export default function VendorProfile() {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState('');
-  const [serviceCategory, setServiceCategory] = useState(null);
+  const [serviceCategory, setServiceCategory] = useState(null); // null = not yet loaded
+  const [loaded, setLoaded] = useState(false);
   const [form, setForm] = useState({
     name: '', specialty: '', contact: '', location: '',
     bio: '', travel_info: '', delivery_time: '', payment_terms: '',
@@ -170,8 +174,17 @@ export default function VendorProfile() {
       .then(data => {
         const v = data.vendor;
         if (v) {
-          const cat = (v.service_category || v.category || 'photography').toLowerCase();
-          setServiceCategory(cat);
+          // ── FIX ────────────────────────────────────────────────────────
+          // Previously defaulted to 'photography' whenever
+          // service_category/category came back null/undefined — meaning
+          // any vendor whose linked `services` row had no category (e.g.
+          // created via the admin "add service" panel, which never wrote
+          // one) silently saw the Photography form and could save
+          // photography-only service names against their profile.
+          // Now we keep it null/unknown and render an explicit warning +
+          // block the form instead of guessing.
+          const cat = (v.service_category || v.category || '').toLowerCase();
+          setServiceCategory(cat || null);
           setForm({
             name: v.name || '',
             specialty: v.specialty || '',
@@ -186,13 +199,14 @@ export default function VendorProfile() {
           });
           if (v.photo_url) setPhotoPreview(v.photo_url);
         }
-      }).catch(() => {});
+        setLoaded(true);
+      }).catch(() => setLoaded(true));
   };
 
   useEffect(() => { fetchProfile(); }, []);
 
-  const cfg = SERVICE_CONFIGS[serviceCategory] || DEFAULT_CONFIG;
-  const accent = cfg.accentColor;
+  const cfg = serviceCategory ? SERVICE_CONFIGS[serviceCategory] : null;
+  const accent = cfg?.accentColor || '#888';
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
 
@@ -230,6 +244,7 @@ export default function VendorProfile() {
   })();
 
   const handleSave = async () => {
+    if (!cfg) return; // safety net — save button is disabled anyway
     setSaving(true);
     try {
       const fd = new FormData();
@@ -251,22 +266,45 @@ export default function VendorProfile() {
     setSaving(false);
   };
 
+  // ── Category missing — block the form instead of guessing ─────────────
+  if (loaded && !cfg) {
+    return (
+      <div>
+        <div style={S.heading}>My Profile</div>
+        <div style={S.sub}>This information appears on your public profile page</div>
+        <div style={S.warning}>
+          <strong>⚠️ Your service category isn't set.</strong><br />
+          We can't show the right form (Photography, Invitations, Décor, etc.) until
+          an admin assigns your account a service category. Please contact support —
+          in the meantime nothing here will be saved incorrectly.
+        </div>
+      </div>
+    );
+  }
+
+  if (!loaded) {
+    return (
+      <div>
+        <div style={S.heading}>My Profile</div>
+        <div style={{ fontSize: 13, color: 'rgba(160,180,220,0.4)' }}>Loading…</div>
+      </div>
+    );
+  }
+
   return (
     <div>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
         <div style={S.heading}>My Profile</div>
-        {serviceCategory && (
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 8,
-            padding: '6px 14px', borderRadius: 20,
-            background: `${accent}18`, border: `1px solid ${accent}44`,
-            fontSize: 12, color: accent, fontWeight: 500, marginTop: 6,
-          }}>
-            <span>{cfg.icon}</span>
-            <span>{cfg.label}</span>
-          </div>
-        )}
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          padding: '6px 14px', borderRadius: 20,
+          background: `${accent}18`, border: `1px solid ${accent}44`,
+          fontSize: 12, color: accent, fontWeight: 500, marginTop: 6,
+        }}>
+          <span>{cfg.icon}</span>
+          <span>{cfg.label}</span>
+        </div>
       </div>
       <div style={S.sub}>This information appears on your public profile page</div>
       {success && <div style={S.success}>{success}</div>}
