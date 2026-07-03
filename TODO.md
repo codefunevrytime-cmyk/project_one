@@ -12,10 +12,28 @@
 
 #7 vendor review
 
-# 8 different sub service price 
+# 8 different sub service price (important)
 
 #9 landing page gallery card size and detials easy for editing again and again no db linking hardcoded data 
 
 # 10 FAQ s and reply of quieries via email 
 
 #11 event cards more like this matching with tags 
+
+# 12 otp
+
+# 13 contact me 
+
+# 14 guide (important)
+
+# 15 color mode themes (important)
+
+# 16 auto select event when choose image (important)
+
+# 17 more event details (optional)
+
+# 18 create event orientation (important)
+
+# 19 add additional details / instruction  what u need according to ur needs and then make it visible it to admin and oen more fore vendor (important)
+
+# 20 service and vendor idependent of each other ppl can skip anyhting (VERY important)

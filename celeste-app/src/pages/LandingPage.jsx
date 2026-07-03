@@ -207,6 +207,11 @@ function ContactSection() {
       <div className="contact-wrap">
         <div className="contact-info">
           <p>Whether you have a project in mind, a question about our work, or simply want to say hello — we would love to hear from you.</p>
+          <p>We will contact u as soon as possible on your email or phone number.
+            <br />
+            Or just sign up and chat with our team
+          </p>
+          
           <div className="contact-detail"><div className="contact-icon">{'\u2709'}</div><span><strong>Email Us</strong>hello@lumiere-studio.com</span></div>
           <div className="contact-detail"><div className="contact-icon">{'\u260F'}</div><span><strong>Call Us</strong>+91 98765 43210</span></div>
           <div className="contact-detail"><div className="contact-icon">{'\u2316'}</div><span><strong>Studio</strong>12 Hazratganj, Lucknow<br />Uttar Pradesh, India</span></div>

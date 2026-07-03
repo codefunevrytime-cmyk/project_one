@@ -115,6 +115,21 @@ function computeVendorTotal(pricingModel, vendorData) {
   return base * days;
 }
 
+/* ─── Reference-event price parsing ───────────────────────────────────────────
+   `form.reference_event.price` (and `vendorData.reference_event.price`) comes
+   from the events DB/explore page as a display-ready string, e.g. "₹20,000",
+   "₹20,000 - ₹35,000", or occasionally a bare number. The budget step never
+   parsed this at all, so a picked reference event's own price silently never
+   made it into the estimated total. This pulls the first number out of that
+   string (the lower bound, if it's a range) so it can be added to the budget
+   like any other line item. ─────────────────────────────────────────────── */
+function parsePriceString(priceStr) {
+  if (priceStr == null) return 0;
+  if (typeof priceStr === "number") return priceStr;
+  const match = String(priceStr).replace(/,/g, "").match(/\d+(\.\d+)?/);
+  return match ? Number(match[0]) : 0;
+}
+
 /* ─── small helpers ──────────────────────────────────────────────────────────── */
 function getEmoji(type) {
   return EVENT_CATEGORIES.find(c => c.type === type)?.icon ?? "📅";
@@ -801,6 +816,21 @@ export default function CreateEventPage() {
 
   const budget = (() => {
     const rows = [];
+
+    // ── Reference event's own price ─────────────────────────────────────
+    // form.reference_event (picked on Step 1, e.g. the "Sports · ₹20,000"
+    // DB event) previously never contributed to the estimate at all — only
+    // vendor rows below did. Add it first, as its own line item, using
+    // parsePriceString() since the price arrives as a display string.
+    const refEventPrice = parsePriceString(form.reference_event?.price);
+    if (refEventPrice > 0) {
+      rows.push({
+        label: "Reference event",
+        sub: form.reference_event?.title || "",
+        amt: refEventPrice,
+      });
+    }
+
     for (const cfg of VENDOR_SERVICE_CONFIGS) {
       const sel = vendorSelections[cfg.id];
       if (!sel?.enabled || !sel?.vendor?.price_per_day) continue;
@@ -816,7 +846,7 @@ export default function CreateEventPage() {
     const subtotal = rows.reduce((s,r)=>s+r.amt, 0);
     const contingency = Math.round(subtotal * 0.05);
     const total = subtotal + contingency;
-    return { rows, subtotal, contingency, total };
+    return { rows, subtotal, contingency, total, refEventPrice };
   })();
 
   const handleSubmit = useCallback(async () => {
@@ -856,6 +886,12 @@ export default function CreateEventPage() {
       reference_event_image: form.reference_event?.img || null,
       reference_event_title: form.reference_event?.title || null,
       reference_event_type:  form.reference_event?.type  || null,
+      // ── NEW: the reference event's own price, parsed to a number, so the
+      // backend/admin panel can display and store it alongside the other
+      // reference_event_* fields instead of it only living in the client-
+      // side budget calc. Backend's events table/route may need a matching
+      // `reference_event_price` column if it doesn't already accept one.
+      reference_event_price: budget.refEventPrice || 0,
       vendors: vendorsPayload,
     };
 

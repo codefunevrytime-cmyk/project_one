@@ -20,6 +20,27 @@ function mapVendorToCard(vendor, portfolio, tags, serviceConfig) {
     : [serviceConfig.defaultSpecialty];
   const portfolioTags = [...new Set(portfolio.flatMap(p => p.tags || []))].slice(0, 3);
 
+  // ── Real multi-select "Services Offered" list + per-service prices ─────
+  // Previously this page never read vendor.services / vendor.prices at
+  // all, so the vendor card object (and anything downstream that consumed
+  // it, like CreateEventPage's vendor picker) had no way to know a
+  // vendor's actual sub-service pricing — everything showed "POR" no
+  // matter what the vendor had entered on their profile. Mirrors the same
+  // parsing already done in VendorProfilePage.jsx's mapDbVendorToProfile.
+  let services = [];
+  if (Array.isArray(vendor.services)) {
+    services = vendor.services;
+  } else if (typeof vendor.services === 'string') {
+    try { services = JSON.parse(vendor.services) || []; } catch { services = []; }
+  }
+
+  let prices = {};
+  if (vendor.prices && typeof vendor.prices === 'object' && !Array.isArray(vendor.prices)) {
+    prices = vendor.prices;
+  } else if (typeof vendor.prices === 'string') {
+    try { prices = JSON.parse(vendor.prices) || {}; } catch { prices = {}; }
+  }
+
   let pricePerDay = vendor.price_per_day ? Number(vendor.price_per_day) : 0;
   let pricingPackages = null;
   let priceRange = null;
@@ -30,10 +51,12 @@ function mapVendorToCard(vendor, portfolio, tags, serviceConfig) {
         ? JSON.parse(vendor.pricing_packages)
         : vendor.pricing_packages;
 
-      const prices = Object.values(pricingPackages).filter(p => p > 0);
-      if (prices.length > 0) {
-        const minPrice = Math.min(...prices);
-        const maxPrice = Math.max(...prices);
+      // NOTE: renamed to packagePrices so it doesn't collide with the new
+      // per-service `prices` map above — they're two different shapes.
+      const packagePrices = Object.values(pricingPackages).filter(p => p > 0);
+      if (packagePrices.length > 0) {
+        const minPrice = Math.min(...packagePrices);
+        const maxPrice = Math.max(...packagePrices);
         priceRange = { min: minPrice, max: maxPrice };
         pricePerDay = minPrice;
       }
@@ -47,6 +70,7 @@ function mapVendorToCard(vendor, portfolio, tags, serviceConfig) {
     location: vendor.location || 'Lucknow',
     rating: 5.0, reviews: 0, pricePerDay,
     pricingPackages, priceRange,
+    services, prices, // ← NEW: carried through to the vendor picker in CreateEventPage
     type: typeFromSpecialty, media: [serviceConfig.filters.mediaOptions[0]],
     year: new Date(vendor.created_at).getFullYear(),
     month: new Date(vendor.created_at).getMonth() + 1,
@@ -501,6 +525,13 @@ export default function VendorListingPage({ bookmarks, onBookmarkToggle, service
                 price_per_day: vendor.pricePerDay,
                 photo_url: vendor.cover,
                 portfolio: vendor.portfolio,
+                // ── NEW: forward the vendor's real services + per-service
+                // prices so CreateEventPage's sub-service picker can show
+                // actual ₹ amounts instead of falling back to "POR" for
+                // every option. Without these two fields, vendorData.vendor
+                // never has a `prices` map to read from. ──────────────────
+                services: vendor.services,
+                prices: vendor.prices,
               }
             : vendor,
         },
