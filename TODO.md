@@ -12,7 +12,7 @@
 
 #7 vendor review
 
-# 8 different sub service price (important)
+#8 different sub service price (important)
 
 #9 landing page gallery card size and detials easy for editing again and again no db linking hardcoded data 
 
@@ -22,7 +22,7 @@
 
 # 12 otp
 
-# 13 contact me 
+#13 contact me 
 
 # 14 guide (important)
 
@@ -34,6 +34,8 @@
 
 # 18 create event orientation (important)
 
-# 19 add additional details / instruction  what u need according to ur needs and then make it visible it to admin and oen more fore vendor (important)
+#19 add additional details / instruction  what u need according to ur needs and then make it visible it to admin and oen more fore vendor (important)
 
-# 20 service and vendor idependent of each other ppl can skip anyhting (VERY important)
+# 20 service and vendor idependent of each other ppl can skip anyhting (VERY important) 
+
+# 21 check both files differemce 

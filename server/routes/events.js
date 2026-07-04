@@ -45,15 +45,15 @@ async function ensureTables() {
 
   // Add missing columns to existing table if they don't exist
   const alterColumns = [
-    `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS client_id INTEGER`,
-    `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS client_name TEXT`,
-    `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS reference_event_id TEXT`,
-    `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS reference_event_image TEXT`,
-    `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS reference_event_title TEXT`,
-    `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS reference_event_type TEXT`,
-    // NEW: payment_status tracks advance/paid state, separate from workflow `status`
-    `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS payment_status TEXT`,
-  ];
+  `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS client_id INTEGER`,
+  `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS client_name TEXT`,
+  `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS reference_event_id TEXT`,
+  `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS reference_event_image TEXT`,
+  `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS reference_event_title TEXT`,
+  `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS reference_event_type TEXT`,
+  `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS payment_status TEXT`,
+  `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS additional_details TEXT`,
+];
   for (const sql of alterColumns) {
     await pool.query(sql).catch(() => {}); // ignore if already exists
   }
@@ -170,44 +170,47 @@ router.post('/', async (req, res) => {
       return res.status(401).json({ error: 'User not found' });
     }
 
-    const {
-      client_phone,
+   const {
+  client_phone,
+  event_name, event_type, event_date, event_time,
+  location, capacity, budget_estimate, decoration_type,
+  reference_event_id, reference_event_image,
+  reference_event_title, reference_event_type,
+  additional_details,
+  vendors = [],
+} = req.body;
+
+const eventResult = await pool.query(
+  `INSERT INTO event_requests
+     (client_id, client_name, client_email, client_phone,
       event_name, event_type, event_date, event_time,
       location, capacity, budget_estimate, decoration_type,
       reference_event_id, reference_event_image,
       reference_event_title, reference_event_type,
-      vendors = [],
-    } = req.body;
-
-    const eventResult = await pool.query(
-      `INSERT INTO event_requests
-         (client_id, client_name, client_email, client_phone,
-          event_name, event_type, event_date, event_time,
-          location, capacity, budget_estimate, decoration_type,
-          reference_event_id, reference_event_image,
-          reference_event_title, reference_event_type,
-          status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'pending')
-       RETURNING id`,
-      [
-        clientUser.id,
-        clientUser.name  || req.body.client_name || null,
-        clientUser.email || null,
-        client_phone     || null,
-        event_name       || null,
-        event_type       || null,
-        event_date       || null,
-        event_time       || null,
-        location         || null,
-        capacity         || null,
-        budget_estimate  || null,
-        decoration_type  || null,
-        reference_event_id    ? String(reference_event_id) : null,
-        reference_event_image || null,
-        reference_event_title || null,
-        reference_event_type  || null,
-      ]
-    );
+      additional_details,
+      status)
+   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'pending')
+   RETURNING id`,
+  [
+    clientUser.id,
+    clientUser.name  || req.body.client_name || null,
+    clientUser.email || null,
+    client_phone     || null,
+    event_name       || null,
+    event_type       || null,
+    event_date       || null,
+    event_time       || null,
+    location         || null,
+    capacity         || null,
+    budget_estimate  || null,
+    decoration_type  || null,
+    reference_event_id    ? String(reference_event_id) : null,
+    reference_event_image || null,
+    reference_event_title || null,
+    reference_event_type  || null,
+    additional_details    || null,
+  ]
+);
 
     const eventId = eventResult.rows[0].id;
 
@@ -256,16 +259,16 @@ router.get('/my', async (req, res) => {
     const token = getClientFromToken(req);
     if (!token?.id) return res.json([]);
 
-    const eventsRes = await pool.query(
-      `SELECT id, client_id, client_name, client_email, client_phone,
-              event_name, event_type, event_date::text AS event_date, event_time,
-              location, capacity, budget_estimate, decoration_type,
-              reference_event_id, reference_event_image,
-              reference_event_title, reference_event_type,
-              admin_notes, status, payment_status, created_at, updated_at
-       FROM event_requests WHERE client_id = $1 ORDER BY created_at DESC`,
-      [token.id]
-    );
+   const eventsRes = await pool.query(
+  `SELECT id, client_id, client_name, client_email, client_phone,
+          event_name, event_type, event_date::text AS event_date, event_time,
+          location, capacity, budget_estimate, decoration_type,
+          reference_event_id, reference_event_image,
+          reference_event_title, reference_event_type,
+          additional_details,
+          admin_notes, status, payment_status, created_at, updated_at
+   FROM event_requests ORDER BY created_at DESC`
+);
     const events = eventsRes.rows;
     if (events.length === 0) return res.json([]);
 
@@ -323,14 +326,15 @@ router.patch('/:id/cancel', async (req, res) => {
 router.get('/admin/all', async (req, res) => {
   try {
     const eventsRes = await pool.query(
-      `SELECT id, client_id, client_name, client_email, client_phone,
-              event_name, event_type, event_date::text AS event_date, event_time,
-              location, capacity, budget_estimate, decoration_type,
-              reference_event_id, reference_event_image,
-              reference_event_title, reference_event_type,
-              admin_notes, status, payment_status, created_at, updated_at
-       FROM event_requests ORDER BY created_at DESC`
-    );
+  `SELECT id, client_id, client_name, client_email, client_phone,
+          event_name, event_type, event_date::text AS event_date, event_time,
+          location, capacity, budget_estimate, decoration_type,
+          reference_event_id, reference_event_image,
+          reference_event_title, reference_event_type,
+          additional_details,
+          admin_notes, status, payment_status, created_at, updated_at
+   FROM event_requests ORDER BY created_at DESC`
+);
     const events = eventsRes.rows;
     if (events.length === 0) return res.json([]);
 

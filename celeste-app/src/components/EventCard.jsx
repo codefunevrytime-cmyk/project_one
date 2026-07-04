@@ -105,7 +105,23 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
       onAddToEvent(event);
     } else {
       onClose();
-      navigate("/create-event", { state: { referenceEvent: event } });
+      const images = Array.isArray(event.images) && event.images.length > 0
+  ? event.images
+  : (event.image_url ? [event.image_url] : []);
+
+navigate("/create-event", {
+  state: {
+    referenceEvent: {
+      id: event.id,
+      title: event.title,
+      type: event.type,
+      img: event.image_url || images[0] || null,
+      city: event.venue || '',
+      dateLabel: `${event.month || ''} ${event.year || ''}`.trim(),
+      price: event.price ? `₹${Number(event.price).toLocaleString('en-IN')}` : '',
+    },
+  },
+});
     }
   };
 

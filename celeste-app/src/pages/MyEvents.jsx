@@ -176,6 +176,13 @@ function ExpandedDetails({ ev }) {
         )}
       </div>
 
+{ev.additional_details && (
+  <div style={{ background:"rgba(255,255,255,0.02)", border:"0.5px solid rgba(255,255,255,0.07)", borderRadius:12, padding:"16px 18px", marginBottom:12 }}>
+    <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.12em", color:"rgba(240,230,200,0.4)", marginBottom:10 }}>Additional Details</div>
+    <div style={{ fontSize:13, color:"#f0e6c8", lineHeight:1.7, whiteSpace:"pre-wrap" }}>{ev.additional_details}</div>
+  </div>
+)}
+
       {/* Photography vendor */}
       {ps && (
         <div style={{ background:"rgba(255,255,255,0.02)", border:"0.5px solid rgba(255,255,255,0.07)", borderRadius:12, padding:"16px 18px", marginBottom:12 }}>

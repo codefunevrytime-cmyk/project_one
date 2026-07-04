@@ -238,8 +238,27 @@ function Field({ label, hint, children, required }) {
 }
 
 /* ─── STEP 1 — Basics ─────────────────────────────────────────────────────────── */
-function StepBasics({ form, setForm, availability, onNext, onBrowseReference }) {
-  const canNext = form.event_name && form.event_type && form.event_date && form.location && form.reference_event;
+function StepBasics({ form, setForm, availability, onNext, onSkipToVendors, onBrowseReference }) {
+  // ── Skip logic ─────────────────────────────────────────────────────────
+  // "Skip to Vendors" is only meant for a client who hasn't touched this
+  // step at all and just wants to jump straight to picking vendors. The
+  // moment ANY of these fields has something in it, the normal rules apply
+  // again and everything (including the reference event) must be filled in
+  // to move forward — no partial skipping. `additional_details` is exempt
+  // from both checks; it's always optional.
+  const basicsFields = [
+    form.event_name,
+    form.event_type,
+    form.event_date,
+    form.location,
+    form.reference_event,
+  ];
+  const filledCount = basicsFields.filter(v => v !== null && v !== undefined && v !== "").length;
+  const isCompletelyEmpty = filledCount === 0;
+  const isFullyFilled = filledCount === basicsFields.length;
+
+  const canNext = isFullyFilled;
+  const canSkip = isCompletelyEmpty;
 
   const setF = key => val => setForm(f => ({ ...f, [key]: val }));
   const setE = key => e => setF(key)(e.target.value);
@@ -291,7 +310,42 @@ function StepBasics({ form, setForm, availability, onNext, onBrowseReference }) 
               Next — Choose vendors
             </button>
           </div>
-          {!canNext && <p style={{ fontSize:11,color:"rgba(200,175,120,0.35)",marginTop:8 }}>Complete all required fields and pick a reference event to continue.</p>}
+
+          {/* Standalone skip action — kept out of btnRow (which is styled for
+              exactly one/two buttons) so it always renders full-width and
+              visible, instead of being squashed/hidden by CSS meant for the
+              primary/secondary pair. */}
+          <button
+            type="button"
+            onClick={onSkipToVendors}
+            disabled={!canSkip}
+            title="Only booking vendors? Skip the reference event and jump straight to Vendors."
+            style={{
+              marginTop: 10,
+              width: "100%",
+              background: "rgba(200,175,120,0.07)",
+              border: "0.5px dashed rgba(200,175,120,0.35)",
+              borderRadius: 8,
+              padding: "11px 0",
+              fontSize: 12.5,
+              fontWeight: 500,
+              letterSpacing: "0.03em",
+              fontFamily: "inherit",
+              color: canSkip ? "#c8af78" : "rgba(200,175,120,0.25)",
+              cursor: canSkip ? "pointer" : "not-allowed",
+              transition: "all 0.15s",
+            }}
+          >
+            ⏭ Skip to Vendors — I only need to book vendors
+          </button>
+
+          {!canNext && (
+            <p style={{ fontSize:11,color:"rgba(200,175,120,0.35)",marginTop:8 }}>
+              {canSkip
+                ? "Just here to book vendors? Use “Skip to Vendors” above — no need to fill anything in first."
+                : "Once you start filling this in, all fields (including the reference event) are required to continue. Clear everything to use “Skip to Vendors” instead."}
+            </p>
+          )}
         </div>
 
         {/* RIGHT — reference event (compulsory) */}
@@ -331,9 +385,40 @@ function StepBasics({ form, setForm, availability, onNext, onBrowseReference }) 
           {form.reference_event && (
             <button onClick={onBrowseReference} style={{ marginTop:10,width:"100%",background:"none",border:"0.5px solid rgba(200,175,120,0.2)",borderRadius:8,padding:"7px 0",fontSize:12,color:"rgba(200,175,120,0.5)",cursor:"pointer",fontFamily:"inherit" }}>Change reference</button>
           )}
+
+           {/* ── Additional details / instructions box ─────────────────────────
+      Fills whatever vertical space is left in the right column. The
+      outer box has a fixed height (flex:1 within the column); only the
+      textarea inside scrolls when the text overflows it. */}
+  <div style={{ marginTop:16, display:"flex", flexDirection:"column", flex:1, minHeight:0 }}>
+    <div className={styles.refPanelHeader} style={{ marginBottom:6 }}>
+      <span className={styles.sectionLabel}>Additional details / instructions</span>
+    </div>
+    <p style={{ fontSize:11, color:"rgba(200,175,120,0.4)", margin:"0 0 8px" }}>
+      What you need, according to your needs
+    </p>
+    <div style={{
+      flex:1, minHeight:140, background:"#1e1a14",
+      border:"0.5px solid rgba(200,175,120,0.15)", borderRadius:10,
+      display:"flex", overflow:"hidden",
+    }}>
+      <textarea
+        value={form.additional_details}
+        onChange={e=>setF("additional_details")(e.target.value)}
+        placeholder="Add any additional details or special instructions for your event…"
+        style={{
+          flex:1, width:"100%", resize:"none", background:"transparent",
+          border:"none", outline:"none", color:"#e8dcc8", fontSize:13,
+          lineHeight:1.6, fontFamily:"inherit", padding:14, overflowY:"auto",
+          boxSizing:"border-box",
+        }}
+      />
+         </div>
+      </div>
+          </div>
         </div>
       </div>
-    </div>
+    
   );
 }
 
@@ -520,7 +605,7 @@ function VendorBlock({ serviceType, serviceConfig, vendorData, onChange, onPickV
 }
 
 /* ─── STEP 2 — Vendors ────────────────────────────────────────────────────────── */
-function StepVendors({ vendors, vendorSelections, setVendorSelections, onNext, onBack, onPickVendor, onPickVendorRef }) {
+function StepVendors({ vendors, vendorSelections, setVendorSelections, onNext, onBack, onSkipVendors, onPickVendor, onPickVendorRef }) {
   const vendorsForService = (serviceId, includeUnassigned) => vendors.filter(v => {
     const sid = String(v.service_id || "").trim();
     if (sid === String(serviceId)) return true;
@@ -539,7 +624,7 @@ function StepVendors({ vendors, vendorSelections, setVendorSelections, onNext, o
 
   return (
     <div className={styles.stepWrap}>
-      <p className={styles.stepDesc}>Select vendors for your event. Toggle a service on to configure it.</p>
+      <p className={styles.stepDesc}>Select vendors for your event. Toggle a service on to configure it — or skip this step entirely if you just want the event booked.</p>
 
       {serviceBlocks.map(({ key, config }) => (
         <VendorBlock
@@ -557,8 +642,36 @@ function StepVendors({ vendors, vendorSelections, setVendorSelections, onNext, o
         <button className={styles.btnSecondary} onClick={onBack}>Back</button>
         <button className={styles.btnPrimary} onClick={onNext} disabled={!canNext}>Next — View budget</button>
       </div>
-      {!canNext&&anyEnabled&&<p style={{ fontSize:11,color:"rgba(200,175,120,0.35)",marginTop:8 }}>Please select a vendor for each enabled service.</p>}
-      {!anyEnabled&&<p style={{ fontSize:11,color:"rgba(200,175,120,0.35)",marginTop:8 }}>Add at least one vendor service to continue.</p>}
+
+      {/* Standalone skip action — kept out of btnRow (which is styled for
+          exactly the back/next pair) so it always renders full-width and
+          visible, instead of being squashed/hidden by CSS meant for two
+          buttons. */}
+      <button
+        type="button"
+        onClick={onSkipVendors}
+        title="Just want the event without booking vendors here? Skip straight to your budget."
+        style={{
+          marginTop: 10,
+          width: "100%",
+          background: "rgba(200,175,120,0.07)",
+          border: "0.5px dashed rgba(200,175,120,0.35)",
+          borderRadius: 8,
+          padding: "11px 0",
+          fontSize: 12.5,
+          fontWeight: 500,
+          letterSpacing: "0.03em",
+          fontFamily: "inherit",
+          color: "#c8af78",
+          cursor: "pointer",
+          transition: "all 0.15s",
+        }}
+      >
+        ⏭ Skip Vendors — Just book the event
+      </button>
+
+      {!canNext&&anyEnabled&&<p style={{ fontSize:11,color:"rgba(200,175,120,0.35)",marginTop:8 }}>Please select a vendor for each enabled service, or use “Skip Vendors” above to continue without them.</p>}
+      {!anyEnabled&&<p style={{ fontSize:11,color:"rgba(200,175,120,0.35)",marginTop:8 }}>Add at least one vendor service, or tap “Skip Vendors” above if you don't need any right now.</p>}
     </div>
   );
 }
@@ -651,6 +764,7 @@ function StepReview({ form, vendorSelections, budget, submitting, submitError, o
         <ReviewItem label="Location" value={form.location}/>
         <ReviewItem label="Capacity" value={form.capacity ? `${form.capacity} guests` : ""}/>
         <ReviewItem label="Decoration" value={DECORATION_LOCATIONS.find(l=>l.value===form.decoration_type)?.label}/>
+        <ReviewItem label="Additional details" value={form.additional_details}/>
         <div style={{ marginTop:14 }}>
           <RefImageBlock label="Reference event" event={form.reference_event}/>
         </div>
@@ -738,7 +852,8 @@ export default function CreateEventPage() {
     capacity: 150,
     decoration_type: "",
     reference_event: prefillEvent || null,
-  });
+    additional_details: "",
+ });
 
   const [vendorSelections, setVendorSelections] = useState(() =>
     Object.fromEntries(VENDOR_SERVICE_CONFIGS.map(cfg => [
@@ -814,6 +929,14 @@ export default function CreateEventPage() {
     navigate(serviceConfig.path, { state: { celestePick: { type: "vendor", serviceKey } } });
   };
 
+  // ── Step-skipping shortcuts ──────────────────────────────────────────────
+  // "Skip to Vendors" — for clients who only care about booking vendors and
+  // don't want to pick a reference event first.
+  const handleSkipToVendors = () => setStep(1);
+  // "Skip Vendors" — for clients who just want the event itself booked
+  // (reference event only) without adding any vendors right now.
+  const handleSkipVendors = () => setStep(2);
+
   const budget = (() => {
     const rows = [];
 
@@ -871,29 +994,25 @@ export default function CreateEventPage() {
     }
 
     const payload = {
-      event_name: form.event_name,
-      event_type: form.event_type,
-      event_date: form.event_date,
-      event_time: form.event_time,
-      location: form.location,
-      capacity: form.capacity,
-      decoration_type: form.decoration_type,
-      budget_estimate: budget.total,
-      client_name: user?.name || "Guest",
-      client_email: user?.email || "",
-      client_phone: user?.phone || "",
-      reference_event_id: form.reference_event?.id || null,
-      reference_event_image: form.reference_event?.img || null,
-      reference_event_title: form.reference_event?.title || null,
-      reference_event_type:  form.reference_event?.type  || null,
-      // ── NEW: the reference event's own price, parsed to a number, so the
-      // backend/admin panel can display and store it alongside the other
-      // reference_event_* fields instead of it only living in the client-
-      // side budget calc. Backend's events table/route may need a matching
-      // `reference_event_price` column if it doesn't already accept one.
-      reference_event_price: budget.refEventPrice || 0,
-      vendors: vendorsPayload,
-    };
+  event_name: form.event_name,
+  event_type: form.event_type,
+  event_date: form.event_date,
+  event_time: form.event_time,
+  location: form.location,
+  capacity: form.capacity,
+  decoration_type: form.decoration_type,
+  budget_estimate: budget.total,
+  additional_details: form.additional_details || "",
+  client_name: user?.name || "Guest",
+  client_email: user?.email || "",
+  client_phone: user?.phone || "",
+  reference_event_id: form.reference_event?.id || null,
+  reference_event_image: form.reference_event?.img || null,
+  reference_event_title: form.reference_event?.title || null,
+  reference_event_type:  form.reference_event?.type  || null,
+  reference_event_price: budget.refEventPrice || 0,
+  vendors: vendorsPayload,
+};
 
     try {
       const res = await fetch(`${API}/events`, {
@@ -946,6 +1065,7 @@ export default function CreateEventPage() {
             setForm={setForm}
             availability={availability}
             onNext={() => setStep(1)}
+            onSkipToVendors={handleSkipToVendors}
             onBrowseReference={handleBrowseReference}
           />
         )}
@@ -956,6 +1076,7 @@ export default function CreateEventPage() {
             setVendorSelections={setVendorSelections}
             onNext={() => setStep(2)}
             onBack={() => setStep(0)}
+            onSkipVendors={handleSkipVendors}
             onPickVendor={handlePickVendor}
             onPickVendorRef={handlePickVendorRef}
           />
@@ -976,6 +1097,7 @@ export default function CreateEventPage() {
             submitError={submitError}
             onBack={() => setStep(2)}
             onSubmit={handleSubmit}
+            
           />
         )}
       </main>

@@ -172,7 +172,14 @@ export default function AdminEventRequests() {
                     <span>Phone</span><span>{ev.client_phone || '—'}</span>
                   </div>
                 </div>
-
+{ev.additional_details && (
+  <div className="aer-section">
+    <div className="aer-section-title">Additional Details</div>
+    <div style={{ fontSize:13, color:"#f0e6c8", lineHeight:1.7, whiteSpace:"pre-wrap", background:"rgba(255,255,255,0.02)", border:"0.5px solid rgba(255,255,255,0.06)", borderRadius:8, padding:"10px 12px" }}>
+      {ev.additional_details}
+    </div>
+  </div>
+)}
                 {/* Reference / cover image */}
                 {(ev.reference_event_image || ev.reference_event_id) && (
                   <div className="aer-section">
@@ -299,3 +306,4 @@ export default function AdminEventRequests() {
     </div>
   );
 }
+
