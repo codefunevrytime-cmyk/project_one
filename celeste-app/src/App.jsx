@@ -31,7 +31,8 @@ import PaymentsEmpty from "./pages/PaymentsEmpty";
 import PaymentCheckout from './pages/PaymentCheckout';
 import PaymentsHistory from './pages/PaymentsHistory';
 import ProtectedRoute from './components/ProtectedRoute';
-
+import { ThemeProvider } from './context/ThemeContext';
+import './styles/theme-light.css'; // import AFTER global.css
 import { API_URL } from './config/api';
 
 // ── Decides which payments page to show based on real payment history ─────────
@@ -209,3 +210,10 @@ export default function App() {
     </AuthProvider>
   );
 }
+
+
+<ThemeProvider>
+  <AuthProvider>
+    <App />
+  </AuthProvider>
+</ThemeProvider>

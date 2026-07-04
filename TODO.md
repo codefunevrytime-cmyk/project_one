@@ -28,14 +28,14 @@
 
 # 15 color mode themes (important)
 
-# 16 auto select event when choose image (important)
+#16 auto select event when choose image (important)
 
 # 17 more event details (optional)
 
-# 18 create event orientation (important)
+#18 create event orientation (important)
 
 #19 add additional details / instruction  what u need according to ur needs and then make it visible it to admin and oen more fore vendor (important)
 
-# 20 service and vendor idependent of each other ppl can skip anyhting (VERY important) 
+#20 service and vendor idependent of each other ppl can skip anyhting (VERY important) 
 
-# 21 check both files differemce 
+#21 check both files differemce 

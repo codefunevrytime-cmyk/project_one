@@ -6,15 +6,16 @@
   color: #e8dcc8;
   display: flex;
   flex-direction: column;
-  padding-top: 70px;
+  padding-top: 56px;
 }
 
 /* ── header ──────────────────────────────────────────────────────────────── */
+/* Shrunk + tightened up so the whole header block sits smaller and higher. */
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 40px;
+  padding: 10px 40px;
   border-bottom: 0.5px solid rgba(255,255,255,0.08);
   position: relative;
 }
@@ -39,7 +40,7 @@
 
 .pageTitle {
   font-family: 'Cormorant Garamond', serif;
-  font-size: 48px;
+  font-size: 34px;
   font-weight: 300;
   color: #e8dcc8;
   margin: 0;
@@ -52,7 +53,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 12px 40px;
+  padding: 8px 40px;
   border-bottom: 0.5px solid rgba(200,175,120,0.08);
   position: relative;
   z-index: 0;
@@ -97,7 +98,7 @@
 /* ── body ────────────────────────────────────────────────────────────────── */
 .body {
   flex: 1;
-  padding: 32px 40px 48px;
+  padding: 20px 40px 48px;
   max-width: 1100px;
   width: 100%;
   position: relative;
@@ -604,7 +605,9 @@
   display: grid;
   grid-template-columns: 1fr 380px;
   gap: 40px;
-  align-items: start;
+  align-items: stretch; /* was 'start' — right column now stretches to match
+                            the left column's height so the additional-details
+                            box below can fill the leftover vertical space */
 }
 
 @media (max-width: 900px) {
@@ -615,11 +618,11 @@
 
 @media (max-width: 640px) {
   .root { padding-top: 56px; }
-  .header { padding: 14px 1rem; flex-wrap: wrap; gap: 10px; }
+  .header { padding: 10px 1rem; flex-wrap: wrap; gap: 10px; }
   .titleBlock { position: static; transform: none; width: 100%; text-align: center; }
-  .pageTitle { font-size: 32px; }
-  .stepNav { padding: 10px 1rem; overflow-x: auto; }
-  .body { padding: 20px 1rem 40px; }
+  .pageTitle { font-size: 28px; }
+  .stepNav { padding: 8px 1rem; overflow-x: auto; }
+  .body { padding: 16px 1rem 40px; }
   .fieldRow { grid-template-columns: 1fr; gap: 0; }
   .vendorGrid { grid-template-columns: 1fr; }
   .btnRow { flex-direction: column; }
@@ -629,6 +632,7 @@
   .emptyFlow { flex-direction: column; padding: 18px 20px; }
   .emptyFlowArrow { display: none; }
   .emptyPill { width: 100%; }
+  .additionalDetailsInner { min-height: 160px; }
 }
 
 .basicsLeft {
@@ -739,3 +743,52 @@
   color: #c8af78;
   letter-spacing: 0.01em;
 }
+
+/* ── Additional details / instructions box ──────────────────────────────────
+   Sits directly below the reference-event box in the right column. Wrapper
+   grows to consume whatever vertical space is left over (basicsRight is a
+   flex column, this is its last flex:1 child); the bordered box inside it
+   is a flex container so the textarea can stretch to fill it; ONLY the
+   textarea scrolls when its content overflows — the outer box never grows
+   or scrolls itself. ─────────────────────────────────────────────────────── */
+.additionalDetailsWrap {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0; /* required so flex children can actually shrink/scroll */
+  margin-top: 2px;
+}
+
+.additionalDetailsHint {
+  font-size: 11px;
+  color: rgba(200,175,120,0.35);
+  margin: 0 0 8px;
+  letter-spacing: 0.02em;
+}
+
+.additionalDetailsInner {
+  flex: 1;
+  min-height: 140px;
+  background: #1e1a14;
+  border: 0.5px solid rgba(200,175,120,0.18);
+  border-radius: 10px;
+  display: flex;
+  overflow: hidden; /* box itself never scrolls */
+}
+
+.additionalDetailsTextarea {
+  flex: 1;
+  width: 100%;
+  resize: none;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #e8dcc8;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 14px;
+  box-sizing: border-box;
+  overflow-y: auto; /* only the content inside scrolls */
+}
+.additionalDetailsTextarea::placeholder { color: rgba(200,175,120,0.25); }

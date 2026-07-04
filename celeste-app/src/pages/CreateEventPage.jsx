@@ -42,6 +42,18 @@ const EVENT_TYPES = [
   "Sports","Outdoor","Expo","Cultural","Charity","Food","Other",
 ];
 
+// Case-insensitive matcher so a reference event's `type` (sourced from the
+// gallery/DB `event_type` column) reliably maps onto one of the fixed
+// EVENT_TYPES dropdown options, regardless of how it was cased when the
+// admin created the gallery row (e.g. "sports" or "SPORTS" -> "Sports").
+function matchEventType(rawType) {
+  if (!rawType) return null;
+  const found = EVENT_TYPES.find(
+    t => t.toLowerCase() === String(rawType).trim().toLowerCase()
+  );
+  return found || null;
+}
+
 const DECORATION_LOCATIONS = [
   { value: "", label: "None" },
   { value: "home", label: "Home" },
@@ -845,7 +857,10 @@ export default function CreateEventPage() {
 
   const [form, setForm] = useState({
     event_name: "",
-    event_type: prefillEvent?.type || "",
+    // FIX: run the initial prefill type through matchEventType() too, so it
+    // always lines up with one of the fixed EVENT_TYPES dropdown options
+    // (case-insensitive), same as the pick-flow fix below.
+    event_type: matchEventType(prefillEvent?.type) || "",
     event_date: "",
     event_time: "18:00",
     location: "",
@@ -876,7 +891,19 @@ export default function CreateEventPage() {
 
     if (pickResult) {
       if (pickResult.type === "globalRef") {
-        setForm(f => ({ ...f, reference_event: pickResult.event }));
+        // FIX: previously only `reference_event` was written here, so
+        // picking a reference from the Explore page (Browse events ->
+        // "+ Add to Event" -> back to Create Event) left "Type of event"
+        // on "Select type…" even though the reference card — and the
+        // gallery row behind it — already has its own type (e.g.
+        // "Sports"). Auto-fill event_type from the picked reference,
+        // matched case-insensitively against the fixed EVENT_TYPES list
+        // so it lines up with the dropdown's options.
+        setForm(f => ({
+          ...f,
+          reference_event: pickResult.event,
+          event_type: matchEventType(pickResult.event?.type) || f.event_type,
+        }));
       } else if (pickResult.type === "vendorRef") {
         setVendorSelections(vs => ({
           ...vs,

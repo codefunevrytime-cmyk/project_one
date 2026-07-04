@@ -4,6 +4,7 @@ import { featuredEventTypes } from '../context/data/eventsData';
 import { getVendorServiceConfig } from '../context/data/vendorServiceConfig';
 import { useAuth } from '../hooks/useAuth';
 import { BookmarkMenuItem } from './CommonControls';
+import ThemeToggle from './ThemeToggle';
 
 
 // ── Services data ──────────────────────────────────────────────
@@ -251,6 +252,7 @@ export default function Navbar({ bookmarkCount }) {
       </ul>
 
       <div className="nav-right-desktop">
+          <ThemeToggle />
         <SocialLinks />
         <div className="sep"></div>
         {!isLoggedIn ? (
@@ -332,7 +334,11 @@ export default function Navbar({ bookmarkCount }) {
 
       <div className={`mobile-menu-backdrop${mobileOpen ? ' open' : ''}`} onClick={closeAllMenus} />
 
-      <div id="mobile-nav-panel" className={`mobile-menu${mobileOpen ? ' open' : ''}`}>
+     <div id="mobile-nav-panel" className={`mobile-menu${mobileOpen ? ' open' : ''}`}>
+  <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '4px 0 8px' }}>
+    <ThemeToggle />
+  </div>
+        
         <Link to="/" onClick={closeAllMenus}>Home</Link>
 
         <button type="button" className="mobile-submenu-trigger" onClick={() => setMobileExploreOpen((v) => !v)}>
