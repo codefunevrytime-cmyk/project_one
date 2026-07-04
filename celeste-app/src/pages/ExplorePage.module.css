@@ -1,7 +1,15 @@
+/* NOTE: colors now come from the shared token set defined once in
+   global.css (dark defaults) and theme-light.css (light overrides) —
+   the same tokens VendorListingPage.css uses. Previously this file had
+   its own hardcoded hex colors PLUS an `@media (prefers-color-scheme:
+   dark)` block, which reacted to the user's OS dark-mode setting
+   instead of the in-app toggle. That media query has been removed —
+   do not re-add it here. */
+
 .layout {
   display: flex;
   min-height: calc(100vh - 64px);
-  background: #f7f2ea;
+  background: var(--bg-base);
 }
 
 .main {
@@ -9,6 +17,7 @@
   padding: 20px 24px 40px;
   min-width: 0;
   overflow-y: auto;
+  background: var(--bg-base);
 }
 
 .topBar {
@@ -23,19 +32,19 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #fff;
-  border: 1.5px solid #e8ddd0;
+  background: var(--bg-elevated);
+  border: 1.5px solid var(--border-medium);
   border-radius: 10px;
   padding: 0 14px;
   height: 42px;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .searchBox:focus-within {
-  border-color: #c9a84c;
-  box-shadow: 0 0 0 3px rgba(201,168,76,0.12);
+  border-color: var(--amber-primary);
+  box-shadow: 0 0 0 3px var(--amber-subtle);
 }
 .searchIcon {
-  color: #c4a882;
+  color: var(--text-faint);
   font-size: 18px;
   flex-shrink: 0;
 }
@@ -44,28 +53,27 @@
   outline: none;
   background: transparent;
   font-size: 13px;
-  color: #2E1C10;
+  color: var(--text-primary);
   flex: 1;
   font-family: 'Jost', inherit;
 }
-.searchInput::placeholder { color: #c4a882; }
+.searchInput::placeholder { color: var(--text-faint); }
 .clearSearch {
   background: none;
   border: none;
-  color: #c4a882;
+  color: var(--text-faint);
   cursor: pointer;
   font-size: 13px;
   padding: 2px 4px;
   border-radius: 4px;
   transition: color 0.12s;
 }
-.clearSearch:hover { color: #8a5a00; }
+.clearSearch:hover { color: var(--amber-bright); }
 
-/* Shortcut hint inside search */
 .searchHint {
   font-size: 11px;
-  color: #d0b88a;
-  background: #f5ede0;
+  color: var(--text-muted);
+  background: var(--bg-hover);
   padding: 2px 7px;
   border-radius: 5px;
   letter-spacing: 0.03em;
@@ -75,21 +83,21 @@
 
 .sortSelect {
   height: 42px;
-  border: 1.5px solid #e8ddd0;
+  border: 1.5px solid var(--border-medium);
   border-radius: 10px;
   padding: 0 14px;
   font-size: 13px;
-  color: #5a3e28;
-  background: #fff;
+  color: var(--text-primary);
+  background: var(--bg-elevated);
   font-family: 'Jost', inherit;
   cursor: pointer;
   outline: none;
   white-space: nowrap;
   transition: border-color 0.15s;
 }
-.sortSelect:focus { border-color: #c9a84c; }
+.sortSelect:focus { border-color: var(--amber-primary); }
 
-/* Filter chips — warm terracotta theme */
+/* Filter chips */
 .chips {
   display: flex;
   flex-wrap: wrap;
@@ -102,9 +110,9 @@
   align-items: center;
   gap: 6px;
   padding: 4px 12px;
-  background: #faeeda;
-  color: #8a5a00;
-  border: 1px solid #e8c97a;
+  background: var(--amber-subtle);
+  color: var(--amber-bright);
+  border: 1px solid var(--amber-border);
   border-radius: 20px;
   font-size: 12px;
   font-weight: 500;
@@ -112,11 +120,11 @@
   font-family: inherit;
   transition: background 0.12s, opacity 0.12s;
 }
-.chip:hover { background: #f0d8a0; opacity: 1; }
+.chip:hover { background: var(--bg-hover); opacity: 1; }
 .chipX { font-size: 11px; line-height: 1; opacity: 0.6; }
 .chipClear {
   font-size: 12px;
-  color: #a08060;
+  color: var(--text-muted);
   background: none;
   border: none;
   cursor: pointer;
@@ -124,16 +132,16 @@
   font-family: inherit;
   transition: color 0.12s;
 }
-.chipClear:hover { color: #C4714A; }
+.chipClear:hover { color: var(--amber-bright); }
 
-/* Results count — bigger + bolder */
+/* Results count */
 .resultsCount {
   font-size: 13px;
-  color: #a08060;
+  color: var(--text-muted);
   margin-bottom: 16px;
   font-family: 'Jost', inherit;
 }
-.resultsCount strong { color: #2E1C10; font-weight: 600; }
+.resultsCount strong { color: var(--text-primary); font-weight: 600; }
 
 .grid {
   display: grid;
@@ -151,21 +159,8 @@
 .empty {
   text-align: center;
   padding: 80px 20px;
-  color: #c4a882;
+  color: var(--text-faint);
 }
 .emptyIcon { font-size: 42px; margin-bottom: 14px; }
-.emptyTitle { font-size: 16px; font-weight: 600; color: #8a6a48; margin-bottom: 6px; font-family: 'Playfair Display', serif; }
-.emptySub { font-size: 13px; color: #c4a882; }
-
-@media (prefers-color-scheme: dark) {
-  .layout { background: #110e08; }
-  .main { background: #110e08; }
-  .searchBox { background: #1c1510; border-color: #2c2010; }
-  .searchInput { color: #f0e8d8; }
-  .searchHint { background: #2a1e10; color: #8a6a48; }
-  .sortSelect { background: #1c1510; border-color: #2c2010; color: #c4a882; }
-  .chip { background: #2a1e00; color: #e8c060; border-color: #5a4a00; }
-  .resultsCount { color: #8a6a48; }
-  .resultsCount strong { color: #f0e8d8; }
-  .emptyTitle { color: #8a6a48; }
-}
+.emptyTitle { font-size: 16px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; font-family: 'Playfair Display', serif; }
+.emptySub { font-size: 13px; color: var(--text-faint); }

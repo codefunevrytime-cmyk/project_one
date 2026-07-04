@@ -20,9 +20,10 @@
   --border: #e8e0d5;
 }
 
-html, body {
+.scene-auth, .scene-auth html {
   height: 100%;
-  background: var(--dark);
+}
+.panel-wrap, .l-bg {
   font-family: 'DM Sans', sans-serif;
 }
 

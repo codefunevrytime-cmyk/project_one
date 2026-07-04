@@ -4,6 +4,8 @@ import Footer from '../components/Footer';
 import { eventsData } from '../context/data/eventsData';
 import { PHOTOGRAPHERS } from '../context/data/photographyData';
 import { VENDOR_SERVICE_CONFIGS } from '../context/data/vendorServiceConfig';
+import { useTheme } from '../hooks/useTheme';
+import { getTokens } from '../styles/themeTokens';
 
 import { API_URL } from '../config/api';
 
@@ -60,7 +62,10 @@ function dateLabel(event) {
 }
 
 // ── Card ──────────────────────────────────────────────────────────────────────
-function SavedCard({ image, eyebrow, title, meta, tags = [], to, onRemove, fallbackEmoji = '📅', accentColor = '#c9a84c' }) {
+function SavedCard({ image, eyebrow, title, meta, tags = [], to, onRemove, fallbackEmoji = '📅', accentColor }) {
+  const { isLight } = useTheme();
+  const T = getTokens(isLight);
+  const resolvedAccent = accentColor || T.gold;
   const [hovered, setHovered] = useState(false);
   const [imgError, setImgError] = useState(false);
   const hasImage = Boolean(image) && !imgError;
@@ -68,68 +73,55 @@ function SavedCard({ image, eyebrow, title, meta, tags = [], to, onRemove, fallb
   return (
     <div
       style={{
-        background: '#1c1812',
-        border: `1px solid ${hovered ? 'rgba(201,168,76,0.45)' : 'rgba(201,168,76,0.15)'}`,
+        background: T.cardBgAlt,
+        border: `1px solid ${hovered ? T.borderHover : T.border}`,
         borderRadius: 14,
         overflow: 'hidden',
-        boxShadow: hovered ? '0 14px 40px rgba(0,0,0,0.45)' : '0 2px 12px rgba(0,0,0,0.25)',
+        boxShadow: hovered ? '0 14px 40px rgba(0,0,0,0.18)' : '0 2px 12px rgba(0,0,0,0.08)',
         transform: hovered ? 'translateY(-4px)' : 'translateY(0)',
         transition: 'all 0.22s cubic-bezier(0.22,1,0.36,1)',
-        display: 'flex',
-        flexDirection: 'column',
+        display: 'flex', flexDirection: 'column',
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* Image */}
-      <div style={{ position: 'relative', height: 200, flexShrink: 0, overflow: 'hidden', background: '#15100a' }}>
+      <div style={{ position: 'relative', height: 200, flexShrink: 0, overflow: 'hidden', background: T.imgFallbackBg }}>
         {hasImage ? (
           <img
-            src={image}
-            alt={title}
-            onError={() => setImgError(true)}
+            src={image} alt={title} onError={() => setImgError(true)}
             style={{
               width: '100%', height: '100%', objectFit: 'cover', display: 'block',
               transform: hovered ? 'scale(1.06)' : 'scale(1)',
               transition: 'transform 0.4s ease',
-              filter: 'brightness(0.88) saturate(0.9)',
+              filter: 'brightness(0.94) saturate(0.95)',
             }}
           />
         ) : (
           <div style={{
             width: '100%', height: '100%', display: 'flex', alignItems: 'center',
-            justifyContent: 'center', fontSize: 52,
-            background: 'linear-gradient(135deg, #2a1e0c, #1a1208)',
+            justifyContent: 'center', fontSize: 52, background: T.fallbackGrad,
           }}>
             {fallbackEmoji}
           </div>
         )}
-        {/* Gradient overlay */}
-        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.55), transparent 55%)', pointerEvents: 'none' }} />
-
-        {/* Type badge */}
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.45), transparent 55%)', pointerEvents: 'none' }} />
         <span style={{
           position: 'absolute', left: 12, bottom: 12,
-          background: 'rgba(15,10,5,0.8)', backdropFilter: 'blur(6px)',
-          color: accentColor, fontSize: 10, fontWeight: 600, letterSpacing: '0.06em',
-          padding: '3px 10px', borderRadius: 20,
-          border: `1px solid ${accentColor}44`,
+          background: isLight ? 'rgba(255,253,247,0.9)' : 'rgba(15,10,5,0.8)', backdropFilter: 'blur(6px)',
+          color: resolvedAccent, fontSize: 10, fontWeight: 600, letterSpacing: '0.06em',
+          padding: '3px 10px', borderRadius: 20, border: `1px solid ${resolvedAccent}44`,
         }}>
           {eyebrow}
         </span>
-
-        {/* Remove button */}
         <button
-          onClick={onRemove}
-          title="Remove bookmark"
+          onClick={onRemove} title="Remove bookmark"
           style={{
             position: 'absolute', right: 12, bottom: 12,
             width: 32, height: 32, borderRadius: '50%',
-            background: 'rgba(201,168,76,0.85)',
-            border: 'none', cursor: 'pointer', color: '#18120a',
+            background: `${resolvedAccent}D9`,
+            border: 'none', cursor: 'pointer', color: isLight ? '#fff' : '#18120a',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            opacity: hovered ? 1 : 0.7,
-            transition: 'opacity 0.15s, transform 0.15s',
+            opacity: hovered ? 1 : 0.7, transition: 'opacity 0.15s, transform 0.15s',
             transform: hovered ? 'scale(1.1)' : 'scale(1)',
           }}
         >
@@ -139,31 +131,23 @@ function SavedCard({ image, eyebrow, title, meta, tags = [], to, onRemove, fallb
         </button>
       </div>
 
-      {/* Body */}
       <div style={{ padding: '16px 18px 18px', flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
         <h3 style={{
-          fontFamily: "'Playfair Display', serif",
-          fontSize: 17, fontWeight: 600, color: '#f0e6cc',
+          fontFamily: "'Playfair Display', serif", fontSize: 17, fontWeight: 600, color: T.textAlt,
           margin: 0, lineHeight: 1.3,
           display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
         }}>
           {title}
         </h3>
 
-        {meta && (
-          <p style={{ margin: 0, fontSize: 12, color: '#7a6545', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.5 }}>
-            {meta}
-          </p>
-        )}
+        {meta && <p style={{ margin: 0, fontSize: 12, color: T.textSecondary, fontFamily: "'DM Sans', sans-serif", lineHeight: 1.5 }}>{meta}</p>}
 
         {tags.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
             {tags.slice(0, 3).map((tag, i) => (
               <span key={i} style={{
-                background: 'rgba(201,168,76,0.1)', color: '#c9a84c',
-                border: '1px solid rgba(201,168,76,0.22)',
-                borderRadius: 20, padding: '3px 9px', fontSize: 10,
-                fontFamily: "'DM Sans', sans-serif",
+                background: T.goldSoft, color: T.gold, border: `1px solid ${T.goldBorder}`,
+                borderRadius: 20, padding: '3px 9px', fontSize: 10, fontFamily: "'DM Sans', sans-serif",
               }}>{tag}</span>
             ))}
           </div>
@@ -174,12 +158,10 @@ function SavedCard({ image, eyebrow, title, meta, tags = [], to, onRemove, fallb
             to={to}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 6,
-              color: '#D4A853', border: '1px solid rgba(212,168,83,0.35)',
-              background: 'rgba(212,168,83,0.08)',
-              borderRadius: 8, padding: '7px 14px',
+              color: T.goldStrong, border: `1px solid ${T.goldBorder}`,
+              background: T.goldSoft, borderRadius: 8, padding: '7px 14px',
               textDecoration: 'none', fontSize: 12, fontWeight: 500,
-              fontFamily: "'DM Sans', sans-serif",
-              transition: 'background 0.15s, border-color 0.15s',
+              fontFamily: "'DM Sans', sans-serif", transition: 'background 0.15s, border-color 0.15s',
             }}
           >
             Open
@@ -195,49 +177,37 @@ function SavedCard({ image, eyebrow, title, meta, tags = [], to, onRemove, fallb
 
 // ── Section wrapper ───────────────────────────────────────────────────────────
 function Section({ title, count, browseLabel, browseTo, children, isEmpty, emptyText }) {
+  const { isLight } = useTheme();
+  const T = getTokens(isLight);
   return (
     <section style={{ marginBottom: 56 }}>
       <div style={{
         display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
-        borderBottom: '1px solid rgba(201,168,76,0.18)', paddingBottom: 14, marginBottom: 28,
+        borderBottom: `1px solid ${T.goldBorder}`, paddingBottom: 14, marginBottom: 28,
       }}>
         <div>
-          <span style={{ fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#D4A853', fontFamily: "'DM Sans', sans-serif" }}>
+          <span style={{ fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: T.goldStrong, fontFamily: "'DM Sans', sans-serif" }}>
             Saved collection
           </span>
-          <h2 style={{
-            fontFamily: "'Playfair Display', serif", fontSize: 28, fontWeight: 400,
-            color: '#f0e6cc', margin: '7px 0 0', lineHeight: 1.2,
-          }}>
+          <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, fontWeight: 400, color: T.textAlt, margin: '7px 0 0', lineHeight: 1.2 }}>
             {title}{' '}
-            <span style={{ fontSize: 14, fontWeight: 400, color: '#5a4b33', fontFamily: "'DM Sans', sans-serif" }}>
-              {count} saved
-            </span>
+            <span style={{ fontSize: 14, fontWeight: 400, color: T.textFaint, fontFamily: "'DM Sans', sans-serif" }}>{count} saved</span>
           </h2>
         </div>
-        <Link to={browseTo} style={{ color: '#D4A853', textDecoration: 'none', fontSize: 13, fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>
+        <Link to={browseTo} style={{ color: T.goldStrong, textDecoration: 'none', fontSize: 13, fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>
           {browseLabel}
         </Link>
       </div>
 
       {isEmpty ? (
-        <div style={{
-          border: '1px dashed rgba(201,168,76,0.25)',
-          borderRadius: 12, padding: '40px 24px', textAlign: 'center',
-        }}>
-          <p style={{ color: '#5a4b33', fontFamily: "'DM Sans', sans-serif", fontSize: 14, margin: '0 0 14px' }}>
-            {emptyText}
-          </p>
-          <Link to={browseTo} style={{ color: '#D4A853', textDecoration: 'none', fontWeight: 600, fontFamily: "'DM Sans', sans-serif", fontSize: 13 }}>
+        <div style={{ border: `1px dashed ${T.goldBorder}`, borderRadius: 12, padding: '40px 24px', textAlign: 'center' }}>
+          <p style={{ color: T.textFaint, fontFamily: "'DM Sans', sans-serif", fontSize: 14, margin: '0 0 14px' }}>{emptyText}</p>
+          <Link to={browseTo} style={{ color: T.goldStrong, textDecoration: 'none', fontWeight: 600, fontFamily: "'DM Sans', sans-serif", fontSize: 13 }}>
             {browseLabel} →
           </Link>
         </div>
       ) : (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-          gap: 20,
-        }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 20 }}>
           {children}
         </div>
       )}
@@ -248,6 +218,8 @@ function Section({ title, count, browseLabel, browseTo, children, isEmpty, empty
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function SavedBookmarksPage({ bookmarkList = [], onRemove }) {
   const navigate = useNavigate();
+  const { isLight } = useTheme();
+  const T = getTokens(isLight);
 
   // API-loaded data
   const [galleryEvents, setGalleryEvents] = useState([]);
@@ -303,7 +275,6 @@ export default function SavedBookmarksPage({ bookmarkList = [], onRemove }) {
       const rawId = item?.id ?? item;
       const strId = String(rawId);
 
-      // 1. Try static eventsData first (most bookmarks come from GalleryPage/ExplorePage)
       const staticEvent = findStaticEvent(rawId);
       if (staticEvent) {
         return {
@@ -318,7 +289,6 @@ export default function SavedBookmarksPage({ bookmarkList = [], onRemove }) {
         };
       }
 
-      // 2. Try gallery API events
       const galleryItem = galleryEvents.find(e => String(e.id) === strId);
       if (galleryItem) {
         const d = galleryItem.event_date ? new Date(galleryItem.event_date) : null;
@@ -334,7 +304,6 @@ export default function SavedBookmarksPage({ bookmarkList = [], onRemove }) {
         };
       }
 
-      // 3. Item has enriched data from bookmark payload
       if (item?.title || item?.name) {
         return {
           id: rawId,
@@ -348,7 +317,6 @@ export default function SavedBookmarksPage({ bookmarkList = [], onRemove }) {
         };
       }
 
-      // 4. Fallback — show with ID
       return {
         id: rawId,
         title: `Event #${strId}`,
@@ -368,7 +336,6 @@ export default function SavedBookmarksPage({ bookmarkList = [], onRemove }) {
       const rawId = item?.id ?? item;
       const dbId = getDbVendorId(item);
 
-      // DB vendor
       if (dbId) {
         const apiVendor = apiVendors.find(v => String(v.id) === dbId);
         const portfolio = vendorPortfolios[dbId] || [];
@@ -388,7 +355,6 @@ export default function SavedBookmarksPage({ bookmarkList = [], onRemove }) {
         };
       }
 
-      // Static photographer (IDs 1-9)
       const numId = parseInt(String(rawId).replace('db_', ''));
       const staticPhotog = findStaticPhotographer(numId);
       if (staticPhotog) {
@@ -405,7 +371,6 @@ export default function SavedBookmarksPage({ bookmarkList = [], onRemove }) {
         };
       }
 
-      // Enriched from payload
       if (item?.name || item?.title) {
         const serviceId = item.type === 'Custom Invitations' ? 'custom-invitations' : 'photography';
         const serviceConfig = VENDOR_SERVICE_CONFIGS.find(s => s.id === serviceId) || VENDOR_SERVICE_CONFIGS[0];
@@ -439,41 +404,29 @@ export default function SavedBookmarksPage({ bookmarkList = [], onRemove }) {
   const totalCount = bookmarkList.length;
 
   return (
-    <div style={{ minHeight: '100vh', background: '#120d05', fontFamily: "'DM Sans', sans-serif" }}>
-      {/* ── Header ── */}
+    <div style={{ minHeight: '100vh', background: T.pageBg, fontFamily: "'DM Sans', sans-serif" }}>
       <header style={{
         padding: '56px 6% 40px',
-        borderBottom: '1px solid rgba(201,168,76,0.12)',
-        background: 'linear-gradient(135deg, #180e04 0%, #1e1508 60%, #180e04 100%)',
+        borderBottom: `1px solid ${T.border}`,
+        background: T.headerBg,
       }}>
         <div style={{ maxWidth: 1220, margin: '0 auto' }}>
-          <span style={{ fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#D4A853', fontFamily: "'DM Sans', sans-serif" }}>
+          <span style={{ fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: T.goldStrong, fontFamily: "'DM Sans', sans-serif" }}>
             Your collection
           </span>
-          <h1 style={{
-            fontFamily: "'Playfair Display', serif",
-            fontSize: 'clamp(2rem, 5vw, 3.8rem)',
-            fontWeight: 400, color: '#f0e6cc',
-            margin: '12px 0 14px', lineHeight: 1.1,
-          }}>
-            Saved <em style={{ fontStyle: 'italic', color: '#D4A853' }}>boards</em>
+          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(2rem, 5vw, 3.8rem)', fontWeight: 400, color: T.textAlt, margin: '12px 0 14px', lineHeight: 1.1 }}>
+            Saved <em style={{ fontStyle: 'italic', color: T.goldStrong }}>boards</em>
           </h1>
-          <p style={{ color: '#5a4b33', maxWidth: 520, lineHeight: 1.75, fontSize: 14, margin: '0 0 28px' }}>
+          <p style={{ color: T.textFaint, maxWidth: 520, lineHeight: 1.75, fontSize: 14, margin: '0 0 28px' }}>
             Your bookmarked events and vendors — reopen them, compare, and remove anything you no longer need.
           </p>
 
-          {/* Stats pills */}
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            {[
-              ['All saved', totalCount],
-              ['Events', enrichedEvents.length],
-              ['Vendors', enrichedVendors.length],
-            ].map(([label, count]) => (
+            {[['All saved', totalCount], ['Events', enrichedEvents.length], ['Vendors', enrichedVendors.length]].map(([label, count]) => (
               <span key={label} style={{
-                border: '1px solid rgba(201,168,76,0.25)', color: '#c9a84c',
+                border: `1px solid ${T.goldBorder}`, color: T.gold,
                 borderRadius: 999, padding: '6px 14px', fontSize: 12,
-                fontFamily: "'DM Sans', sans-serif",
-                background: 'rgba(201,168,76,0.06)',
+                fontFamily: "'DM Sans', sans-serif", background: T.goldSoftAlt,
               }}>
                 {label}: <strong style={{ fontWeight: 600 }}>{count}</strong>
               </span>
@@ -482,76 +435,38 @@ export default function SavedBookmarksPage({ bookmarkList = [], onRemove }) {
         </div>
       </header>
 
-      {/* ── Content ── */}
       <main style={{ maxWidth: 1220, margin: '0 auto', padding: '48px 6% 80px' }}>
         {totalCount === 0 ? (
-          /* Empty state */
-          <div style={{
-            textAlign: 'center', padding: '80px 24px',
-            border: '1px dashed rgba(201,168,76,0.2)', borderRadius: 16,
-          }}>
+          <div style={{ textAlign: 'center', padding: '80px 24px', border: `1px dashed ${T.border}`, borderRadius: 16 }}>
             <div style={{ fontSize: 52, marginBottom: 20 }}>🔖</div>
-            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, fontWeight: 400, color: '#f0e6cc', marginBottom: 12 }}>
+            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, fontWeight: 400, color: T.textAlt, marginBottom: 12 }}>
               Nothing saved yet
             </h2>
-            <p style={{ color: '#5a4b33', fontSize: 14, marginBottom: 28, lineHeight: 1.7 }}>
+            <p style={{ color: T.textFaint, fontSize: 14, marginBottom: 28, lineHeight: 1.7 }}>
               Hover over an event or vendor card and click the bookmark icon to save it here.
             </p>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-              <Link to="/events" style={ctaStyle}>Browse Events</Link>
-              <Link to="/services/photography" style={{ ...ctaStyle, background: 'transparent', color: '#D4A853', border: '1px solid rgba(212,168,83,0.4)' }}>
+              <Link to="/events" style={{ background: T.goldStrong, color: T.goldOnDark, border: 'none', borderRadius: 8, padding: '11px 24px', fontWeight: 600, fontSize: 13, textDecoration: 'none', fontFamily: "'DM Sans', sans-serif", display: 'inline-block' }}>
+                Browse Events
+              </Link>
+              <Link to="/services/photography" style={{ background: 'transparent', color: T.goldStrong, border: `1px solid ${T.goldBorder}`, borderRadius: 8, padding: '11px 24px', fontWeight: 600, fontSize: 13, textDecoration: 'none', fontFamily: "'DM Sans', sans-serif", display: 'inline-block' }}>
                 Browse Vendors
               </Link>
             </div>
           </div>
         ) : (
           <>
-            {/* Events Section */}
-            <Section
-              title="Events"
-              count={enrichedEvents.length}
-              browseLabel="Browse events"
-              browseTo="/events"
-              isEmpty={enrichedEvents.length === 0}
-              emptyText="No saved events yet. Start exploring and bookmark events you like."
-            >
+            <Section title="Events" count={enrichedEvents.length} browseLabel="Browse events" browseTo="/events"
+              isEmpty={enrichedEvents.length === 0} emptyText="No saved events yet. Start exploring and bookmark events you like.">
               {enrichedEvents.map(ev => (
-                <SavedCard
-                  key={ev.id}
-                  image={ev.image}
-                  eyebrow={ev.eyebrow}
-                  title={ev.title}
-                  meta={ev.meta}
-                  tags={ev.tags}
-                  to={ev.to}
-                  onRemove={() => onRemove(ev.id)}
-                  fallbackEmoji={ev.emoji}
-                />
+                <SavedCard key={ev.id} image={ev.image} eyebrow={ev.eyebrow} title={ev.title} meta={ev.meta} tags={ev.tags} to={ev.to} onRemove={() => onRemove(ev.id)} fallbackEmoji={ev.emoji}/>
               ))}
             </Section>
 
-            {/* Vendors Section */}
-            <Section
-              title="Vendors"
-              count={enrichedVendors.length}
-              browseLabel="Browse vendors"
-              browseTo="/services/photography"
-              isEmpty={enrichedVendors.length === 0}
-              emptyText="No saved vendors yet. Browse photography and invitation vendors to save your favourites."
-            >
+            <Section title="Vendors" count={enrichedVendors.length} browseLabel="Browse vendors" browseTo="/services/photography"
+              isEmpty={enrichedVendors.length === 0} emptyText="No saved vendors yet. Browse photography and invitation vendors to save your favourites.">
               {enrichedVendors.map(v => (
-                <SavedCard
-                  key={v.id}
-                  image={v.image}
-                  eyebrow={v.eyebrow}
-                  title={v.title}
-                  meta={v.meta}
-                  tags={v.tags}
-                  to={v.to}
-                  onRemove={() => onRemove(v.id)}
-                  fallbackEmoji={v.emoji}
-                  accentColor={v.accentColor || '#c9a84c'}
-                />
+                <SavedCard key={v.id} image={v.image} eyebrow={v.eyebrow} title={v.title} meta={v.meta} tags={v.tags} to={v.to} onRemove={() => onRemove(v.id)} fallbackEmoji={v.emoji} accentColor={v.accentColor}/>
               ))}
             </Section>
           </>
@@ -559,18 +474,7 @@ export default function SavedBookmarksPage({ bookmarkList = [], onRemove }) {
       </main>
 
       <Footer />
-
-      <style>{`
-        @media (max-width: 640px) {
-          main { padding: 32px 5% 60px !important; }
-        }
-      `}</style>
+      <style>{`@media (max-width: 640px) { main { padding: 32px 5% 60px !important; } }`}</style>
     </div>
   );
 }
-
-const ctaStyle = {
-  background: '#C9A96E', color: '#1a1208', border: 'none', borderRadius: 8,
-  padding: '11px 24px', fontWeight: 600, fontSize: 13, textDecoration: 'none',
-  fontFamily: "'DM Sans', sans-serif", display: 'inline-block',
-};

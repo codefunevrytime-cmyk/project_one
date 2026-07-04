@@ -24,6 +24,28 @@
   --gold-light:  #e8d08a;
   --dark:        #1a1610;
   --white:       #ffffff;
+
+  /* Vendor listing / events listing / card token family — dark defaults.
+   Light equivalents already exist in theme-light.css. */
+--bg-base:        #0F0D0A;
+--bg-surface:     #1A1610;
+--bg-card:        #1E1A13;
+--bg-elevated:    #252018;
+--bg-hover:       #2C2518;
+--amber-primary:  #D4860A;
+--amber-bright:   #F0A020;
+--amber-glow:     #E8950F;
+--amber-muted:    #A86808;
+--amber-subtle:   rgba(212,134,10,0.12);
+--amber-border:   rgba(212,134,10,0.25);
+--text-primary:   #F5EDD8;
+--text-secondary: #B8A888;
+--text-muted:     #7A6E5C;
+--text-faint:     #4A4035;
+--border-soft:    rgba(255,255,255,0.06);
+--border-medium:  rgba(255,255,255,0.10);
+--shadow-card:    0 4px 24px rgba(0,0,0,0.5);
+--shadow-hover:   0 8px 40px rgba(0,0,0,0.7), 0 0 0 1px var(--amber-border);
 }
 
 /* ═══════════════════════════════════

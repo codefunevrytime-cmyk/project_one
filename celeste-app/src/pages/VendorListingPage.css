@@ -1,32 +1,12 @@
 /* src/pages/PhotographyPage.css */
-/* ── Dark Amber Theme ── */
-
-/* ── CSS Variables ── */
-:root {
-  --bg-base:        #0F0D0A;
-  --bg-surface:     #1A1610;
-  --bg-card:        #1E1A13;
-  --bg-elevated:    #252018;
-  --bg-hover:       #2C2518;
-
-  --amber-primary:  #D4860A;
-  --amber-bright:   #F0A020;
-  --amber-glow:     #E8950F;
-  --amber-muted:    #A86808;
-  --amber-subtle:   rgba(212,134,10,0.12);
-  --amber-border:   rgba(212,134,10,0.25);
-
-  --text-primary:   #F5EDD8;
-  --text-secondary: #B8A888;
-  --text-muted:     #7A6E5C;
-  --text-faint:     #4A4035;
-
-  --border-soft:    rgba(255,255,255,0.06);
-  --border-medium:  rgba(255,255,255,0.10);
-
-  --shadow-card:    0 4px 24px rgba(0,0,0,0.5);
-  --shadow-hover:   0 8px 40px rgba(0,0,0,0.7), 0 0 0 1px var(--amber-border);
-}
+/* ── Vendor Listing Theme ──
+   NOTE: --bg-base, --bg-surface, --bg-card, --amber-primary, etc. are
+   NO LONGER declared here. They live in ONE place now:
+     - dark defaults  -> global.css (:root, inside the dark-amber block)
+     - light overrides -> theme-light.css (html[data-theme="light"] block)
+   This file only *consumes* those tokens via var(...). If you ever see
+   this page fail to flip themes again, check those two files first —
+   don't add another local :root block here. */
 
 /* ── Page shell ── */
 .photo-page {
@@ -46,7 +26,6 @@
   box-shadow: 0 1px 0 rgba(212,134,10,0.08);
 }
 .photo-page-header-inner {
-  /* Match ExplorePage — no max-width constraint, full width with padding */
   padding: 0 32px;
   display: flex;
   align-items: flex-end;
@@ -146,20 +125,19 @@
 }
 .view-btn.active {
   background: var(--amber-primary);
-  color: #0F0D0A;
+  color: var(--bg-base);
   font-weight: 600;
 }
 .view-btn + .view-btn { border-left: 0.5px solid var(--border-soft); }
 
-/* ── Body layout — matches ExplorePage structure exactly ── */
+/* ── Body layout ── */
 .page-body {
-  /* Full width, sidebar extreme left, content fills rest */
   display: flex;
   min-height: calc(100vh - 64px);
   align-items: start;
 }
 
-/* ── Sidebar — pushed to extreme left like ExplorePage ── */
+/* ── Sidebar ── */
 .filter-sidebar {
   width: 260px;
   flex-shrink: 0;
@@ -167,15 +145,14 @@
   border-right: 0.5px solid var(--border-soft);
   padding: 24px 20px 48px;
   position: sticky;
-  top: 64px; /* below main navbar only, not header */
+  top: 64px;
   min-height: calc(100vh - 64px);
   overflow-y: auto;
   box-shadow: 1px 0 0 rgba(212,134,10,0.06);
 }
 
-/* Adjust sticky top when page header is present */
 .photo-page .filter-sidebar {
-  top: 148px; /* 64px navbar + ~84px sticky page-header */
+  top: 148px;
   max-height: calc(100vh - 148px);
 }
 
@@ -195,7 +172,7 @@
 }
 .filter-count-badge {
   background: var(--amber-primary);
-  color: #0F0D0A;
+  color: var(--bg-base);
   font-size: 10px;
   font-weight: 600;
   width: 18px;
@@ -259,7 +236,7 @@
 .check-chip:hover { border-color: var(--amber-border); color: var(--amber-bright); }
 .check-chip.checked {
   background: var(--amber-primary);
-  color: #0F0D0A;
+  color: var(--bg-base);
   border-color: var(--amber-primary);
   font-weight: 500;
 }
@@ -283,18 +260,18 @@
   border-color: var(--amber-border);
 }
 
-/* ── Results area — takes remaining space ── */
+/* ── Results area ── */
 .results-area {
   flex: 1;
   min-width: 0;
   padding: 24px 28px 48px;
 }
 
-/* ── Vendor grid — bigger cards matching ExplorePage ── */
+/* ── Vendor grid ── */
 .vendor-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 22px; /* same as events-grid */
+  gap: 22px;
 }
 @media (max-width: 1200px) { .vendor-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 720px)  { .vendor-grid { grid-template-columns: 1fr; } }
@@ -366,26 +343,24 @@
 .vendor-list .vendor-img-wrap { height: 220px; border-radius: 10px 0 0 10px; }
 .vendor-list .vendor-img { border-radius: 10px 0 0 10px; }
 
-/* ── Vendor Card — bigger to match EventCard ── */
+/* ── Vendor Card ── */
 .vendor-card {
   background: var(--bg-card);
-  border-radius: 14px; /* matches EventCard */
-  border: 1px solid #e8ddd0;
-  border-color: rgba(255,255,255,0.08);
+  border-radius: 14px;
+  border: 1px solid var(--border-medium);
   overflow: hidden;
   transition: box-shadow 0.25s, transform 0.25s, border-color 0.25s;
   cursor: pointer;
 }
 .vendor-card:hover {
   box-shadow: var(--shadow-hover);
-  transform: translateY(-5px); /* matches EventCard hover */
+  transform: translateY(-5px);
   border-color: var(--amber-border);
 }
 
-/* Taller image like EventCard (240px) */
 .vendor-img-wrap {
   position: relative;
-  height: 240px; /* bumped from 200px to match EventCard */
+  height: 240px;
   overflow: hidden;
 }
 .vendor-img {
@@ -400,6 +375,8 @@
   filter: brightness(0.95) saturate(1.05);
 }
 
+/* These two badges sit directly on top of photos, so a translucent dark
+   scrim reads fine in both themes — intentionally not tokenized. */
 .vendor-media-badge {
   position: absolute;
   bottom: 10px;
@@ -441,7 +418,7 @@
   margin-bottom: 6px;
 }
 .vendor-name {
-  font-size: 15px; /* slightly bigger, like EventCard .title */
+  font-size: 15px;
   font-weight: 600;
   color: var(--text-primary);
   line-height: 1.3;
@@ -496,7 +473,7 @@
 .vendor-price { display: flex; align-items: baseline; gap: 2px; }
 .price-symbol { font-size: 13px; color: var(--text-secondary); }
 .price-val {
-  font-size: 22px; /* bigger like EventCard price */
+  font-size: 22px;
   font-weight: 500;
   color: var(--text-primary);
   font-family: 'Playfair Display', serif;
@@ -517,7 +494,7 @@
 }
 .vendor-cta:hover {
   background: var(--amber-primary);
-  color: #0F0D0A;
+  color: var(--bg-base);
   border-color: var(--amber-primary);
 }
 

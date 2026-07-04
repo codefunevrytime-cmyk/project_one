@@ -203,17 +203,12 @@ function AppWithAuth() {
 // ── Root ──────────────────────────────────────────────────────────────────────
 export default function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <AppWithAuth />
-      </Router>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <Router>
+          <AppWithAuth />
+        </Router>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
-
-
-<ThemeProvider>
-  <AuthProvider>
-    <App />
-  </AuthProvider>
-</ThemeProvider>

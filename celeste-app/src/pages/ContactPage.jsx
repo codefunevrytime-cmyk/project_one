@@ -56,7 +56,7 @@ export default function ContactPage() {
             <div className="contact-detail"><div className="contact-icon">⌖</div><span><strong>Studio</strong>12 Hazratganj, Lucknow<br />Uttar Pradesh, India</span></div>
           </div>
 
-          <form className="contact-form" onSubmit={handleSubmit} style={{ background: '#1a1610', padding: '2rem', borderRadius: '12px' }}>
+          <form className="contact-form" onSubmit={handleSubmit} style={{  padding: '2rem', borderRadius: '12px' }}>
             {error && (
               <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#b91c1c' }}>
                 {error}

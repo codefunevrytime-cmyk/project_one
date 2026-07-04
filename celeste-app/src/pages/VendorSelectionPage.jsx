@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import styles from "./CreateEventPage.module.css";
-
 import { API_URL } from '../config/api';
+import { useTheme } from "../hooks/useTheme";
+import { getTokens } from "../styles/themeTokens";
 
 const API = API_URL;
 
@@ -11,6 +12,8 @@ export default function VendorSelectionPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, isBookmarked } = useAuth();
+  const { isLight } = useTheme();
+  const T = getTokens(isLight);
 
   const eventData = location.state?.eventData || {};
   const [vendors, setVendors] = useState([]);
@@ -121,15 +124,15 @@ export default function VendorSelectionPage() {
     ? referenceVendors
     : vendors;
 
-  if (loading) {
-    return (
-      <div className={styles.root}>
-        <div style={{ padding: "60px 32px", textAlign: "center", color: "rgba(200,175,120,0.4)" }}>
-          Loading vendors...
-        </div>
+ if (loading) {
+  return (
+    <div className={styles.root}>
+      <div style={{ padding: "60px 32px", textAlign: "center", color: T.textMuted }}>
+        Loading vendors...
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   return (
     <div className={styles.root}>
@@ -147,165 +150,143 @@ export default function VendorSelectionPage() {
 
       <main className={styles.body}>
         {/* Event Summary */}
-        <div style={{ background: "rgba(200,175,120,0.04)", border: "0.5px solid rgba(200,175,120,0.1)", borderRadius: 12, padding: "20px 24px", marginBottom: 24 }}>
-          <div style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(200,175,120,0.4)", marginBottom: 12 }}>
-            Event Details
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-            <div>
-              <div style={{ fontSize: 10, color: "rgba(200,175,120,0.4)", marginBottom: 4 }}>Event Name</div>
-              <div style={{ fontSize: 13, color: "#e8dcc8" }}>{eventData.name || "Not specified"}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 10, color: "rgba(200,175,120,0.4)", marginBottom: 4 }}>Date</div>
-              <div style={{ fontSize: 13, color: "#e8dcc8" }}>
-                {eventData.date ? new Date(eventData.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : "Not specified"}
-              </div>
-            </div>
-            <div>
-              <div style={{ fontSize: 10, color: "rgba(200,175,120,0.4)", marginBottom: 4 }}>Location</div>
-              <div style={{ fontSize: 13, color: "#e8dcc8" }}>{eventData.location || "Not specified"}</div>
-            </div>
-          </div>
-        </div>
+        <div style={{ background: T.goldSoftAlt, border: `0.5px solid ${T.border}`, borderRadius: 12, padding: "20px 24px", marginBottom: 24 }}>
+  <div style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: T.textFaint, marginBottom: 12 }}>
+    Event Details
+  </div>
+  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+    <div>
+      <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 4 }}>Event Name</div>
+      <div style={{ fontSize: 13, color: T.textAlt }}>{eventData.name || "Not specified"}</div>
+    </div>
+    <div>
+      <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 4 }}>Date</div>
+      <div style={{ fontSize: 13, color: T.textAlt }}>
+        {eventData.date ? new Date(eventData.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : "Not specified"}
+      </div>
+    </div>
+    <div>
+      <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 4 }}>Location</div>
+      <div style={{ fontSize: 13, color: T.textAlt }}>{eventData.location || "Not specified"}</div>
+    </div>
+  </div>
+</div>
 
         {/* Photography Type Selection */}
         <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 13, fontWeight: 500, color: "#e8dcc8", marginBottom: 12 }}>
-            Type of Photography Required
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {photographyTypes.map(type => (
-              <button
-                key={type}
-                onClick={() => setPhotographyType(type)}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: 20,
-                  fontSize: 12,
-                  border: photographyType === type ? "0.5px solid #c8af78" : "0.5px solid rgba(200,175,120,0.15)",
-                  background: photographyType === type ? "rgba(200,175,120,0.12)" : "rgba(200,175,120,0.04)",
-                  color: photographyType === type ? "#c8af78" : "rgba(200,175,120,0.6)",
-                  cursor: "pointer",
-                  transition: "all 0.2s"
-                }}
-              >
-                {type}
-              </button>
-            ))}
-          </div>
-        </div>
-
+  <div style={{ fontSize: 13, fontWeight: 500, color: T.textAlt, marginBottom: 12 }}>
+    Type of Photography Required
+  </div>
+  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+    {photographyTypes.map(type => (
+      <button
+        key={type}
+        onClick={() => setPhotographyType(type)}
+        style={{
+          padding: "8px 16px", borderRadius: 20, fontSize: 12,
+          border: photographyType === type ? `0.5px solid ${T.gold}` : `0.5px solid ${T.border}`,
+          background: photographyType === type ? T.goldSoft : T.goldSoftAlt,
+          color: photographyType === type ? T.gold : T.textSecondary,
+          cursor: "pointer", transition: "all 0.2s",
+        }}
+      >
+        {type}
+      </button>
+    ))}
+  </div>
+</div>
         {/* Filter Tabs */}
         <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-          <button
-            onClick={() => setFilter("all")}
-            style={{
-              padding: "8px 20px",
-              borderRadius: 8,
-              fontSize: 12,
-              fontWeight: 500,
-              border: filter === "all" ? "0.5px solid #c8af78" : "0.5px solid rgba(200,175,120,0.15)",
-              background: filter === "all" ? "rgba(200,175,120,0.12)" : "transparent",
-              color: filter === "all" ? "#c8af78" : "rgba(200,175,120,0.6)",
-              cursor: "pointer"
-            }}
-          >
-            Browse All Vendors
-          </button>
-          <button
-            onClick={() => setFilter("bookmarked")}
-            style={{
-              padding: "8px 20px",
-              borderRadius: 8,
-              fontSize: 12,
-              fontWeight: 500,
-              border: filter === "bookmarked" ? "0.5px solid #c8af78" : "0.5px solid rgba(200,175,120,0.15)",
-              background: filter === "bookmarked" ? "rgba(200,175,120,0.12)" : "transparent",
-              color: filter === "bookmarked" ? "#c8af78" : "rgba(200,175,120,0.6)",
-              cursor: "pointer"
-            }}
-          >
-            From Bookmarks
-          </button>
-          {referenceVendors.length > 0 && (
-            <button
-              onClick={() => setFilter("reference")}
-              style={{
-                padding: "8px 20px",
-                borderRadius: 8,
-                fontSize: 12,
-                fontWeight: 500,
-                border: filter === "reference" ? "0.5px solid #c8af78" : "0.5px solid rgba(200,175,120,0.15)",
-                background: filter === "reference" ? "rgba(200,175,120,0.12)" : "transparent",
-                color: filter === "reference" ? "#c8af78" : "rgba(200,175,120,0.6)",
-                cursor: "pointer"
-              }}
-            >
-              From Reference Event
-            </button>
-          )}
-        </div>
+  <button
+    onClick={() => setFilter("all")}
+    style={{
+      padding: "8px 20px", borderRadius: 8, fontSize: 12, fontWeight: 500,
+      border: filter === "all" ? `0.5px solid ${T.gold}` : `0.5px solid ${T.border}`,
+      background: filter === "all" ? T.goldSoft : "transparent",
+      color: filter === "all" ? T.gold : T.textSecondary, cursor: "pointer",
+    }}
+  >
+    Browse All Vendors
+  </button>
+  <button
+    onClick={() => setFilter("bookmarked")}
+    style={{
+      padding: "8px 20px", borderRadius: 8, fontSize: 12, fontWeight: 500,
+      border: filter === "bookmarked" ? `0.5px solid ${T.gold}` : `0.5px solid ${T.border}`,
+      background: filter === "bookmarked" ? T.goldSoft : "transparent",
+      color: filter === "bookmarked" ? T.gold : T.textSecondary, cursor: "pointer",
+    }}
+  >
+    From Bookmarks
+  </button>
+  {referenceVendors.length > 0 && (
+    <button
+      onClick={() => setFilter("reference")}
+      style={{
+        padding: "8px 20px", borderRadius: 8, fontSize: 12, fontWeight: 500,
+        border: filter === "reference" ? `0.5px solid ${T.gold}` : `0.5px solid ${T.border}`,
+        background: filter === "reference" ? T.goldSoft : "transparent",
+        color: filter === "reference" ? T.gold : T.textSecondary, cursor: "pointer",
+      }}
+    >
+      From Reference Event
+    </button>
+  )}
+</div>
 
         {/* Vendor List */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
-          {filteredVendors.map(vendor => (
-            <div
-              key={vendor.id}
-              onClick={() => handleVendorSelect(vendor)}
-              style={{
-                background: selectedVendor?.id === vendor.id ? "rgba(200,175,120,0.08)" : "#1e1a14",
-                border: selectedVendor?.id === vendor.id ? "0.5px solid #c8af78" : "0.5px solid rgba(200,175,120,0.15)",
-                borderRadius: 12,
-                padding: 20,
-                cursor: "pointer",
-                transition: "all 0.2s",
-                position: "relative"
-              }}
-            >
-              {selectedVendor?.id === vendor.id && (
-                <div style={{ position: "absolute", top: 12, right: 12, color: "#c8af78" }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M20 6L9 17l-5-5" />
-                  </svg>
-                </div>
-              )}
-              
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-                <div style={{ width: 56, height: 56, borderRadius: "50%", background: "rgba(200,175,120,0.1)", overflow: "hidden", flexShrink: 0 }}>
-                  {vendor.photo_url ? (
-                    <img src={vendor.photo_url} alt={vendor.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  ) : (
-                    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>
-                      📷
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <div style={{ fontSize: 15, fontWeight: 500, color: "#e8dcc8", marginBottom: 4 }}>
-                    {vendor.name}
-                  </div>
-                  <div style={{ fontSize: 12, color: "rgba(200,175,120,0.5)" }}>
-                    {vendor.specialty}
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 12, borderTop: "0.5px solid rgba(200,175,120,0.08)" }}>
-                <div>
-                  <div style={{ fontSize: 10, color: "rgba(200,175,120,0.4)", marginBottom: 2 }}>Base Price</div>
-                  <div style={{ fontSize: 14, fontWeight: 500, color: "#c8af78" }}>
-                    ₹{(vendor.price_per_day || 0).toLocaleString('en-IN')}
-                    <span style={{ fontSize: 11, color: "rgba(200,175,120,0.4)", fontWeight: 400, marginLeft: 4 }}>/day</span>
-                  </div>
-                </div>
-                <div style={{ fontSize: 11, color: "rgba(200,175,120,0.4)" }}>
-                  +15% buffer
-                </div>
-              </div>
-            </div>
-          ))}
+  {filteredVendors.map(vendor => (
+    <div
+      key={vendor.id}
+      onClick={() => handleVendorSelect(vendor)}
+      style={{
+        background: selectedVendor?.id === vendor.id ? T.goldSoftAlt : T.cardBg,
+        border: selectedVendor?.id === vendor.id ? `0.5px solid ${T.gold}` : `0.5px solid ${T.border}`,
+        borderRadius: 12, padding: 20, cursor: "pointer", transition: "all 0.2s", position: "relative",
+      }}
+    >
+      {selectedVendor?.id === vendor.id && (
+        <div style={{ position: "absolute", top: 12, right: 12, color: T.gold }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M20 6L9 17l-5-5" />
+          </svg>
         </div>
+      )}
+
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+        <div style={{ width: 56, height: 56, borderRadius: "50%", background: T.goldSoft, overflow: "hidden", flexShrink: 0 }}>
+          {vendor.photo_url ? (
+            <img src={vendor.photo_url} alt={vendor.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          ) : (
+            <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>📷</div>
+          )}
+        </div>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 500, color: T.textAlt, marginBottom: 4 }}>{vendor.name}</div>
+          <div style={{ fontSize: 12, color: T.textSecondary }}>{vendor.specialty}</div>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 12, borderTop: `0.5px solid ${T.borderFaint}` }}>
+        <div>
+          <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 2 }}>Base Price</div>
+          <div style={{ fontSize: 14, fontWeight: 500, color: T.gold }}>
+            ₹{(vendor.price_per_day || 0).toLocaleString('en-IN')}
+            <span style={{ fontSize: 11, color: T.textFaint, fontWeight: 400, marginLeft: 4 }}>/day</span>
+          </div>
+        </div>
+        <div style={{ fontSize: 11, color: T.textFaint }}>+15% buffer</div>
+      </div>
+    </div>
+  ))}
+</div>
+
+{filteredVendors.length === 0 && (
+  <div style={{ textAlign: "center", padding: "60px 20px", color: T.textFaint }}>
+    No vendors found. Try browsing all vendors instead.
+  </div>
+)}
 
         {filteredVendors.length === 0 && (
           <div style={{ textAlign: "center", padding: "60px 20px", color: "rgba(200,175,120,0.4)" }}>
@@ -315,38 +296,30 @@ export default function VendorSelectionPage() {
 
         {/* Continue Button */}
         {selectedVendor && (
-          <div style={{ marginTop: 32, padding: "20px 24px", background: "rgba(200,175,120,0.04)", border: "0.5px solid rgba(200,175,120,0.1)", borderRadius: 12 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <div>
-                <div style={{ fontSize: 13, color: "rgba(200,175,120,0.6)", marginBottom: 4 }}>Selected Vendor</div>
-                <div style={{ fontSize: 15, fontWeight: 500, color: "#e8dcc8" }}>{selectedVendor.name}</div>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: 13, color: "rgba(200,175,120,0.6)", marginBottom: 4 }}>Estimated Price (with buffer)</div>
-                <div style={{ fontSize: 18, fontWeight: 600, color: "#c8af78" }}>
-                  ₹{((selectedVendor.price_per_day || 0) * 1.15).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-                </div>
-              </div>
-            </div>
-            <button
-              onClick={handleContinue}
-              style={{
-                width: "100%",
-                padding: "12px 0",
-                background: "#c8af78",
-                color: "#141210",
-                border: "none",
-                borderRadius: 8,
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-                transition: "background 0.2s"
-              }}
-            >
-              Continue to Create Event
-            </button>
-          </div>
-        )}
+  <div style={{ marginTop: 32, padding: "20px 24px", background: T.goldSoftAlt, border: `0.5px solid ${T.border}`, borderRadius: 12 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+      <div>
+        <div style={{ fontSize: 13, color: T.textSecondary, marginBottom: 4 }}>Selected Vendor</div>
+        <div style={{ fontSize: 15, fontWeight: 500, color: T.textAlt }}>{selectedVendor.name}</div>
+      </div>
+      <div style={{ textAlign: "right" }}>
+        <div style={{ fontSize: 13, color: T.textSecondary, marginBottom: 4 }}>Estimated Price (with buffer)</div>
+        <div style={{ fontSize: 18, fontWeight: 600, color: T.gold }}>
+          ₹{((selectedVendor.price_per_day || 0) * 1.15).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+        </div>
+      </div>
+    </div>
+    <button
+      onClick={handleContinue}
+      style={{
+        width: "100%", padding: "12px 0", background: T.gold, color: T.goldOnDark,
+        border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "background 0.2s",
+      }}
+    >
+      Continue to Create Event
+    </button>
+  </div>
+)}
       </main>
     </div>
   );
