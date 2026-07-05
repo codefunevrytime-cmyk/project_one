@@ -795,7 +795,7 @@ const photographer = dbVendor
 
           {/* ── ABOUT ── */}
           <section id="about" ref={aboutRef} className="pp-section">
-            <h2 className="pp-section-title">About {photographer.name}</h2>
+            <h2 className="pp-section-title"><b><b>About {photographer.name}</b> </b></h2>
             <p className="pp-about-text">
               {photographer.name} is a Lucknow-based {serviceConfig.defaultSpecialty.toLowerCase()} vendor
               specialising in {photographer.type.join(', ')}. Their portfolio, pricing, and service details
@@ -846,14 +846,14 @@ const photographer = dbVendor
 
           {/* ── REVIEWS ── */}
           <section id="reviews" ref={reviewsRef} className="pp-section">
-            <h2 className="pp-section-title">
+            <h1 className="pp-section-title">
               Reviews ({totalReviews})
               {!supportsReviews && (
                 <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--pp-text-3)', marginLeft: 10 }}>
                   — demo vendor
                 </span>
               )}
-            </h2>
+            </h1>
 
             {supportsReviews ? (
               <>

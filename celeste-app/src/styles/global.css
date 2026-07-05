@@ -1072,8 +1072,8 @@ section { padding: 6rem 5%; }
    CONTACT SECTION
 ═══════════════════════════════════ */
 #contact { background: var(--dark); }
-#contact .section-title { color: var(--cream); }
-#contact .section-label { color: var(--gold-light); }
+#contact .section-title { color: #805d34; }
+#contact .section-label { color: var(--gold); }
 #contact .section-line { background: var(--gold); }
 
 .contact-wrap {
@@ -1604,7 +1604,7 @@ section { background: #1e1608; }
 
 /* ── Gallery section ── */
 #gallery { background: #1e1608; }
-#gallery .section-title { color: #f0e6cc; }
+#gallery .section-title { color: #805d34; }
 
 /* ── Testimonials ── */
 #testimonials { background: #19130700; background-color: #19130a; }
@@ -2584,269 +2584,26 @@ footer .logo { color: #c9a84c; }
 }
 .login-prompt-dismiss:hover { opacity: 1; text-decoration: underline; }
 
+/* ═══════════════════════════════════════════════════════
+   NOTE (removed): "CARD + EXPAND PANEL — DARK AMBER PATCH v2"
+   ─────────────────────────────────────────────────────────
+   A block that used to live here forced hardcoded dark hex
+   colors (#1e1a13, #151009, #f0e6cc, etc.) onto .vendor-card,
+   .vendor-info, div[class*="card_"], .type-tag, .ep-* classes
+   and more — all with `!important` and with NO
+   `html[data-theme="light"]` scoping.
 
-/**
- * CARD + EXPAND PANEL — DARK AMBER PATCH v2
- * ─────────────────────────────────────────────────────────────
- * Paste at the very BOTTOM of:
- *   celeste-app/src/styles/global.css
- *
- * Targets:
- *  1. ExpandPanel image column (white bg → dark)
- *  2. EventCard image area (light bg → dark)
- *  3. Vendor ExpandPanel image column (white bg → dark)
- *  4. "More like this" related thumbnails (light bg → dark)
- *  5. All card .common-card-media (transparent → dark)
- * ─────────────────────────────────────────────────────────────
- */
+   Celeste is a switchable light/dark theme app: the toggle sets
+   `data-theme` on <html>, and --bg-card / --amber-primary / etc.
+   already flip correctly between global.css (dark defaults) and
+   theme-light.css (light overrides). Because that patch block
+   applied unconditionally with !important, it always beat the
+   token-based rules regardless of theme — so EventCard grid/expand
+   cards on ExplorePage and vendor cards on VendorListingPage stayed
+   stuck in dark colors even after switching to light mode.
 
-/* ── 1. Expand panel top-level wrapper ─────────────────────── */
-/* EventCard ExpandPanel outer div (inline styled background) */
-[style*="background: var(--cream"],
-[style*='background: var(--cream'],
-[style*="background: #faf7f2"],
-[style*="background: #FAF7F2"] {
-  background: #1e1a13 !important;
-}
-
-/* ── 2. ExpandPanel image column ───────────────────────────── */
-/* The left 42% image col — its fallback bg is getGradient()
-   which is fine, but the column itself can show white gaps */
-.ep-top > div:first-child {
-  background: #151009 !important;
-}
-
-/* The ep-right (details column) */
-.ep-right {
-  background: #1e1a13 !important;
-  color: #c8a96a !important;
-}
-
-/* ── 3. ep-wrap (PhotographyPage ExpandPanel) ──────────────── */
-.ep-wrap {
-  background: #1e1a13 !important;
-  border: 1px solid rgba(201, 168, 76, 0.2) !important;
-}
-
-/* Image stage in photography expand panel */
-.ep-img-col {
-  background: #151009 !important;
-}
-
-/* ── 4. "More like this" section ───────────────────────────── */
-.ep-related-label {
-  background: #1e1a13 !important;
-  border-top: 1px solid rgba(201, 168, 76, 0.12) !important;
-  color: rgba(201, 168, 76, 0.5) !important;
-}
-
-/* Related thumbnail cards — white bg when image missing */
-.ep-rel-card,
-.ep-related-grid > div {
-  background: #151009 !important;
-}
-
-/* ── 5. Common card media area ─────────────────────────────── */
-.common-card-media,
-.common-card-media img,
-.vendor-img-wrap,
-.imgArea {
-  background: #151009 !important;
-}
-
-/* ── 6. EventCard module — card shell ──────────────────────── */
-/* Target by CSS custom property fallback pattern */
-div[class*="card_"] {
-  background: #1e1a13 !important;
-  border-color: rgba(201, 168, 76, 0.18) !important;
-}
-
-div[class*="card_"]:hover {
-  border-color: #c9a84c !important;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6),
-              0 0 0 1px rgba(201, 168, 76, 0.3) !important;
-}
-
-/* body area inside card */
-div[class*="body_"] {
-  background: #1e1a13 !important;
-}
-
-/* title */
-div[class*="title_"] {
-  color: #f0e6cc !important;
-}
-
-/* price value */
-div[class*="priceVal_"],
-span[class*="priceVal_"] {
-  color: #c9a84c !important;
-}
-
-/* price symbol */
-span[class*="priceSym_"] {
-  color: #a08850 !important;
-}
-
-/* location + date */
-div[class*="location_"],
-span[class*="location_"],
-span[class*="date_"],
-span[class*="planner_"] {
-  color: #a08850 !important;
-}
-
-/* meta row */
-div[class*="meta_"],
-div[class*="metaRow_"] {
-  color: #a08850 !important;
-}
-
-/* tag pills */
-span[class*="tagType_"] {
-  background: rgba(201, 168, 76, 0.14) !important;
-  color: #e8c870 !important;
-}
-
-span[class*="tagVenue_"] {
-  background: rgba(111, 207, 151, 0.10) !important;
-  color: #6fcf97 !important;
-}
-
-span[class*="tagScale_"] {
-  background: rgba(200, 175, 120, 0.10) !important;
-  color: #c8af78 !important;
-}
-
-/* award tags */
-span[class*="awardTag_"] {
-  background: rgba(201, 168, 76, 0.08) !important;
-  color: rgba(201, 168, 76, 0.55) !important;
-  border-color: rgba(201, 168, 76, 0.18) !important;
-}
-
-/* image overlay — deepen it */
-div[class*="imgOverlay_"] {
-  background: linear-gradient(
-    to top,
-    rgba(0, 0, 0, 0.6) 0%,
-    transparent 58%
-  ) !important;
-}
-
-/* imgArea fallback */
-div[class*="imgArea_"] {
-  background: #151009 !important;
-}
-
-/* ── 7. PhotographyPage vendor cards ───────────────────────── */
-.vendor-card {
-  background: #1e1a13 !important;
-  border: 1px solid rgba(201, 168, 76, 0.18) !important;
-}
-
-.vendor-card:hover {
-  border-color: rgba(212, 134, 10, 0.65) !important;
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.65),
-              0 0 0 1px rgba(212, 134, 10, 0.35) !important;
-}
-
-.vendor-info {
-  background: #1e1a13 !important;
-}
-
-.vendor-name   { color: #f0e6cc !important; }
-.price-val     { color: #f0e6cc !important; }
-.price-symbol  { color: #a08850 !important; }
-.price-unit    { color: rgba(201, 168, 76, 0.4) !important; }
-.vendor-location,
-.vendor-date   { color: #a08850 !important; }
-.vendor-reviews { color: rgba(201, 168, 76, 0.4) !important; }
-
-.type-tag {
-  background: rgba(212, 134, 10, 0.12) !important;
-  color: #f0a020 !important;
-  border-color: rgba(212, 134, 10, 0.28) !important;
-}
-
-.award-tag {
-  background: rgba(201, 168, 76, 0.07) !important;
-  color: rgba(201, 168, 76, 0.5) !important;
-  border-color: rgba(201, 168, 76, 0.14) !important;
-}
-
-/* ── 8. Expand panel detail grid cells (ep-cell) ───────────── */
-.ep-cell {
-  background: rgba(201, 168, 76, 0.06) !important;
-  border: 0.5px solid rgba(201, 168, 76, 0.12) !important;
-}
-
-.ep-cell-label { color: rgba(201, 168, 76, 0.4) !important; }
-.ep-cell-val   { color: #f0e6cc !important; }
-
-/* Meta rows */
-.ep-meta-row span { color: #d4860a !important; }
-
-/* Name */
-.ep-name { color: #f0e6cc !important; }
-
-/* Type pills */
-.ep-type-pill {
-  background: rgba(201, 168, 76, 0.12) !important;
-  color: #e8c870 !important;
-}
-
-/* Award pills inside expand panel */
-.ep-award-pill {
-  background: rgba(201, 168, 76, 0.07) !important;
-  color: rgba(201, 168, 76, 0.55) !important;
-  border-color: rgba(201, 168, 76, 0.14) !important;
-}
-
-/* Footer price */
-.ep-price-val  { color: #f0e6cc !important; }
-.ep-price-sym  { color: #a08850 !important; }
-.ep-price-unit { color: rgba(201, 168, 76, 0.4) !important; }
-
-/* Portfolio tag pills in expand panel */
-.ep-ptag {
-  background: rgba(212, 134, 10, 0.15) !important;
-  color: #f0a020 !important;
-  border-color: rgba(212, 134, 10, 0.3) !important;
-}
-
-/* ── 9. EventModal detail grid ─────────────────────────────── */
-.event-modal-detail {
-  background: rgba(201, 168, 76, 0.06) !important;
-  border-radius: 8px;
-  padding: 10px 13px;
-  border: 0.5px solid rgba(201, 168, 76, 0.1) !important;
-}
-
-/* ── 10. Carousel counter / nav buttons in expand panel ─────── */
-.ep-carousel-counter {
-  background: rgba(15, 13, 10, 0.65) !important;
-  border-color: rgba(201, 168, 76, 0.3) !important;
-  color: #f0a020 !important;
-}
-
-.ep-carousel-nav {
-  background: rgba(15, 13, 10, 0.55) !important;
-  border-color: rgba(201, 168, 76, 0.3) !important;
-  color: #f0e6cc !important;
-}
-
-.ep-carousel-nav:hover {
-  background: rgba(201, 168, 76, 0.5) !important;
-}
-
-/* ── 11. ep-grid (Photography expand panel grid) ────────────── */
-.ep-grid > .ep-cell {
-  background: rgba(201, 168, 76, 0.05) !important;
-  border-color: rgba(201, 168, 76, 0.1) !important;
-}
-
-/* ── 12. ep-top layout background fill ─────────────────────── */
-.ep-top {
-  background: #1e1a13 !important;
-}
+   Do NOT re-add a global !important card-color patch here. If a
+   card surface looks wrong in one theme, fix the token value in
+   global.css (dark) or theme-light.css (light) — never hardcode
+   hex + !important across both themes at once.
+═══════════════════════════════════════════════════════ */

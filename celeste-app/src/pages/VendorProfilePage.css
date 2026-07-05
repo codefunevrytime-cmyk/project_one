@@ -323,8 +323,8 @@
 
 .pp-section-title {
   font-family: var(--pp-font-serif);
-  font-size: 30px;
-  font-weight: 400;
+  font-size: 40px;
+  font-weight: 1000;
   color: var(--pp-white);
   margin: 0 0 24px;
   letter-spacing: -0.3px;
