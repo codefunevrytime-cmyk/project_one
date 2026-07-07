@@ -242,6 +242,13 @@ function PortfolioCarousel({ images }) {
 }
 
 // ── Write Review Form ──────────────────────────────────────────────────────
+const REVIEW_WORD_LIMIT = 250;
+
+function countWords(str) {
+  const trimmed = str.trim();
+  return trimmed ? trimmed.split(/\s+/).length : 0;
+}
+
 function WriteReviewForm({ vendorId, vendorName, services, user, onReviewSubmitted }) {
   const [reviewText,       setReviewText]       = useState('');
   const [reviewRating,     setReviewRating]     = useState(0);
@@ -256,6 +263,7 @@ function WriteReviewForm({ vendorId, vendorName, services, user, onReviewSubmitt
   const handleSubmit = async () => {
     if (reviewRating === 0) { setReviewError('Please select a star rating.'); return; }
     if (!reviewText.trim()) { setReviewError('Please write your review.'); return; }
+    if (countWords(reviewText) > REVIEW_WORD_LIMIT) { setReviewError(`Reviews are limited to ${REVIEW_WORD_LIMIT} words.`); return; }
     if (!reviewerName.trim()) { setReviewError('Please enter your name.'); return; }
 
     setReviewSubmitting(true);
@@ -391,9 +399,31 @@ function WriteReviewForm({ vendorId, vendorName, services, user, onReviewSubmitt
         className="pp-review-textarea"
         placeholder={`Share your experience working with ${vendorName}...`}
         value={reviewText}
-        onChange={e => { setReviewText(e.target.value); setReviewError(''); }}
+        onChange={e => {
+          const val = e.target.value;
+          // Hard cap at 250 words — once at the limit, block further typed words
+          // but still allow deleting/editing existing text.
+          if (countWords(val) <= REVIEW_WORD_LIMIT) {
+            setReviewText(val);
+          } else {
+            const words = val.trim().split(/\s+/).slice(0, REVIEW_WORD_LIMIT);
+            setReviewText(words.join(' '));
+          }
+          setReviewError('');
+        }}
         rows={5}
       />
+      <div
+        style={{
+          textAlign: 'right',
+          fontSize: 12.5,
+          color: countWords(reviewText) >= REVIEW_WORD_LIMIT ? 'var(--pp-amber)' : 'var(--pp-text-3)',
+          marginTop: -6,
+          marginBottom: 10,
+        }}
+      >
+        {countWords(reviewText)}/{REVIEW_WORD_LIMIT} words
+      </div>
 
       <input
         type="text"
@@ -416,7 +446,7 @@ function WriteReviewForm({ vendorId, vendorName, services, user, onReviewSubmitt
 export default function VendorProfilePage({ bookmarks, onBookmarkToggle, serviceConfig = DEFAULT_VENDOR_SERVICE }) {
   const { id }   = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, openLoginPrompt } = useAuth();
 
  const staticPhotographer = null; // resolved after DB fetch
 
@@ -434,7 +464,7 @@ export default function VendorProfilePage({ bookmarks, onBookmarkToggle, service
   const [reviewsLoading, setReviewsLoading] = useState(true);
 
   // Contact form
-  const [contactForm,   setContactForm]   = useState({ name: '', phone: '', email: '', date: '', details: '' });
+  const [contactForm,   setContactForm]   = useState({ name: '', phone: '', email: '', details: '' });
   const [messageSending, setMessageSending] = useState(false);
   const [messageSent,    setMessageSent]    = useState(false);
   const [messageError,   setMessageError]   = useState('');
@@ -449,6 +479,7 @@ export default function VendorProfilePage({ bookmarks, onBookmarkToggle, service
   const projectsRef = useRef(null);
   const aboutRef    = useRef(null);
   const reviewsRef  = useRef(null);
+  const chatRef     = useRef(null); // imperative handle into ClientMessaging widget
 
   const sections = [
     { id: 'projects', label: 'Projects', ref: projectsRef },
@@ -592,36 +623,37 @@ const photographer = dbVendor
     });
   };
 
-  const handleSendMessage = async () => {
+  const handleSendMessage = () => {
+    // Guests get the exact same login prompt used for bookmarks — sending
+    // a message (like bookmarking) requires an account so the vendor can
+    // reply to a real conversation thread.
+    if (!user) {
+      openLoginPrompt('message');
+      return;
+    }
     if (!contactForm.name || !contactForm.phone) {
       setMessageError('Name and phone are required.');
       return;
     }
-    setMessageSending(true);
+    if (!photographer.isDbItem || !resolvedVendorId) {
+      setMessageError('Messaging is only available for vendors added through the admin panel.');
+      return;
+    }
+
     setMessageError('');
-    const payload = {
-      client_name: contactForm.name,
-      email:       contactForm.email || '',
-      phone:       contactForm.phone,
-      vendor_id:   resolvedVendorId,
-      message:     `[${serviceConfig.singular}: ${photographer.name}]\nDate: ${contactForm.date || 'Not specified'}\n${contactForm.details}`,
-    };
-    try {
-      const res  = await fetch(`${API}/queries`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setMessageSent(true);
-        setContactForm({ name: '', phone: '', email: '', date: '', details: '' });
-        setTimeout(() => setMessageSent(false), 4000);
-      } else {
-        setMessageError('Something went wrong. Please try again.');
-      }
-    } catch { setMessageError('Could not connect to server.'); }
-    setMessageSending(false);
+    // Hand off straight into the floating chat widget: it shows this
+    // message inside the chat panel and starts (or continues) the
+    // conversation there, rather than firing a one-off query.
+    chatRef.current?.openWithMessage({
+      name:    contactForm.name,
+      email:   contactForm.email,
+      phone:   contactForm.phone,
+      message: contactForm.details.trim(),
+    });
+
+    setMessageSent(true);
+    setContactForm({ name: '', phone: '', email: '', details: '' });
+    setTimeout(() => setMessageSent(false), 4000);
   };
 
   // Handle direct booking request
@@ -1004,7 +1036,6 @@ const photographer = dbVendor
             <input type="text"  className="pp-form-input" placeholder="Full name *"         value={contactForm.name}    onChange={e => { setContactForm({ ...contactForm, name: e.target.value });    setMessageError(''); }} />
             <input type="tel"   className="pp-form-input" placeholder="+91 Phone number *"  value={contactForm.phone}   onChange={e => { setContactForm({ ...contactForm, phone: e.target.value });   setMessageError(''); }} />
             <input type="email" className="pp-form-input" placeholder="Email address"       value={contactForm.email}   onChange={e => setContactForm({ ...contactForm, email: e.target.value })} />
-            <input type="date"  className="pp-form-input"                                   value={contactForm.date}    onChange={e => setContactForm({ ...contactForm, date: e.target.value })} />
             <textarea           className="pp-form-textarea" placeholder="Details about your event" value={contactForm.details} onChange={e => setContactForm({ ...contactForm, details: e.target.value })} rows={3} />
 
             <button className="pp-send-msg-btn" onClick={handleSendMessage} disabled={messageSending}>
@@ -1119,7 +1150,8 @@ const photographer = dbVendor
           </div>
         </div>
       )}
-       <ClientMessaging                         
+       <ClientMessaging
+        ref={chatRef}
         vendor={photographer.isDbItem ? dbVendor : null}
         user={user}
       />

@@ -21,6 +21,7 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [bookmarkedEventIds, setBookmarkedEventIds] = useState(readBookmarkedEventIds);
   const [loginPromptOpen, setLoginPromptOpen] = useState(false);
+  const [loginPromptReason, setLoginPromptReason] = useState('bookmark');
 
   // Restore session from stored JWT on mount
   useEffect(() => {
@@ -90,7 +91,7 @@ export function AuthProvider({ children }) {
       { bg: '#fff0d0', color: '#b45309' },
       { bg: '#fce7d6', color: '#c2410c' },
       { bg: '#fef3c7', color: '#92400e' },
-      { bg: '#fdf4e7', color: '#a16207' },
+      { bg: 'rgb(255 223 176)', color: '#a16207' },
       { bg: '#fff7e6', color: '#d97706' },
       { bg: '#fdebd0', color: '#b45309' },
       { bg: '#fef9ec', color: '#b45309' },
@@ -105,6 +106,7 @@ export function AuthProvider({ children }) {
   // Returns true when the bookmark was toggled, false when blocked.
   const toggleBookmark = useCallback((eventId) => {
     if (!user) {
+      setLoginPromptReason('bookmark');
       setLoginPromptOpen(true);
       return false;
     }
@@ -115,6 +117,14 @@ export function AuthProvider({ children }) {
   }, [user]);
 
   const closeLoginPrompt = useCallback(() => setLoginPromptOpen(false), []);
+
+  // NEW — generic login gate other features (e.g. vendor chat "Send Message")
+  // can reuse so guests see the same modal as the bookmark flow, just with
+  // copy tailored to why they were asked to log in.
+  const openLoginPrompt = useCallback((reason = 'bookmark') => {
+    setLoginPromptReason(reason);
+    setLoginPromptOpen(true);
+  }, []);
 
   const isBookmarked = useCallback(
     (eventId) => bookmarkedEventIds.includes(eventId),
@@ -133,7 +143,9 @@ export function AuthProvider({ children }) {
     toggleBookmark,
     isBookmarked,
     loginPromptOpen,
+    loginPromptReason,
     closeLoginPrompt,
+    openLoginPrompt,
     getInitials,
     avatarColor,
   };

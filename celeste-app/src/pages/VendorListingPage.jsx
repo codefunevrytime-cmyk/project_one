@@ -12,7 +12,7 @@ import { API_URL } from '../config/api';
 const API = API_URL;
 const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-function mapVendorToCard(vendor, portfolio, tags, serviceConfig) {
+function mapVendorToCard(vendor, portfolio, tags, serviceConfig, reviews = []) {
   const coverImg = portfolio[0]?.image_url || vendor.photo_url || '';
   const allTags  = tags.map(t => t.tag);
   const typeFromSpecialty = vendor.specialty
@@ -65,10 +65,21 @@ function mapVendorToCard(vendor, portfolio, tags, serviceConfig) {
     }
   }
 
+  // ── Real rating + review count ──────────────────────────────────────
+  // Previously this always hardcoded rating: 5.0, reviews: 0 regardless of
+  // actual reviews in the DB, so every card showed "5.0 (0)" no matter what
+  // — including vendors with real, lower-rated reviews on their profile
+  // page. Mirrors the same average calculation already done in
+  // VendorProfilePage.jsx (reviews.reduce(...) / totalReviews).
+  const totalReviews = reviews.length;
+  const avgRating = totalReviews > 0
+    ? reviews.reduce((s, r) => s + Number(r.rating), 0) / totalReviews
+    : 5.0;
+
   return {
     id: `db_${vendor.id}`, _dbId: vendor.id, name: vendor.name,
     location: vendor.location || 'Lucknow',
-    rating: 5.0, reviews: 0, pricePerDay,
+    rating: avgRating, reviews: totalReviews, pricePerDay,
     pricingPackages, priceRange,
     services, prices, // ← NEW: carried through to the vendor picker in CreateEventPage
     type: typeFromSpecialty, media: [serviceConfig.filters.mediaOptions[0]],
@@ -546,13 +557,23 @@ export default function VendorListingPage({ bookmarks, onBookmarkToggle, service
         const vendors = await res.json();
         const active  = vendors.filter(v => v.is_active && isVendorForService(v, serviceConfig));
         const enriched = await Promise.all(active.map(async (vendor) => {
-          const [portRes, tagsRes] = await Promise.all([
+          const [portRes, tagsRes, reviewsRes] = await Promise.all([
             fetch(`${API}/vendors/${vendor.id}/portfolio`),
             fetch(`${API}/vendors/${vendor.id}/tags`),
+            // ── NEW: fetch this vendor's reviews so the card can show a
+            // real rating/count instead of the previous hardcoded 5.0 (0).
+            fetch(`${API}/reviews?vendor_id=${vendor.id}`),
           ]);
           const portfolio = await portRes.json();
           const tags      = await tagsRes.json();
-          return mapVendorToCard(vendor, Array.isArray(portfolio) ? portfolio : [], Array.isArray(tags) ? tags : [], serviceConfig);
+          const reviews   = await reviewsRes.json().catch(() => []);
+          return mapVendorToCard(
+            vendor,
+            Array.isArray(portfolio) ? portfolio : [],
+            Array.isArray(tags) ? tags : [],
+            serviceConfig,
+            Array.isArray(reviews) ? reviews : [],
+          );
         }));
         setDbVendors(enriched);
       } catch {

@@ -131,6 +131,54 @@ function GalleryModal({ isOpen, onClose, item, onPrev, onNext }) {
 }
 
 /* Testimonial Carousel */
+/* Testimonial Carousel — 2 rows × 3 columns (6 cards per slide) */
+/* ── Continuous Scrolling Testimonials — text only, no image/stars ── */
+/* ── Continuous Scrolling Testimonials — 2 rows, opposite directions, text only ── */
+function ContinuousTestimonials() {
+  const mid = Math.ceil(testimonialData.length / 2);
+  const rowA = testimonialData.slice(0, mid);
+  const rowB = testimonialData.slice(mid);
+
+  // Duplicate each row once so it loops seamlessly
+  const loopA = [...rowA, ...rowA];
+  const loopB = [...rowB, ...rowB];
+
+  return (
+    <div className="marquee-stack">
+      <div className="marquee-wrap">
+        <div className="marquee-track marquee-track-left">
+          {loopA.map((t, i) => (
+            <div key={`a-${t.name}-${i}`} className="marquee-card">
+                           <div className="marquee-author"><strong>{t.name}</strong>{t.role}</div>
+<br />
+              <p className="marquee-quote">"{t.text}"</p>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="marquee-wrap">
+        <div className="marquee-track marquee-track-right">
+          {loopB.map((t, i) => (
+            <div key={`b-${t.name}-${i}`} className="marquee-card">
+                            <div className="marquee-author"><strong>{t.name}</strong>{t.role}</div>
+<br />
+              <p className="marquee-quote">"{t.text}"</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────
+   OLD Testimonial Carousel (1 row, 3 cards per slide) — kept for
+   easy revert. To restore: delete/comment the new function above,
+   uncomment this one, and rename it back to `TestimonialCarousel`.
+   Uses the old `.testimonial-slide` CSS class (still in global.css,
+   untouched) instead of the new `.testimonial-grid` class.
+────────────────────────────────────────────────────────────────
+
 function TestimonialCarousel() {
   const cardsPerSlide = 3;
   const slideCount = Math.ceil(testimonialData.length / cardsPerSlide);
@@ -161,6 +209,7 @@ function TestimonialCarousel() {
     </>
   );
 }
+──────────────────────────────────────────────────────────────── */
 
 /* Contact Section */
 function ContactSection() {
@@ -368,11 +417,12 @@ export default function LandingPage() {
       />
 
       {/* Testimonials */}
+    {/* Testimonials */}
       <section id="testimonials">
         <div className="section-label">Client Stories</div>
         <h2 className="section-title">What People Say</h2>
         <div className="section-line"></div>
-        <TestimonialCarousel />
+        <ContinuousTestimonials />
       </section>
 
       {/* Contact */}

@@ -1,7 +1,7 @@
 // celeste-app/src/components/ClientMessaging.jsx
 // Floating chat button + slide-up chat panel for clients on vendor profile pages
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 
 import { API_URL } from '../config/api';
 
@@ -119,7 +119,7 @@ function Bubble({ msg }) {
   );
 }
 
-export default function ClientMessaging({ vendor, user, adminMode }) {
+const ClientMessaging = forwardRef(function ClientMessaging({ vendor, user, adminMode }, ref) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState('form'); // 'form' | 'chat'
   const [convId, setConvId] = useState(null);
@@ -179,8 +179,11 @@ export default function ClientMessaging({ vendor, user, adminMode }) {
     } catch { /* silent */ }
   };
 
-  const handleStart = async () => {
-    if (!form.name.trim() || !form.message.trim()) {
+  // Starts a brand-new conversation. Accepts an explicit `data` object so
+  // callers (e.g. the imperative openWithMessage below) don't race against
+  // React's async setForm — falls back to current form state if omitted.
+  const startConversationWith = async (data) => {
+    if (!data.name?.trim() || !data.message?.trim()) {
       setError('Your name and first message are required.');
       return;
     }
@@ -191,22 +194,22 @@ export default function ClientMessaging({ vendor, user, adminMode }) {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
-          client_name:  form.name,
-          client_email: form.email || null,
-          client_phone: form.phone || null,
+          client_name:  data.name,
+          client_email: data.email || null,
+          client_phone: data.phone || null,
           vendor_id:    vendor.id,
-          subject:      `Enquiry from ${form.name}`,
-          message:      form.message,
+          subject:      `Enquiry from ${data.name}`,
+          message:      data.message,
         }),
       });
-      const data = await res.json();
-      if (data.conversation_id) {
-        setConvId(data.conversation_id);
-        localStorage.setItem(`conv_${vendor.id}`, JSON.stringify({ id: data.conversation_id, email: form.email }));
+      const resData = await res.json();
+      if (resData.conversation_id) {
+        setConvId(resData.conversation_id);
+        localStorage.setItem(`conv_${vendor.id}`, JSON.stringify({ id: resData.conversation_id, email: data.email }));
         setStep('chat');
-        fetchMessages(false, data.conversation_id, form.email);
+        fetchMessages(false, resData.conversation_id, data.email);
       } else {
-        setError(data.error || 'Could not start conversation.');
+        setError(resData.error || 'Could not start conversation.');
       }
     } catch {
       setError('Server error. Please try again.');
@@ -214,25 +217,61 @@ export default function ClientMessaging({ vendor, user, adminMode }) {
     setSending(false);
   };
 
-  const handleReply = async () => {
-    if (!reply.trim() || !convId) return;
+  const sendReplyTo = async (id, name, message) => {
+    if (!message?.trim() || !id) return;
     setSending(true);
     try {
-      await fetch(`${API}/messages/client/${convId}`, {
+      await fetch(`${API}/messages/client/${id}`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ client_name: form.name || 'Client', message: reply }),
+        body:    JSON.stringify({ client_name: name || 'Client', message }),
       });
-      setReply('');
-      fetchMessages();
+      fetchMessages(false, id);
     } catch { /* silent */ }
     setSending(false);
+  };
+
+  const handleStart = () => startConversationWith(form);
+  const handleReply = () => {
+    if (!reply.trim() || !convId) return;
+    sendReplyTo(convId, form.name, reply);
+    setReply('');
   };
 
   const handleOpen = () => {
     setOpen(v => !v);
     if (!open) setUnread(0);
   };
+
+  // ── Imperative API ──────────────────────────────────────────────────────
+  // Lets the vendor profile's "Send a Message" sidebar form hand its
+  // message straight into this chat widget: the message is shown inside
+  // the chat panel and the conversation is started (or continued, if one
+  // already exists for this vendor) right away — no second click needed.
+  useImperativeHandle(ref, () => ({
+    openWithMessage: ({ name, email, phone, message }) => {
+      const data = {
+        name:    name    || form.name,
+        email:   email   || form.email,
+        phone:   phone   || form.phone,
+        message,
+      };
+      setForm(f => ({ ...f, ...data }));
+      setOpen(true);
+      setUnread(0);
+
+      const stored = vendor?.id ? localStorage.getItem(`conv_${vendor.id}`) : null;
+      if (stored) {
+        const { id, email: storedEmail } = JSON.parse(stored);
+        setConvId(id);
+        setStep('chat');
+        fetchMessages(false, id, storedEmail).then(() => sendReplyTo(id, data.name, data.message));
+      } else {
+        setStep('form');
+        startConversationWith(data);
+      }
+    },
+  }), [form, vendor?.id]);
 
   if (!vendor?.id) return null;
 
@@ -419,4 +458,6 @@ export default function ClientMessaging({ vendor, user, adminMode }) {
       )}
     </>
   );
-}
+});
+
+export default ClientMessaging;

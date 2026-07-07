@@ -26,7 +26,7 @@
 
 # 14 guide (important)
 
-# 15 color mode themes (important)
+#15 color mode themes (important)
 
 #16 auto select event when choose image (important)
 
@@ -39,3 +39,13 @@
 #20 service and vendor idependent of each other ppl can skip anyhting (VERY important) 
 
 #21 check both files differemce 
+
+# 22 filter tab 
+
+# 23 contact and book now 
+
+# 24  vendor active or not 
+
+# 25 date match with vendor and admin
+
+# 26 chat details auto filled with db

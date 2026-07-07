@@ -57,7 +57,7 @@ function PaymentsGate() {
 function MainApp({ bm }) {
   const location = useLocation();
   const isAdmin  = location.pathname.startsWith("/admin");
-  const { loginPromptOpen, closeLoginPrompt } = useAuth();
+  const { loginPromptOpen, loginPromptReason, closeLoginPrompt } = useAuth();
 
   return (
     <>
@@ -162,7 +162,7 @@ function MainApp({ bm }) {
       </Routes>
 
       {!isAdmin && <BookmarkToast toast={bm.toast} />}
-      <LoginPromptModal open={loginPromptOpen} onClose={closeLoginPrompt} />
+      <LoginPromptModal open={loginPromptOpen} onClose={closeLoginPrompt} reason={loginPromptReason} />
     </>
   );
 }

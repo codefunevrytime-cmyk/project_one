@@ -1072,7 +1072,7 @@ section { padding: 6rem 5%; }
    CONTACT SECTION
 ═══════════════════════════════════ */
 #contact { background: var(--dark); }
-#contact .section-title { color: #805d34; }
+#contact .section-title { color: #f0e6cc; }
 #contact .section-label { color: var(--gold); }
 #contact .section-line { background: var(--gold); }
 
@@ -1604,7 +1604,7 @@ section { background: #1e1608; }
 
 /* ── Gallery section ── */
 #gallery { background: #1e1608; }
-#gallery .section-title { color: #805d34; }
+#gallery .section-title { color: #f0e6cc; }
 
 /* ── Testimonials ── */
 #testimonials { background: #19130700; background-color: #19130a; }
@@ -2607,3 +2607,169 @@ footer .logo { color: #c9a84c; }
    global.css (dark) or theme-light.css (light) — never hardcode
    hex + !important across both themes at once.
 ═══════════════════════════════════════════════════════ */
+
+
+/* ═══════════════════════════════════
+   TESTIMONIALS — 2-ROW GRID VERSION
+   (new default; old .testimonial-slide
+   rules above are untouched for revert)
+═══════════════════════════════════ */
+.testimonial-slider-2row {
+  min-height: 860px;
+}
+
+.testimonial-grid {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 1.8rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.8s ease;
+  align-items: stretch;
+}
+.testimonial-grid.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Reuse existing .testimonial-card styles as-is — no changes needed there */
+
+@media (max-width: 900px) {
+  .testimonial-slider-2row { min-height: 1280px; }
+  .testimonial-grid {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 620px) {
+  .testimonial-slider-2row { min-height: 1900px; }
+  .testimonial-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(6, auto);
+  }
+}
+
+/* ═══════════════════════════════════
+   CONTINUOUS SCROLLING TESTIMONIALS
+   (new marquee version — old paginated
+   rules above are untouched for revert)
+═══════════════════════════════════ */
+.marquee-wrap {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+
+.marquee-track {
+  display: flex;
+  gap: 1.8rem;
+  width: max-content;
+  animation: marqueeScroll 45s linear infinite;
+}
+.marquee-wrap:hover .marquee-track {
+  animation-play-state: paused;
+}
+
+@keyframes marqueeScroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+.marquee-card {
+  flex: 0 0 320px;
+  background: var(--white);
+  border: 1px solid rgba(201,168,76,0.2);
+  border-radius: 14px;
+  overflow: hidden;
+  padding: 1.6rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.marquee-img {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-bottom: 1rem;
+}
+
+.marquee-stars {
+  color: var(--gold);
+  font-size: .85rem;
+  letter-spacing: 2px;
+  margin-bottom: .8rem;
+}
+
+.marquee-quote {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-size: .95rem;
+  line-height: 1.65;
+  color: var(--dark);
+  margin-bottom: 1.1rem;
+  flex-grow: 1;
+}
+
+.marquee-author {
+  font-size: .78rem;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.marquee-author strong {
+  display: block;
+  color: var(--dark);
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: .9rem;
+  margin-bottom: .15rem;
+}
+
+@media (max-width: 620px) {
+  .marquee-card { flex: 0 0 260px; padding: 1.3rem; }
+}
+
+.marquee-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.8rem;
+}
+
+.marquee-wrap {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+
+.marquee-track {
+  display: flex;
+  gap: 1.8rem;
+  width: max-content;
+}
+
+.marquee-track-left {
+  animation: marqueeScrollLeft 45s linear infinite;
+}
+.marquee-track-right {
+  animation: marqueeScrollRight 45s linear infinite;
+}
+
+.marquee-wrap:hover .marquee-track {
+  animation-play-state: paused;
+}
+
+@keyframes marqueeScrollLeft {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+@keyframes marqueeScrollRight {
+  from { transform: translateX(-50%); }
+  to   { transform: translateX(0); }
+} 

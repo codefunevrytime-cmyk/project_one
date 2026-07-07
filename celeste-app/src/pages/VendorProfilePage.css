@@ -310,9 +310,13 @@
   margin: 0 auto;
   padding: 40px 48px 80px;
   display: grid;
-  grid-template-columns: 1fr 360px;
+  grid-template-columns: minmax(0, 1fr) 360px;
   gap: 40px;
   align-items: start;
+}
+
+.pp-main-col {
+  min-width: 0; /* lets long unbroken review text wrap instead of stretching the grid track and pushing the sidebar off-page */
 }
 
 /* ── Sections ── */
@@ -656,6 +660,8 @@
   border-radius: var(--pp-radius);
   padding: 20px 22px;
   transition: border-color 0.2s;
+  overflow: hidden;
+  max-width: 100%;
 }
 .pp-review-card:hover {
   border-color: var(--pp-border-2);
@@ -707,6 +713,11 @@
   color: var(--pp-text-2);
   line-height: 1.7;
   margin: 0 0 14px;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  max-width: 100%;
+  max-height: 260px; /* ~250 words at this size/line-height before it scrolls internally */
+  overflow-y: auto;
 }
 
 .pp-review-tags {
@@ -968,6 +979,9 @@
   border: 1px solid var(--pp-border-2);
   border-radius: var(--pp-radius);
   padding: 22px 22px 20px;
+  overflow: hidden;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .pp-contact-title {
@@ -998,6 +1012,7 @@
   transition: border-color 0.2s;
   box-sizing: border-box;
   margin-bottom: 10px;
+  overflow-wrap: break-word;
 }
 .pp-form-input:focus { border-color: var(--pp-border-2); }
 .pp-form-input::placeholder { color: var(--pp-text-3); }
@@ -1016,6 +1031,8 @@
   transition: border-color 0.2s;
   box-sizing: border-box;
   margin-bottom: 14px;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 .pp-form-textarea:focus { border-color: var(--pp-border-2); }
 .pp-form-textarea::placeholder { color: var(--pp-text-3); }
