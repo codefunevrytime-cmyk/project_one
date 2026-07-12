@@ -556,3 +556,50 @@
 @media (max-width: 540px) {
   .vendor-grid { grid-template-columns: 1fr; }
 }
+
+/* ─────────────────────────────────────────────────────────────────────
+   FIX: Selected filter chips / rating options weren't visually
+   highlighted on VendorListingPage (Photography, Décor, etc. listing
+   pages), unlike ExplorePage's Sidebar which highlights selections in
+   amber (#D4860A) via Sidebar.module.css's `.checkChip:global(.is-checked)`.
+
+   The underlying <FilterOption> component (CommonControls.jsx) already
+   adds the "is-checked" class automatically whenever `checked={true}` —
+   that part works identically on both pages. What was missing here is
+   the actual CSS rule for `.is-checked` scoped to this page's own class
+   names ("check-chip" / "rating-option"), so the class was present in
+   the DOM but had no matching style.
+
+   HOW TO APPLY:
+   Append this whole block to the END of:
+     celeste-app/src/pages/VendorListingPage.css
+
+   If your real class names differ from "check-chip" / "rating-option"
+   (check what <FilterOption className="..."> is passed in
+   VendorListingPage.jsx), just swap the selector below to match — the
+   important part is the `.is-checked` companion class.
+   ───────────────────────────────────────────────────────────────────── */
+
+/* Chip-style filters: Media type, Coverage/Event type, Year */
+.check-chip.is-checked {
+  background: #D4860A;
+  color: #0F0D0A;
+  border-color: #D4860A;
+  font-weight: 600;
+}
+
+.check-chip.is-checked:hover {
+  background: #c07a0a;
+  border-color: #c07a0a;
+}
+
+/* Radio-style filter: Minimum Rating */
+.rating-option.is-checked {
+  background: rgba(212, 134, 10, 0.14);
+  border-color: rgba(212, 134, 10, 0.5);
+  color: #D4860A;
+}
+
+.rating-option.is-checked:hover {
+  background: rgba(212, 134, 10, 0.2);
+}

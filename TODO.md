@@ -40,7 +40,7 @@
 
 #21 check both files differemce 
 
-# 22 filter tab 
+#22 filter tab 
 
 # 23 contact and book now 
 
@@ -49,3 +49,7 @@
 # 25 date match with vendor and admin
 
 # 26 chat details auto filled with db
+
+# 27 details for vendors if direct vendor 
+
+# 28 quieres via direct booking

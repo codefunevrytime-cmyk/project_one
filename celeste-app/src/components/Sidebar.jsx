@@ -1,4 +1,3 @@
-
 import PriceSlider from "./PriceSlider";
 import { FilterOption, FilterPanel, FilterSection } from "./CommonControls";
 import { EVENTS } from "../context/data/events";
@@ -8,11 +7,14 @@ const VENUES = [...new Set(EVENTS.map((e) => e.venue))].sort();
 const YEARS  = [...new Set(EVENTS.map((e) => e.year))].sort((a, b) => b - a);
 const SCALES = ["Small", "Medium", "Large"];
 const TYPES  = [...new Set(EVENTS.map((e) => e.type))].sort();
-const PRICE_MAX = 200000;  // ← here
 
 
-export function Sidebar({ filters, onChange, onClear }) {
-  const commonPriceMax = Math.min(PRICE_MAX, 120000);
+// maxPrice now comes from ExplorePage (computed dynamically from real
+// event prices — round to nearest 500 + a ₹1,000 buffer). Falls back to
+// 120000 if no prop is passed, just in case Sidebar is ever rendered
+// without it.
+export function Sidebar({ filters, onChange, onClear, maxPrice = 120000 }) {
+  const commonPriceMax = maxPrice;
   const activeCount =
     filters.type.size +
     filters.venue.size +
@@ -114,7 +116,7 @@ export function Sidebar({ filters, onChange, onClear }) {
             inputClassName={styles.check}
           />
         ))}
-        </div>
+        </div>                                                                                                                                                                                                                                                         
       </FilterSection>
     </FilterPanel>
   );

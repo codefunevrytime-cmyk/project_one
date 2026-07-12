@@ -16,6 +16,7 @@ html[data-theme="light"] {
   --white:      #ffffff;
   --gold:       #FF9478;
   --gold-light: #FFC9B8;
+  --dark:       #2D2D2D;
 
   /* Vendor listing / sidebar / photography-style pages */
   --bg-base:        #FFF8E7;
@@ -125,9 +126,21 @@ html[data-theme="light"] .cd-divider { background: rgba(255,182,163,0.25); }
 
 /* ── Sections shared ── */
 html[data-theme="light"] section { background: var(--cream); }
-html[data-theme="light"] .section-title { color: #805d34; }
+html[data-theme="light"] .section-title { color: #805d34 !important; }
 html[data-theme="light"] .section-label { color: var(--gold); }
 html[data-theme="light"] .section-line { background: var(--gold); }
+
+/* Fix: global.css's dark-amber patch defines #gallery .section-title and
+   #contact .section-title as ID-scoped rules, which are more specific than
+   the plain .section-title rule above. Even with !important on the rule
+   above, match the ID scoping here too so there's zero ambiguity — this is
+   what was making "Visual Stories" and "Start a Conversation" stay stuck
+   in the dark cream color while "What People Say" (no ID-scoped rival in
+   global.css) worked fine. */
+html[data-theme="light"] #gallery .section-title,
+html[data-theme="light"] #contact .section-title {
+  color: #805d34 !important;
+}
 
 html[data-theme="light"] #gallery { background: var(--cream); }
 

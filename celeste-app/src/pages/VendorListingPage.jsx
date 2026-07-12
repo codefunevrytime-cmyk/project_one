@@ -505,7 +505,13 @@ function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark,
 }
 
 export default function VendorListingPage({ bookmarks, onBookmarkToggle, serviceConfig = DEFAULT_VENDOR_SERVICE }) {
+  // ── Price slider: default fallback range before real vendor data has
+  //    loaded. `maxPrice` is recalculated below from actual vendor pricing
+  //    once `allVendors` is populated. ──────────────────────────────────
   const [priceRange, setPriceRange]       = useState([0, 120000]);
+  const [maxPrice, setMaxPrice]           = useState(120000);
+  const priceInitializedRef               = useRef(false);
+
   const [selectedTypes, setSelectedTypes] = useState([]);
   const [selectedMedia, setSelectedMedia] = useState([]);
   const [selectedYears, setSelectedYears] = useState([]);
@@ -587,6 +593,48 @@ export default function VendorListingPage({ bookmarks, onBookmarkToggle, service
     const staticVendors = serviceConfig.staticData || [];
     return [...staticVendors, ...dbVendors];
   }, [serviceConfig.staticData, dbVendors]);
+
+  // ── Dynamic price-slider max ────────────────────────────────────────
+  // Find the highest "shown" price across all vendors currently loaded
+  // for this service (priceRange.max for package-pricing vendors, else
+  // pricePerDay), round UP to the next multiple of 500, THEN add a
+  // ₹1,000 buffer on top — e.g. highest price ₹1,230 → round to ₹1,500
+  // → +1,000 buffer → slider max = ₹2,500. This buffer gives a bit of
+  // headroom above the priciest vendor instead of pinning the slider's
+  // max exactly to it.
+  // Runs whenever the vendor list changes (first load, or switching
+  // service category e.g. photography → decor).
+  useEffect(() => {
+    if (allVendors.length === 0) return;
+
+    const shownPrices = allVendors
+      .map(v => (v.priceRange ? v.priceRange.max : v.pricePerDay))
+      .filter(p => p > 0);
+
+    if (shownPrices.length === 0) return;
+
+    const highest    = Math.max(...shownPrices);
+    const roundedMax = Math.ceil(highest / 500) * 500 + 1000;
+
+    setMaxPrice(roundedMax);
+
+    // Only auto-set the slider's default full range once, on first
+    // successful load — don't yank the user's current selection back to
+    // full range every time this effect re-runs (e.g. after a background
+    // refetch). Reset per service category via the effect below.
+    if (!priceInitializedRef.current) {
+      setPriceRange([0, roundedMax]);
+      priceInitializedRef.current = true;
+    }
+  }, [allVendors]);
+
+  // Reset the "has the slider been auto-set" flag whenever the service
+  // category changes, so the new category's max price takes effect
+  // instead of keeping the previous category's range.
+  useEffect(() => {
+    priceInitializedRef.current = false;
+  }, [serviceConfig]);
+
   const openVendor = useMemo(() => allVendors.find(v => v.id === openId) || null, [allVendors, openId]);
 
   const toggleBookmark = (id) => {
@@ -605,7 +653,7 @@ export default function VendorListingPage({ bookmarks, onBookmarkToggle, service
   };
   const handleClose = () => setOpenId(null);
   const toggleArr   = (arr, setArr, val) => setArr(arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val]);
-  const clearAll    = () => { setPriceRange([0,120000]); setSelectedTypes([]); setSelectedMedia([]); setSelectedYears([]); setMinRating(0); setSearchQuery(''); setOpenId(null); };
+  const clearAll    = () => { setPriceRange([0, maxPrice]); setSelectedTypes([]); setSelectedMedia([]); setSelectedYears([]); setMinRating(0); setSearchQuery(''); setOpenId(null); };
 
   const filtered = useMemo(() => {
     let list = allVendors.filter(p => {
@@ -695,7 +743,7 @@ export default function VendorListingPage({ bookmarks, onBookmarkToggle, service
           activeCount={activeFilterCount}
           onClear={activeFilterCount > 0 ? clearAll : undefined}
         >
-          <FilterSection title="Price Range" className="filter-section" titleClassName="filter-section-title" bodyClassName="filter-body"><PriceSlider min={0} max={120000} value={priceRange} onChange={setPriceRange} /></FilterSection>
+          <FilterSection title="Price Range" className="filter-section" titleClassName="filter-section-title" bodyClassName="filter-body"><PriceSlider min={0} max={maxPrice} value={priceRange} onChange={setPriceRange} /></FilterSection>
           <FilterSection title={serviceConfig.filters.mediaLabel} className="filter-section" titleClassName="filter-section-title" bodyClassName="filter-body"><div className="chip-group">{serviceConfig.filters.mediaOptions.map(m => <FilterOption key={m} variant="chip" className="check-chip" label={m} checked={selectedMedia.includes(m)} onChange={() => toggleArr(selectedMedia, setSelectedMedia, m)} />)}</div></FilterSection>
           <FilterSection title={serviceConfig.filters.typeLabel} className="filter-section" titleClassName="filter-section-title" bodyClassName="filter-body"><div className="chip-group">{serviceConfig.filters.typeOptions.map(t => <FilterOption key={t} variant="chip" className="check-chip" label={t} checked={selectedTypes.includes(t)} onChange={() => toggleArr(selectedTypes, setSelectedTypes, t)} />)}</div></FilterSection>
           <FilterSection title="Year" className="filter-section" titleClassName="filter-section-title" bodyClassName="filter-body"><div className="chip-group">{YEARS.map(y => <FilterOption key={y} variant="chip" className="check-chip" label={String(y)} checked={selectedYears.includes(y)} onChange={() => toggleArr(selectedYears, setSelectedYears, y)} />)}</div></FilterSection>

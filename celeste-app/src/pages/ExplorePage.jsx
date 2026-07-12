@@ -12,16 +12,22 @@ import { API_URL } from '../config/api';
 
 const API = API_URL;
 
-const EVENT_PRICE_MAX = 120000;
-const EMPTY_FILTERS = { type: new Set(), venue: new Set(), year: new Set(), scale: new Set(), price: [0, EVENT_PRICE_MAX] };
+// Fallback range used only until real event prices have loaded — actual
+// slider max is computed dynamically in the component below from the
+// highest-priced event, rounded up to the next ₹500 plus a ₹1,000 buffer.
+const DEFAULT_PRICE_MAX = 120000;
 
-function cloneFilters(f) {
+function emptyFilters(maxPrice) {
+  return { type: new Set(), venue: new Set(), year: new Set(), scale: new Set(), price: [0, maxPrice] };
+}
+
+function cloneFilters(f, fallbackMax) {
   return {
     type: new Set(f.type),
     venue: new Set(f.venue),
     year: new Set(f.year),
     scale: new Set(f.scale),
-    price: [...(f.price || [0, EVENT_PRICE_MAX])],
+    price: [...(f.price || [0, fallbackMax])],
   };
 }
 function normalizeImages(raw) {
@@ -112,9 +118,15 @@ export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClear
     });
   };
 
+  // ── Price slider max ─────────────────────────────────────────────────
+  // Starts at DEFAULT_PRICE_MAX and gets recalculated below once real
+  // event prices are loaded from the API.
+  const [maxPrice, setMaxPrice] = useState(DEFAULT_PRICE_MAX);
+  const priceInitializedRef = useRef(false);
+
   const [filters, setFilters] = useState(() => {
-    if (selectedType) return { ...cloneFilters(EMPTY_FILTERS), type: new Set([selectedType]) };
-    return cloneFilters(EMPTY_FILTERS);
+    if (selectedType) return { ...emptyFilters(DEFAULT_PRICE_MAX), type: new Set([selectedType]) };
+    return emptyFilters(DEFAULT_PRICE_MAX);
   });
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("latest");
@@ -163,11 +175,35 @@ export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClear
       .catch(() => setLoading(false));
   }, []);
 
+  // ── Dynamic price-slider max ────────────────────────────────────────
+  // Find the highest real price across all fetched events, round UP to
+  // the next multiple of 500, then add a ₹1,000 buffer on top —
+  // e.g. highest price ₹1,230 → round to ₹1,500 → +1,000 buffer →
+  // slider max = ₹2,500. Runs once events are loaded.
+  useEffect(() => {
+    if (allEvents.length === 0) return;
+    const prices = allEvents.map(e => Number(e.price || 0)).filter(p => p > 0);
+    if (prices.length === 0) return;
+
+    const highest    = Math.max(...prices);
+    const roundedMax = Math.ceil(highest / 500) * 500 + 1000;
+
+    setMaxPrice(roundedMax);
+
+    // Only auto-set the slider's default full range once, on first
+    // successful load — don't override the user's current selection on
+    // later background refetches.
+    if (!priceInitializedRef.current) {
+      setFilters(prev => ({ ...prev, price: [0, roundedMax] }));
+      priceInitializedRef.current = true;
+    }
+  }, [allEvents]);
+
   useEffect(() => {
     if (!selectedType) return;
 
     const timer = window.setTimeout(() => {
-      setFilters((prev) => { const f = cloneFilters(prev); f.type = new Set([selectedType]); return f; });
+      setFilters((prev) => { const f = cloneFilters(prev, maxPrice); f.type = new Set([selectedType]); return f; });
       setOpenId(null);
     }, 0);
 
@@ -175,13 +211,13 @@ export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClear
   }, [selectedType]);
 
   const handleFilterChange = (key, val) => {
-    setFilters((prev) => { const f = cloneFilters(prev); f[key] = val; return f; });
+    setFilters((prev) => { const f = cloneFilters(prev, maxPrice); f[key] = val; return f; });
     setOpenId(null);
     if (key === "type") onClearType?.();
   };
 
   const clearAll = () => {
-    setFilters(cloneFilters(EMPTY_FILTERS));
+    setFilters(emptyFilters(maxPrice));
     setSearch("");
     setOpenId(null);
     onClearType?.();
@@ -193,7 +229,7 @@ export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClear
     filters.venue.forEach((v) => chips.push({ key: "venue", val: v, label: v }));
     filters.year.forEach((v) => chips.push({ key: "year", val: v, label: v }));
     filters.scale.forEach((v) => chips.push({ key: "scale", val: v, label: `${v} scale` }));
-    if (filters.price && (filters.price[0] > 0 || filters.price[1] < EVENT_PRICE_MAX)) {
+    if (filters.price && (filters.price[0] > 0 || filters.price[1] < maxPrice)) {
       chips.push({
         key: "price",
         val: "range",
@@ -201,13 +237,13 @@ export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClear
       });
     }
     return chips;
-  }, [filters]);
+  }, [filters, maxPrice]);
 
   const removeChip = (key, val) => {
     setFilters((prev) => {
-      const f = cloneFilters(prev);
+      const f = cloneFilters(prev, maxPrice);
       if (key === "year") f.year = new Set();
-      else if (key === "price") f.price = [0, EVENT_PRICE_MAX];
+      else if (key === "price") f.price = [0, maxPrice];
       else f[key].delete(val);
       return f;
     });
@@ -248,7 +284,7 @@ export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClear
 
   return (
     <div className={styles.layout}>
-      <Sidebar filters={filters} onChange={handleFilterChange} onClear={clearAll} />
+      <Sidebar filters={filters} onChange={handleFilterChange} onClear={clearAll} maxPrice={maxPrice} />
 
       <main className={styles.main}>
         {/* Pick-mode banner — shown when arriving here from Create Event to
