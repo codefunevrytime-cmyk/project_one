@@ -6,6 +6,7 @@ import { BookmarkIcon } from '../components/BookmarkIcon';
 import { useAuth } from '../hooks/useAuth';
 import './VendorProfilePage.css';
 import ClientMessaging from '../components/ClientMessaging';
+import { VendorAvailabilityNote } from '../components/VendorAvailabilityNote';
 
 
 import { API_URL } from '../config/api';
@@ -656,8 +657,26 @@ const photographer = dbVendor
     setTimeout(() => setMessageSent(false), 4000);
   };
 
+  // ── Book Now is login-gated, same pattern as the contact form above ────
+  // Clicking "Book Now" while logged out shows the same login prompt used
+  // for messaging/bookmarking, and the form is pre-filled with the
+  // logged-in user's name/email once they are signed in.
+  const openBookingModal = () => {
+    if (!user) {
+      openLoginPrompt('message');
+      return;
+    }
+    setBookingForm(f => ({ ...f, name: user.name || f.name, email: user.email || f.email }));
+    setBookingError('');
+    setShowBookingModal(true);
+  };
+
   // Handle direct booking request
   const handleBookNow = async () => {
+    if (!user) {
+      setBookingError('Please log in to send a booking request.');
+      return;
+    }
     if (!bookingForm.name || !bookingForm.phone) {
       setBookingError('Name and phone are required.');
       return;
@@ -669,6 +688,12 @@ const photographer = dbVendor
       email: bookingForm.email || '',
       phone: bookingForm.phone,
       vendor_id: resolvedVendorId,
+      event_type: bookingForm.eventType || null,
+      event_date: bookingForm.date || null,
+      // Tags this as a structured "Book Now" request (vs. a plain "Send a
+      // Message" enquiry) so the vendor's Enquiries tab can badge it
+      // clearly instead of showing it as an identical generic message.
+      is_booking: true,
       message: `[${serviceConfig.singular}: ${photographer.name}] - Direct Booking Request\nEvent Type: ${bookingForm.eventType || 'Event'}\nDate: ${bookingForm.date || 'Not specified'}`,
     };
     try {
@@ -771,7 +796,7 @@ const photographer = dbVendor
             </button>
             <span className="pp-subnav-price">₹{photographer.pricePerDay.toLocaleString('en-IN')}</span>
             <a href="#contact" className="pp-contact-btn">Contact</a>
-            <button className="pp-contact-btn" onClick={() => setShowBookingModal(true)}>Book Now</button>
+            <button className="pp-contact-btn" onClick={openBookingModal}>Book Now</button>
           </div>
         </div>
       </div>
@@ -950,6 +975,13 @@ const photographer = dbVendor
         {/* ── SIDEBAR ── */}
         <aside className="pp-sidebar" id="contact">
           <div className="pp-pricing-card">
+            {/* ── This specific vendor's own availability — independent from
+                the studio-wide calendar. Shows upcoming busy dates here
+                since there's no single "event date" context on this page. */}
+            {supportsReviews && (
+              <VendorAvailabilityNote vendorId={resolvedVendorId} />
+            )}
+
             <h3 className="pp-pricing-title">Average Price</h3>
 
             {/* The old per-tier "Pricing Packages" breakdown read from
@@ -1154,6 +1186,7 @@ const photographer = dbVendor
         ref={chatRef}
         vendor={photographer.isDbItem ? dbVendor : null}
         user={user}
+        onLoginRequired={() => openLoginPrompt('message')}
       />
     </div>
   );

@@ -53,6 +53,19 @@ async function ensureTables() {
   // config using service_category, which comes from this column via the
   // vendors -> services join.
   await pool.query(`ALTER TABLE services ADD COLUMN IF NOT EXISTS category TEXT`).catch(() => {});
+
+  // services.category column — VendorProfile.jsx (frontend) picks its form
+  // config using service_category, which comes from this column via the
+  // vendors -> services join.
+  await pool.query(`ALTER TABLE services ADD COLUMN IF NOT EXISTS category TEXT`).catch(() => {});
+
+  // ── NEW: vendor-controlled online/offline (active/inactive) status ──────
+  // Distinct from vendors.is_active (admin-only account activation) and
+  // vendor_users.status (pending/approved/rejected). This one is toggled
+  // by the vendor themselves from VendorLayout.jsx, and flipped to false
+  // automatically on sign-out (see VendorAuthContext.jsx). Defaults to
+  // true so existing vendors show as Active until they say otherwise.
+  await pool.query(`ALTER TABLE vendors ADD COLUMN IF NOT EXISTS is_online BOOLEAN DEFAULT true`).catch(() => {});
 }
 ensureTables().catch(console.error);
 
@@ -70,11 +83,6 @@ function vendorAuth(req, res, next) {
 }
 
 // POST /api/vendor-auth/signup
-// Accepts `service_category` (e.g. 'photography', 'catering', 'decor', etc
-// — matching VendorProfile.jsx's SERVICE_CONFIGS keys). If provided:
-//   1. Finds or creates a matching row in `services` with that category.
-//   2. Creates a `vendors` row up front, linked to that service.
-//   3. Links the new vendor_user to that vendor row immediately.
 router.post('/signup', async (req, res) => {
   try {
     const { name, email, password, phone, service_category } = req.body;
@@ -169,6 +177,8 @@ router.get('/me', vendorAuth, async (req, res) => {
 });
 
 // GET /api/vendor-auth/enquiries  — enquiries linked to this vendor
+// UPDATED: now also selects q.is_booking so the vendor UI can badge
+// "Book Now" requests differently from plain "Send a Message" enquiries.
 router.get('/enquiries', vendorAuth, async (req, res) => {
   try {
     const userRes = await pool.query('SELECT vendor_id FROM vendor_users WHERE id = $1', [req.vendorUserId]);
@@ -176,7 +186,8 @@ router.get('/enquiries', vendorAuth, async (req, res) => {
     if (!vendorId) return res.json([]);
 
     const result = await pool.query(
-      `SELECT q.id, q.client_name, q.message, q.created_at, q.replied, q.contact_revealed,
+      `SELECT q.id, q.client_name, q.message, q.created_at, q.replied, q.contact_revealed, q.is_booking,
+              q.event_type, q.event_date,
               CASE WHEN q.contact_revealed THEN q.email ELSE NULL END as email,
               CASE WHEN q.contact_revealed THEN q.phone ELSE NULL END as phone
        FROM queries q WHERE q.vendor_id = $1 ORDER BY q.created_at DESC`,
@@ -305,6 +316,24 @@ router.get('/profile', vendorAuth, async (req, res) => {
   }
 });
 
+// PATCH /api/vendor-auth/status — vendor toggles their own active/inactive
+// (online) status. Read by: VendorListingPage.jsx (client-facing badge +
+// sort-to-bottom), AdminVendors.jsx (admin-facing badge). Also called from
+// VendorAuthContext.jsx's signOut() to auto-flip to inactive on logout.
+router.patch('/status', vendorAuth, async (req, res) => {
+  try {
+    const { is_online } = req.body;
+    const userRes = await pool.query('SELECT vendor_id FROM vendor_users WHERE id = $1', [req.vendorUserId]);
+    const vendorId = userRes.rows[0]?.vendor_id;
+    if (!vendorId) return res.status(400).json({ error: 'No vendor profile linked to this account yet' });
+
+    const onlineVal = is_online !== false;
+    await pool.query('UPDATE vendors SET is_online = $1 WHERE id = $2', [onlineVal, vendorId]);
+    res.json({ success: true, is_online: onlineVal });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 router.put('/profile', vendorAuth, upload.single('photo'), async (req, res) => {
   try {

@@ -1,5 +1,7 @@
 // celeste-app/src/components/ClientMessaging.jsx
 // Floating chat button + slide-up chat panel for clients on vendor profile pages
+// NOTE: No pre-chat form anymore — requires login, and client_name/email/phone
+// are pulled straight from the logged-in user's profile (see useAuth / auth.js).
 
 import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 
@@ -8,7 +10,6 @@ import { API_URL } from '../config/api';
 const API = API_URL;
 
 const S = {
-  // Floating button
   fab: {
     position: 'fixed',
     bottom: 28,
@@ -26,7 +27,6 @@ const S = {
     boxShadow: '0 8px 32px rgba(245,158,11,0.45)',
     transition: 'transform 0.2s, box-shadow 0.2s',
   },
-  // Main panel
   panel: {
     position: 'fixed',
     bottom: 96,
@@ -119,23 +119,19 @@ function Bubble({ msg }) {
   );
 }
 
-const ClientMessaging = forwardRef(function ClientMessaging({ vendor, user, adminMode }, ref) {
-  const [open, setOpen] = useState(false);
-  const [step, setStep] = useState('form'); // 'form' | 'chat'
-  const [convId, setConvId] = useState(null);
+// vendor: { id, name, ... }
+// user:   logged-in client { id, name, email, phone } — REQUIRED to chat
+// onLoginRequired: called instead of opening the panel when user is not logged in
+const ClientMessaging = forwardRef(function ClientMessaging({ vendor, user, onLoginRequired }, ref) {
+  const [open, setOpen]         = useState(false);
+  const [convId, setConvId]     = useState(null);
   const [messages, setMessages] = useState([]);
-  const [form, setForm] = useState({
-    name: user?.name || '',
-    email: user?.email || '',
-    phone: '',
-    message: '',
-  });
-  const [reply, setReply] = useState('');
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState('');
-  const [unread, setUnread] = useState(0);
+  const [reply, setReply]       = useState('');
+  const [sending, setSending]   = useState(false);
+  const [error, setError]       = useState('');
+  const [unread, setUnread]     = useState(0);
   const bottomRef = useRef(null);
-  const pollRef  = useRef(null);
+  const pollRef   = useRef(null);
 
   // Auto-scroll
   useEffect(() => {
@@ -144,29 +140,28 @@ const ClientMessaging = forwardRef(function ClientMessaging({ vendor, user, admi
 
   // Poll when chat open
   useEffect(() => {
-    if (step === 'chat' && convId && open) {
-      const poll = () => fetchMessages(true);
-      pollRef.current = setInterval(poll, 4000);
+    if (convId && open) {
+      pollRef.current = setInterval(() => fetchMessages(true), 4000);
       return () => clearInterval(pollRef.current);
     }
-  }, [step, convId, open]);
+  }, [convId, open]);
 
-  // On open — check localStorage for existing conv
+  // On open — check localStorage for existing conv tied to this vendor + user
   useEffect(() => {
-    if (open && vendor?.id) {
-      const stored = localStorage.getItem(`conv_${vendor.id}`);
+    if (open && vendor?.id && user) {
+      const stored = localStorage.getItem(`conv_${vendor.id}_${user.id}`);
       if (stored) {
         const { id, email } = JSON.parse(stored);
         setConvId(id);
-        setStep('chat');
         fetchMessages(false, id, email);
       }
     }
-  }, [open, vendor?.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, vendor?.id, user?.id]);
 
   const fetchMessages = async (silent = false, overrideId = null, overrideEmail = null) => {
     const id    = overrideId    || convId;
-    const email = overrideEmail || form.email || '';
+    const email = overrideEmail || user?.email || '';
     if (!id) return;
     try {
       const res  = await fetch(`${API}/messages/client/${id}?email=${encodeURIComponent(email)}`);
@@ -179,37 +174,43 @@ const ClientMessaging = forwardRef(function ClientMessaging({ vendor, user, admi
     } catch { /* silent */ }
   };
 
-  // Starts a brand-new conversation. Accepts an explicit `data` object so
-  // callers (e.g. the imperative openWithMessage below) don't race against
-  // React's async setForm — falls back to current form state if omitted.
-  const startConversationWith = async (data) => {
-    if (!data.name?.trim() || !data.message?.trim()) {
-      setError('Your name and first message are required.');
-      return;
-    }
+  // Sends `text` as either the first message (creates the conversation,
+  // using the logged-in user's own name/email/phone — no form needed) or
+  // a follow-up into an existing conversation.
+  const sendMessage = async (text) => {
+    if (!user) { onLoginRequired?.(); return; }
+    if (!text?.trim() || !vendor?.id) return;
     setSending(true);
     setError('');
     try {
-      const res  = await fetch(`${API}/messages/start`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          client_name:  data.name,
-          client_email: data.email || null,
-          client_phone: data.phone || null,
-          vendor_id:    vendor.id,
-          subject:      `Enquiry from ${data.name}`,
-          message:      data.message,
-        }),
-      });
-      const resData = await res.json();
-      if (resData.conversation_id) {
-        setConvId(resData.conversation_id);
-        localStorage.setItem(`conv_${vendor.id}`, JSON.stringify({ id: resData.conversation_id, email: data.email }));
-        setStep('chat');
-        fetchMessages(false, resData.conversation_id, data.email);
+      if (!convId) {
+        const res  = await fetch(`${API}/messages/start`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({
+            client_name:  user.name,
+            client_email: user.email || null,
+            client_phone: user.phone || null,
+            vendor_id:    vendor.id,
+            subject:      `Enquiry from ${user.name}`,
+            message:      text,
+          }),
+        });
+        const data = await res.json();
+        if (data.conversation_id) {
+          setConvId(data.conversation_id);
+          localStorage.setItem(`conv_${vendor.id}_${user.id}`, JSON.stringify({ id: data.conversation_id, email: user.email }));
+          fetchMessages(false, data.conversation_id, user.email);
+        } else {
+          setError(data.error || 'Could not start conversation.');
+        }
       } else {
-        setError(resData.error || 'Could not start conversation.');
+        await fetch(`${API}/messages/client/${convId}`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ client_name: user.name, message: text }),
+        });
+        fetchMessages(false, convId);
       }
     } catch {
       setError('Server error. Please try again.');
@@ -217,61 +218,36 @@ const ClientMessaging = forwardRef(function ClientMessaging({ vendor, user, admi
     setSending(false);
   };
 
-  const sendReplyTo = async (id, name, message) => {
-    if (!message?.trim() || !id) return;
-    setSending(true);
-    try {
-      await fetch(`${API}/messages/client/${id}`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ client_name: name || 'Client', message }),
-      });
-      fetchMessages(false, id);
-    } catch { /* silent */ }
-    setSending(false);
-  };
-
-  const handleStart = () => startConversationWith(form);
   const handleReply = () => {
-    if (!reply.trim() || !convId) return;
-    sendReplyTo(convId, form.name, reply);
+    if (!reply.trim()) return;
+    sendMessage(reply);
     setReply('');
   };
 
   const handleOpen = () => {
+    if (!user) { onLoginRequired?.(); return; }
     setOpen(v => !v);
     if (!open) setUnread(0);
   };
 
   // ── Imperative API ──────────────────────────────────────────────────────
-  // Lets the vendor profile's "Send a Message" sidebar form hand its
-  // message straight into this chat widget: the message is shown inside
-  // the chat panel and the conversation is started (or continued, if one
-  // already exists for this vendor) right away — no second click needed.
+  // Lets the vendor profile page's "Contact" button open this widget
+  // directly (login-gated) instead of scrolling to a separate form.
   useImperativeHandle(ref, () => ({
-    openWithMessage: ({ name, email, phone, message }) => {
-      const data = {
-        name:    name    || form.name,
-        email:   email   || form.email,
-        phone:   phone   || form.phone,
-        message,
-      };
-      setForm(f => ({ ...f, ...data }));
+    open: () => {
+      if (!user) { onLoginRequired?.(); return; }
       setOpen(true);
       setUnread(0);
-
-      const stored = vendor?.id ? localStorage.getItem(`conv_${vendor.id}`) : null;
-      if (stored) {
-        const { id, email: storedEmail } = JSON.parse(stored);
-        setConvId(id);
-        setStep('chat');
-        fetchMessages(false, id, storedEmail).then(() => sendReplyTo(id, data.name, data.message));
-      } else {
-        setStep('form');
-        startConversationWith(data);
-      }
     },
-  }), [form, vendor?.id]);
+    // Kept for backward-compat: opens the chat and immediately sends a
+    // message (e.g. from a "quick enquiry" button elsewhere).
+    openWithMessage: ({ message }) => {
+      if (!user) { onLoginRequired?.(); return; }
+      setOpen(true);
+      setUnread(0);
+      if (message?.trim()) sendMessage(message);
+    },
+  }), [user, vendor?.id, convId]);
 
   if (!vendor?.id) return null;
 
@@ -305,8 +281,8 @@ const ClientMessaging = forwardRef(function ClientMessaging({ vendor, user, admi
         )}
       </button>
 
-      {/* Chat panel */}
-      {open && (
+      {/* Chat panel — only ever rendered for a logged-in user */}
+      {open && user && (
         <div style={S.panel}>
           {/* Header */}
           <div style={S.panelHeader}>
@@ -320,140 +296,58 @@ const ClientMessaging = forwardRef(function ClientMessaging({ vendor, user, admi
                 </div>
               </div>
             </div>
-            {step === 'chat' && (
-              <button
-                onClick={() => { setStep('form'); setConvId(null); localStorage.removeItem(`conv_${vendor.id}`); setMessages([]); }}
-                style={{ background: 'none', border: 'none', color: 'rgba(245,158,11,0.45)', cursor: 'pointer', fontSize: 11 }}
-              >
-                New chat
-              </button>
-            )}
           </div>
 
-          {/* Form step */}
-          {step === 'form' && (
-            <div style={{ padding: 16, background: '#141009', overflowY: 'auto' }}>
-              <p style={{ fontSize: 13, color: 'rgba(232,220,200,0.55)', marginBottom: 16, lineHeight: 1.6 }}>
-                Send a message to <strong style={{ color: '#F0E6D0' }}>{vendor.name}</strong>. They'll reply here.
-              </p>
-
-              {error && (
-                <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#f87171', marginBottom: 12 }}>
-                  {error}
-                </div>
-              )}
-
-              {[
-                { key: 'name',    label: 'Your name *',    placeholder: 'Full name',            type: 'text'  },
-                { key: 'email',   label: 'Email',          placeholder: 'To receive replies',    type: 'email' },
-                { key: 'phone',   label: 'Phone',          placeholder: '+91 ...',               type: 'tel'   },
-              ].map(f => (
-                <div key={f.key} style={{ marginBottom: 10 }}>
-                  <label style={{ display: 'block', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(245,158,11,0.55)', marginBottom: 5 }}>
-                    {f.label}
-                  </label>
-                  <input
-                    type={f.type}
-                    placeholder={f.placeholder}
-                    value={form[f.key]}
-                    onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-                    style={{
-                      width: '100%', background: 'rgba(255,255,255,0.05)',
-                      border: '1px solid rgba(245,158,11,0.15)', borderRadius: 8,
-                      padding: '9px 12px', fontSize: 13, color: '#E8DCC8',
-                      fontFamily: "'DM Sans', sans-serif", outline: 'none',
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                </div>
-              ))}
-
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: 'block', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(245,158,11,0.55)', marginBottom: 5 }}>
-                  Your message *
-                </label>
-                <textarea
-                  placeholder={`Hi ${vendor.name}, I'd like to enquire about...`}
-                  value={form.message}
-                  onChange={e => setForm(p => ({ ...p, message: e.target.value }))}
-                  rows={4}
-                  style={{
-                    width: '100%', background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(245,158,11,0.15)', borderRadius: 8,
-                    padding: '9px 12px', fontSize: 13, color: '#E8DCC8',
-                    fontFamily: "'DM Sans', sans-serif", outline: 'none',
-                    resize: 'none', boxSizing: 'border-box',
-                  }}
-                />
+          <div style={S.messagesArea}>
+            {error && (
+              <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#f87171' }}>
+                {error}
               </div>
+            )}
+            {messages.length === 0 ? (
+              <div style={{ textAlign: 'center', color: 'rgba(232,220,200,0.3)', fontSize: 13, padding: '40px 20px' }}>
+                Say hi to {vendor.name} — your message will be sent as <strong style={{ color: 'rgba(232,220,200,0.5)' }}>{user.name}</strong>.
+              </div>
+            ) : (
+              messages.map(m => <Bubble key={m.id} msg={m} />)
+            )}
+            <div ref={bottomRef} />
+          </div>
 
-              <button
-                onClick={handleStart}
-                disabled={sending}
+          <div style={S.inputArea}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <textarea
+                value={reply}
+                onChange={e => setReply(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleReply(); }}}
+                placeholder={`Message ${vendor.name}… (Enter to send)`}
+                rows={2}
                 style={{
-                  width: '100%', padding: '11px',
+                  flex: 1, background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(245,158,11,0.15)', borderRadius: 8,
+                  padding: '9px 12px', fontSize: 13, color: '#E8DCC8',
+                  fontFamily: "'DM Sans', sans-serif", outline: 'none',
+                  resize: 'none', boxSizing: 'border-box',
+                }}
+              />
+              <button
+                onClick={handleReply}
+                disabled={sending || !reply.trim()}
+                style={{
+                  width: 40, height: 40, alignSelf: 'flex-end',
                   background: 'linear-gradient(135deg, #D97706, #B45309)',
-                  border: 'none', borderRadius: 9, color: '#FDF9F0',
-                  fontSize: 14, fontWeight: 600, cursor: 'pointer',
-                  fontFamily: "'DM Sans', sans-serif",
-                  opacity: sending ? 0.7 : 1,
+                  border: 'none', borderRadius: 8, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  opacity: !reply.trim() || sending ? 0.5 : 1,
+                  flexShrink: 0,
                 }}
               >
-                {sending ? 'Starting chat…' : 'Start Conversation →'}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+                  <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
               </button>
             </div>
-          )}
-
-          {/* Chat step */}
-          {step === 'chat' && (
-            <>
-              <div style={S.messagesArea}>
-                {messages.length === 0 ? (
-                  <div style={{ textAlign: 'center', color: 'rgba(232,220,200,0.3)', fontSize: 13, padding: '40px 20px' }}>
-                    Your conversation will appear here
-                  </div>
-                ) : (
-                  messages.map(m => <Bubble key={m.id} msg={m} />)
-                )}
-                <div ref={bottomRef} />
-              </div>
-
-              <div style={S.inputArea}>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <textarea
-                    value={reply}
-                    onChange={e => setReply(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleReply(); }}}
-                    placeholder="Type a message… (Enter to send)"
-                    rows={2}
-                    style={{
-                      flex: 1, background: 'rgba(255,255,255,0.05)',
-                      border: '1px solid rgba(245,158,11,0.15)', borderRadius: 8,
-                      padding: '9px 12px', fontSize: 13, color: '#E8DCC8',
-                      fontFamily: "'DM Sans', sans-serif", outline: 'none',
-                      resize: 'none', boxSizing: 'border-box',
-                    }}
-                  />
-                  <button
-                    onClick={handleReply}
-                    disabled={sending || !reply.trim()}
-                    style={{
-                      width: 40, height: 40, alignSelf: 'flex-end',
-                      background: 'linear-gradient(135deg, #D97706, #B45309)',
-                      border: 'none', borderRadius: 8, cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      opacity: !reply.trim() || sending ? 0.5 : 1,
-                      flexShrink: 0,
-                    }}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
-                      <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
+          </div>
         </div>
       )}
     </>

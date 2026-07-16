@@ -81,7 +81,11 @@ function mapVendorToCard(vendor, portfolio, tags, serviceConfig, reviews = []) {
     location: vendor.location || 'Lucknow',
     rating: avgRating, reviews: totalReviews, pricePerDay,
     pricingPackages, priceRange,
-    services, prices, // ← NEW: carried through to the vendor picker in CreateEventPage
+    services, prices, // ← carried through to the vendor picker in CreateEventPage
+    // ── NEW: vendor-controlled active/inactive (online) status. Defaults
+    // to true (treated as active) if the column is somehow missing/null,
+    // so existing vendors aren't wrongly sunk to the bottom pre-migration.
+    isOnline: vendor.is_online !== false,
     type: typeFromSpecialty, media: [serviceConfig.filters.mediaOptions[0]],
     year: new Date(vendor.created_at).getFullYear(),
     month: new Date(vendor.created_at).getMonth() + 1,
@@ -116,6 +120,40 @@ function RatingStars({ rating }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
       {[1, 2, 3, 4, 5].map(i => <StarIcon key={i} filled={i <= Math.round(rating)} />)}
+    </span>
+  );
+}
+
+// ── NEW: shared active/inactive status pill ──────────────────────────────
+// Used both on the grid/list card (top-left of the image) and inside the
+// expanded panel's meta row, so the vendor's live status — controlled by
+// them via VendorLayout.jsx's toggle, and auto-flipped on sign-out — is
+// visible everywhere a client can see this vendor.
+function StatusBadge({ isOnline, variant = 'card' }) {
+  if (variant === 'card') {
+    return (
+      <div style={{
+        position: 'absolute', top: 10, left: 10, zIndex: 2,
+        display: 'flex', alignItems: 'center', gap: 5,
+        padding: '3px 9px', borderRadius: 20,
+        background: isOnline ? 'rgba(95,207,122,0.9)' : 'rgba(120,120,120,0.82)',
+        backdropFilter: 'blur(4px)', color: '#fff', fontSize: 10, fontWeight: 700,
+      }}>
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />
+        {isOnline ? 'Active' : 'Inactive'}
+      </div>
+    );
+  }
+  return (
+    <span style={{
+      fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 20,
+      display: 'inline-flex', alignItems: 'center', gap: 5,
+      background: isOnline ? 'rgba(95,207,122,0.15)' : 'rgba(120,120,120,0.15)',
+      color: isOnline ? '#2e9e56' : '#777',
+      border: `1px solid ${isOnline ? 'rgba(95,207,122,0.4)' : 'rgba(120,120,120,0.35)'}`,
+    }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: isOnline ? '#2e9e56' : '#999' }} />
+      {isOnline ? 'Active' : 'Inactive'}
     </span>
   );
 }
@@ -299,7 +337,11 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
             <div className="ep-name">{vendor.name}</div>
             <div className="ep-meta-row">
               {vendor.isDbItem ? (
-                <span className="ep-specialty-badge">{display.badgeLabel}</span>
+                <>
+                  <span className="ep-specialty-badge">{display.badgeLabel}</span>
+                  {/* NEW: active/inactive status, mirrored from the card badge */}
+                  <StatusBadge isOnline={vendor.isOnline} variant="inline" />
+                </>
               ) : (
                 <>
                   <RatingStars rating={vendor.rating} />
@@ -409,10 +451,17 @@ function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark,
       style={{
         outline: isOpen ? '2px solid #534AB7' : 'none',
         outlineOffset: 2,
+        // NEW: visually deprioritize inactive vendors, on top of the
+        // grid-sorting that already sinks them to the bottom.
+        opacity: vendor.isDbItem && !vendor.isOnline ? 0.72 : 1,
       }}
     >
       <div className="vendor-img-wrap common-card-media">
         <img src={vendor.cover} alt={vendor.name} className="vendor-img" />
+
+        {/* NEW: active/inactive status badge — vendor-controlled, also
+            visible on the admin side in AdminVendors.jsx. */}
+        {vendor.isDbItem && <StatusBadge isOnline={vendor.isOnline} variant="card" />}
 
         <div className="vendor-media-badge">{display.badgeLabel}</div>
 
@@ -668,6 +717,15 @@ export default function VendorListingPage({ bookmarks, onBookmarkToggle, service
       return true;
     });
     list.sort((a, b) => {
+      // ── NEW: inactive vendors always sink to the bottom of the grid, no
+      // matter which sort order is selected — showing an offline vendor
+      // above active ones (e.g. under "Top Rated") would be misleading
+      // since they aren't currently taking bookings. Only applies to real
+      // DB vendors (static/demo entries always count as "online").
+      const aOnline = a.isDbItem ? a.isOnline !== false : true;
+      const bOnline = b.isDbItem ? b.isOnline !== false : true;
+      if (aOnline !== bOnline) return aOnline ? -1 : 1;
+
       if (sortBy === 'latest')     return (b.year*100+b.month)-(a.year*100+a.month);
       if (sortBy === 'rating')     return b.rating-a.rating;
       if (sortBy === 'price_asc')  return (a.priceRange?.min ?? a.pricePerDay) - (b.priceRange?.min ?? b.pricePerDay);

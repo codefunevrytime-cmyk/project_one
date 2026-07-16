@@ -1,6 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useVendorAuth } from '../context/VendorAuthContext';
+
+import { API_URL } from '../../config/api';
+
+const API = API_URL;
 
 const NAV = [
   { to: '/vendor/dashboard',      label: 'Dashboard',      icon: 'M3 3h7v7H3zM13 3h7v7h-7zM3 13h7v7H3zM13 16a4 4 0 108 0 4 4 0 00-8 0' },
@@ -24,9 +28,40 @@ const CATEGORY_META = {
 };
 
 export default function VendorLayout({ children }) {
-  const { vendorUser, signOut } = useVendorAuth();
+  const { vendorUser, signOut, setOnlineStatus } = useVendorAuth();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
+
+  // ── NEW: vendor's own active/inactive (online) status ───────────────────
+  // Separate from vendor_users.status (admin approval) and vendors.is_active
+  // (admin account activation). This one the vendor controls themselves,
+  // and it's what shows on the public listing page + admin vendor grid.
+  const [isOnline, setIsOnline] = useState(true);
+  const [statusLoading, setStatusLoading] = useState(false);
+
+  useEffect(() => {
+    fetch(`${API}/vendor-auth/profile`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('vendor_token')}` },
+    })
+      .then(r => r.json())
+      .then(d => {
+        if (d.vendor && typeof d.vendor.is_online === 'boolean') setIsOnline(d.vendor.is_online);
+      })
+      .catch(() => {});
+  }, []);
+
+  const toggleOnline = async () => {
+    if (statusLoading) return;
+    setStatusLoading(true);
+    const next = !isOnline;
+    try {
+      await setOnlineStatus(next);
+      setIsOnline(next);
+    } catch {
+      // keep previous UI state on failure — don't flip optimistically
+    }
+    setStatusLoading(false);
+  };
 
   const initials = vendorUser?.name
     ? vendorUser.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
@@ -101,6 +136,43 @@ export default function VendorLayout({ children }) {
           </div>
         )}
 
+        {/* ── NEW: Active / Inactive status toggle ──────────────────────────
+            Vendor controls this themselves. Shown here as a live-updating
+            pill; reflected on the public VendorListingPage.jsx card badge
+            and in the admin AdminVendors.jsx grid. Automatically flipped to
+            Inactive on sign-out (see VendorAuthContext.jsx's signOut()) and
+            back to Active on next login. */}
+        {!collapsed && (
+          <div style={{ padding: '10px 16px 0' }}>
+            <button
+              onClick={toggleOnline}
+              disabled={statusLoading}
+              title={isOnline ? 'You are visible as Active to clients — tap to go Inactive' : 'You are hidden as Inactive — tap to go Active'}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '8px 12px', borderRadius: 8,
+                cursor: statusLoading ? 'wait' : 'pointer',
+                background: isOnline ? 'rgba(95,207,122,0.1)' : 'rgba(248,113,113,0.1)',
+                border: `1px solid ${isOnline ? 'rgba(95,207,122,0.3)' : 'rgba(248,113,113,0.3)'}`,
+                fontFamily: "'DM Sans', sans-serif",
+                transition: 'background 0.15s, border-color 0.15s',
+              }}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 500, color: isOnline ? '#5fcf7a' : '#f87171' }}>
+                <span style={{
+                  width: 8, height: 8, borderRadius: '50%',
+                  background: isOnline ? '#5fcf7a' : '#f87171',
+                  boxShadow: isOnline ? '0 0 6px #5fcf7a' : 'none',
+                }} />
+                {isOnline ? 'Active' : 'Inactive'}
+              </span>
+              <span style={{ fontSize: 10, color: 'rgba(160,180,220,0.4)' }}>
+                {statusLoading ? '…' : 'Tap to toggle'}
+              </span>
+            </button>
+          </div>
+        )}
+
         {/* Nav */}
         <nav style={{ flex: 1, padding: '16px 8px', overflowY: 'auto' }}>
           {NAV.map(({ to, label, icon }) => (
@@ -138,14 +210,17 @@ export default function VendorLayout({ children }) {
               </div>
             </div>
           )}
-          <button onClick={() => { signOut(); navigate('/vendor/login'); }} style={{
-            width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-            padding: collapsed ? '9px 16px' : '9px 10px',
-            background: 'rgba(220,60,60,0.08)', border: '1px solid rgba(220,60,60,0.15)',
-            borderRadius: 8, color: 'rgba(220,100,100,0.7)', fontSize: 12,
-            cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
-            whiteSpace: 'nowrap', overflow: 'hidden', marginBottom: 6,
-          }}>
+          <button
+            onClick={async () => { await signOut(); navigate('/vendor/login'); }}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+              padding: collapsed ? '9px 16px' : '9px 10px',
+              background: 'rgba(220,60,60,0.08)', border: '1px solid rgba(220,60,60,0.15)',
+              borderRadius: 8, color: 'rgba(220,100,100,0.7)', fontSize: 12,
+              cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+              whiteSpace: 'nowrap', overflow: 'hidden', marginBottom: 6,
+            }}
+          >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" style={{ flexShrink: 0 }}>
               <path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>

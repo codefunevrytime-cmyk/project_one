@@ -13,6 +13,7 @@ const S = {
   msgInput: { width: '100%', background: 'rgba(20,30,60,0.5)', border: '1px solid rgba(56,100,220,0.2)', borderRadius: 10, padding: '11px 14px', fontSize: 13, color: '#e8eef8', fontFamily: "'DM Sans', sans-serif", outline: 'none', boxSizing: 'border-box', resize: 'none' },
   sendBtn: { padding: '10px 22px', background: 'linear-gradient(135deg, #2a4aaa, #3a5acc)', border: 'none', borderRadius: 9, color: '#e8f0ff', fontSize: 13, fontWeight: 500, fontFamily: "'DM Sans', sans-serif", cursor: 'pointer' },
   reqBtn: { padding: '8px 16px', background: 'rgba(255,160,30,0.12)', border: '1px solid rgba(255,160,30,0.3)', borderRadius: 8, color: '#ffb840', fontSize: 12, fontFamily: "'DM Sans', sans-serif", cursor: 'pointer' },
+  bookingBadge: { fontSize: 9, padding: '2px 8px', borderRadius: 20, background: 'rgba(212,168,67,0.15)', color: '#d4a843', border: '1px solid rgba(212,168,67,0.3)', fontWeight: 700, letterSpacing: '0.02em' },
 };
 
 export default function VendorEnquiries() {
@@ -74,18 +75,24 @@ export default function VendorEnquiries() {
           ) : enquiries.map(enq => (
             <div
               key={enq.id}
-              style={{ ...S.card, borderColor: selected?.id === enq.id ? 'rgba(76,138,255,0.4)' : 'rgba(56,100,220,0.14)' }}
+              style={{ ...S.card, borderColor: selected?.id === enq.id ? 'rgba(76,138,255,0.4)' : enq.is_booking ? 'rgba(212,168,67,0.3)' : 'rgba(56,100,220,0.14)' }}
               onClick={() => setSelected(enq)}
               onMouseEnter={e => { if (selected?.id !== enq.id) e.currentTarget.style.borderColor = 'rgba(56,100,220,0.3)'; }}
-              onMouseLeave={e => { if (selected?.id !== enq.id) e.currentTarget.style.borderColor = 'rgba(56,100,220,0.14)'; }}
+              onMouseLeave={e => { if (selected?.id !== enq.id) e.currentTarget.style.borderColor = enq.is_booking ? 'rgba(212,168,67,0.3)' : 'rgba(56,100,220,0.14)'; }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                 <div style={{ fontSize: 14, fontWeight: 500, color: '#c8d8f8' }}>{enq.client_name}</div>
                 <div style={{ display: 'flex', gap: 6 }}>
+                  {enq.is_booking && <span style={S.bookingBadge}>📅 BOOKING REQUEST</span>}
                   {!enq.replied && <span style={{ fontSize: 9, padding: '2px 8px', borderRadius: 20, background: 'rgba(76,138,255,0.15)', color: '#4c8aff', border: '1px solid rgba(76,138,255,0.25)' }}>NEW</span>}
                   {enq.contact_revealed && <span style={{ fontSize: 9, padding: '2px 8px', borderRadius: 20, background: 'rgba(100,200,140,0.12)', color: '#6ed496', border: '1px solid rgba(100,200,140,0.25)' }}>CONTACT</span>}
                 </div>
               </div>
+              {enq.is_booking && (enq.event_type || enq.event_date) && (
+                <div style={{ fontSize: 11, color: '#d4a843', marginBottom: 6 }}>
+                  {enq.event_type || 'Event'}{enq.event_date ? ` · ${new Date(enq.event_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
+                </div>
+              )}
               <div style={{ fontSize: 12, color: 'rgba(160,180,220,0.4)', lineHeight: 1.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {enq.message}
               </div>
@@ -102,7 +109,10 @@ export default function VendorEnquiries() {
             {/* Header */}
             <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(56,100,220,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 500, color: '#c8d8f8' }}>{selected.client_name}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: '#c8d8f8' }}>{selected.client_name}</div>
+                  {selected.is_booking && <span style={S.bookingBadge}>📅 BOOKING REQUEST</span>}
+                </div>
                 {selected.contact_revealed ? (
                   <div style={{ fontSize: 12, color: '#6ed496', marginTop: 2 }}>
                     📞 {selected.phone || '—'} · ✉ {selected.email || '—'}
@@ -124,8 +134,10 @@ export default function VendorEnquiries() {
 
             {/* Original message */}
             <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(56,100,220,0.08)', background: 'rgba(20,30,60,0.3)' }}>
-              <div style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(160,180,220,0.3)', marginBottom: 6 }}>Original enquiry</div>
-              <div style={{ fontSize: 13, color: 'rgba(200,220,255,0.6)', lineHeight: 1.65 }}>{selected.message}</div>
+              <div style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(160,180,220,0.3)', marginBottom: 6 }}>
+                {selected.is_booking ? 'Booking request details' : 'Original enquiry'}
+              </div>
+              <div style={{ fontSize: 13, color: 'rgba(200,220,255,0.6)', lineHeight: 1.65, whiteSpace: 'pre-line' }}>{selected.message}</div>
             </div>
 
             {/* Messages */}

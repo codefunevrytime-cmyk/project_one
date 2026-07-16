@@ -5,6 +5,7 @@ import { eventsData } from "../context/data/eventsData";
 import { EVENT_CATEGORIES } from "../context/data/events";
 import styles from "./CreateEventPage.module.css";
 import { VENDOR_SERVICE_CONFIGS } from "../context/data/vendorServiceConfig";
+import { VendorAvailabilityNote } from "../components/VendorAvailabilityNote";
 
 
 import { API_URL } from '../config/api';
@@ -434,7 +435,92 @@ function StepBasics({ form, setForm, availability, onNext, onSkipToVendors, onBr
   );
 }
 
-/* ─── Generic extra-field renderer ────────────────────────────────────────────── */
+/* ─── Compact event-info panel (Vendors step) ─────────────────────────────────
+   "Skip to Vendors" on the Basics step lets a client land here without ever
+   filling in name/type/date/time/location/notes. Rather than duplicate that
+   state in a second place, this reads and writes the exact same `form`
+   object Basics uses — whichever step the client fills in first, the other
+   stays in sync automatically. No reference event here by design; this
+   panel only covers the essentials needed to book vendors and move on. ──── */
+function CompactEventInfo({ form, setForm, availability }) {
+  // Auto-collapsed if Basics already filled these in (nothing new to do
+  // here) — auto-expanded if they're empty (e.g. client used "Skip to
+  // Vendors" and this is the first place they'll see these fields at all).
+  // Only runs on mount, so switching steps back and forth re-evaluates it
+  // fresh rather than fighting the user's manual expand/collapse clicks.
+  const [expanded, setExpanded] = useState(
+    () => !(form.event_name && form.event_type && form.event_date && form.location)
+  );
+  const setF = key => val => setForm(f => ({ ...f, [key]: val }));
+  const setE = key => e => setF(key)(e.target.value);
+
+  const requiredFilled = !!(form.event_name && form.event_type && form.event_date && form.location);
+
+  return (
+    <div
+      style={{
+        background: "rgba(200,175,120,0.03)",
+        border: `0.5px solid ${requiredFilled ? "rgba(200,175,120,0.18)" : "rgba(235,87,87,0.22)"}`,
+        borderRadius: 14,
+        padding: "18px 22px",
+        marginBottom: 26,
+        transition: "border-color 0.2s",
+      }}
+    >
+      <div
+        onClick={() => setExpanded(e => !e)}
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", userSelect: "none" }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "rgba(200,175,120,0.5)" }}>
+            Event details
+          </span>
+          <span
+            style={{
+              fontSize: 10,
+              padding: "2px 9px",
+              borderRadius: 20,
+              background: requiredFilled ? "rgba(111,207,151,0.12)" : "rgba(235,87,87,0.1)",
+              color: requiredFilled ? "#6fcf97" : "#eb5757",
+              border: `0.5px solid ${requiredFilled ? "rgba(111,207,151,0.3)" : "rgba(235,87,87,0.25)"}`,
+              fontWeight: 600,
+            }}
+          >
+            {requiredFilled ? "✓ Complete" : "Needs details"}
+          </span>
+        </div>
+        <span style={{ fontSize: 11, color: "rgba(200,175,120,0.4)" }}>{expanded ? "Hide ▲" : "Edit ▼"}</span>
+      </div>
+
+      {expanded && (
+        <div style={{ marginTop: 18 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 16, marginBottom: 16 }}>
+            <Field label="Event name" required>
+              <input className={styles.input} placeholder="e.g. Rohan & Priya's Wedding" value={form.event_name} onChange={setE("event_name")} />
+            </Field>
+            <Field label="Type of event" required>
+              <select className={styles.input} value={form.event_type} onChange={setE("event_type")}>
+                <option value="">Select type…</option>
+                {EVENT_TYPES.map(t => <option key={t}>{t}</option>)}
+              </select>
+            </Field>
+            <Field label="Date" required>
+              <DatePickerField value={form.event_date} onChange={setF("event_date")} availability={availability} />
+            </Field>
+            <Field label="Time">
+              <input className={styles.input} type="time" value={form.event_time} onChange={setE("event_time")} />
+            </Field>
+          </div>
+
+          <Field label="Location" required hint='e.g. "Lucknow, The Taj Hotel (Near Hazratganj)"'>
+            <input className={styles.input} placeholder="City, Venue (Landmark)" value={form.location} onChange={setE("location")} />
+          </Field>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─── Generic extra-field renderer ────────────────────────────────────────────── */
 function ExtraField({ field, vendorData, onChange }) {
   const value = vendorData[field.key];
@@ -515,13 +601,13 @@ function ExtraField({ field, vendorData, onChange }) {
 }
 
 /* ─── Vendor service block (inside Step 2) ───────────────────────────────────── */
-function VendorBlock({ serviceType, serviceConfig, vendorData, onChange, onPickVendor, onPickVendorRef }) {
+function VendorBlock({ serviceType, serviceConfig, vendorData, onChange, onPickVendor, onPickVendorRef, eventDate }) {
   const { pricingModel, extraFields } = getServiceFields(serviceConfig);
   const pricePerUnit = vendorData.vendor?.price_per_day ? Number(vendorData.vendor.price_per_day) : 0;
   const totalCost = computeVendorTotal(pricingModel, vendorData);
 
   return (
-    <div style={{ background:"rgba(200,175,120,0.03)",border:"0.5px solid rgba(200,175,120,0.15)",borderRadius:14,padding:"20px 22px",marginBottom:20 }}>
+    <div style={{ background:"rgba(200,175,120,0.03)",border:"0.5px solid rgba(200,175,120,0.15)",borderRadius:14,padding:"20px 22px",height:"100%",boxSizing:"border-box" }}>
       {/* Header */}
       <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16 }}>
         <div>
@@ -564,7 +650,14 @@ function VendorBlock({ serviceType, serviceConfig, vendorData, onChange, onPickV
             )}
           </div>
 
-          {/* Service-specific fields */}
+          {/* ── Vendor availability — THIS specific vendor's own calendar,
+              independent from the studio-wide Step-1 date picker. Shows
+              whether they're free/busy on the client's chosen event date
+              once both a vendor and a date are picked. ──────────────────── */}
+          {vendorData.vendor && (
+            <VendorAvailabilityNote vendorId={vendorData.vendor.id} eventDate={eventDate} />
+          )}
+
           {/* Service-specific fields */}
           {extraFields.map(field => {
             const effectiveField = field.type === "multiselect"
@@ -617,7 +710,7 @@ function VendorBlock({ serviceType, serviceConfig, vendorData, onChange, onPickV
 }
 
 /* ─── STEP 2 — Vendors ────────────────────────────────────────────────────────── */
-function StepVendors({ vendors, vendorSelections, setVendorSelections, onNext, onBack, onSkipVendors, onPickVendor, onPickVendorRef }) {
+function StepVendors({ vendors, vendorSelections, setVendorSelections, onNext, onBack, onSkipVendors, onPickVendor, onPickVendorRef, form, setForm, availability }) {
   const vendorsForService = (serviceId, includeUnassigned) => vendors.filter(v => {
     const sid = String(v.service_id || "").trim();
     if (sid === String(serviceId)) return true;
@@ -630,25 +723,43 @@ function StepVendors({ vendors, vendorSelections, setVendorSelections, onNext, o
     vendors: vendorsForService(cfg.serviceId, cfg.includeUnassigned),
   }));
 
+  // Basics can be skipped entirely ("Skip to Vendors"), so the essentials
+  // need to be verifiable/collectable right here before letting the client
+  // proceed to Budget/Review with them missing.
+  const requiredFilled = !!(form.event_name && form.event_type && form.event_date && form.location);
   const anyEnabled = serviceBlocks.some(({ key }) => vendorSelections[key]?.enabled);
   const allOk = serviceBlocks.every(({ key }) => !vendorSelections[key]?.enabled || vendorSelections[key]?.vendor);
-  const canNext = anyEnabled && allOk;
+  const canNext = anyEnabled && allOk && requiredFilled;
+  const canSkip = requiredFilled;
 
   return (
     <div className={styles.stepWrap}>
-      <p className={styles.stepDesc}>Select vendors for your event. Toggle a service on to configure it — or skip this step entirely if you just want the event booked.</p>
+      <p className={styles.stepDesc}>Confirm your event essentials, then pick the services you need — toggle a service on to configure it, or skip vendors entirely if you just want the event booked.</p>
 
-      {serviceBlocks.map(({ key, config }) => (
-        <VendorBlock
-          key={key}
-          serviceType={config.title || config.singular || key}
-          serviceConfig={config}
-          vendorData={vendorSelections[key] || { enabled: false, vendor: null, notes: "", reference_event: null }}
-          onChange={data => setVendorSelections(s => ({ ...s, [key]: data }))}
-          onPickVendor={() => onPickVendor(key, config)}
-          onPickVendorRef={() => onPickVendorRef(key)}
-        />
-      ))}
+      <CompactEventInfo form={form} setForm={setForm} availability={availability} />
+
+      <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.12em",color:"rgba(200,175,120,0.5)",marginBottom:14 }}>
+        Available services
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(360px, 1fr))", gap:18, marginBottom:20, alignItems:"start" }}>
+        {serviceBlocks.map(({ key, config }) => {
+          const data = vendorSelections[key] || { enabled: false, vendor: null, notes: "", reference_event: null };
+          return (
+            <div key={key} style={{ gridColumn: data.enabled ? "1 / -1" : "auto" }}>
+              <VendorBlock
+                serviceType={config.title || config.singular || key}
+                serviceConfig={config}
+                vendorData={data}
+                onChange={d => setVendorSelections(s => ({ ...s, [key]: d }))}
+                onPickVendor={() => onPickVendor(key, config)}
+                onPickVendorRef={() => onPickVendorRef(key)}
+                eventDate={form.event_date}
+              />
+            </div>
+          );
+        })}
+      </div>
 
       <div className={styles.btnRow}>
         <button className={styles.btnSecondary} onClick={onBack}>Back</button>
@@ -662,7 +773,8 @@ function StepVendors({ vendors, vendorSelections, setVendorSelections, onNext, o
       <button
         type="button"
         onClick={onSkipVendors}
-        title="Just want the event without booking vendors here? Skip straight to your budget."
+        disabled={!canSkip}
+        title={canSkip ? "Just want the event without booking vendors here? Skip straight to your budget." : "Fill in the event details above first."}
         style={{
           marginTop: 10,
           width: "100%",
@@ -674,16 +786,23 @@ function StepVendors({ vendors, vendorSelections, setVendorSelections, onNext, o
           fontWeight: 500,
           letterSpacing: "0.03em",
           fontFamily: "inherit",
-          color: "#c8af78",
-          cursor: "pointer",
+          color: canSkip ? "#c8af78" : "rgba(200,175,120,0.25)",
+          cursor: canSkip ? "pointer" : "not-allowed",
           transition: "all 0.15s",
         }}
       >
         ⏭ Skip Vendors — Just book the event
       </button>
 
-      {!canNext&&anyEnabled&&<p style={{ fontSize:11,color:"rgba(200,175,120,0.35)",marginTop:8 }}>Please select a vendor for each enabled service, or use “Skip Vendors” above to continue without them.</p>}
-      {!anyEnabled&&<p style={{ fontSize:11,color:"rgba(200,175,120,0.35)",marginTop:8 }}>Add at least one vendor service, or tap “Skip Vendors” above if you don't need any right now.</p>}
+      {!requiredFilled && (
+        <p style={{ fontSize:11,color:"#eb5757",marginTop:8 }}>Please fill in event name, type, date, and location above before continuing.</p>
+      )}
+      {requiredFilled && !canNext && anyEnabled && (
+        <p style={{ fontSize:11,color:"rgba(200,175,120,0.35)",marginTop:8 }}>Please select a vendor for each enabled service, or use “Skip Vendors” above to continue without them.</p>
+      )}
+      {requiredFilled && !anyEnabled && (
+        <p style={{ fontSize:11,color:"rgba(200,175,120,0.35)",marginTop:8 }}>Add at least one vendor service, or tap “Skip Vendors” above if you don't need any right now.</p>
+      )}
     </div>
   );
 }
@@ -1106,6 +1225,9 @@ export default function CreateEventPage() {
             onSkipVendors={handleSkipVendors}
             onPickVendor={handlePickVendor}
             onPickVendorRef={handlePickVendorRef}
+            form={form}
+            setForm={setForm}
+            availability={availability}
           />
         )}
         {step === 2 && (

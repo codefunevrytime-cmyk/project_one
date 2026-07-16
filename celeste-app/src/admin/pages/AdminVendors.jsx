@@ -249,8 +249,24 @@ export default function AdminVendors() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
                 {filteredVendors.map(v => (
                   <div key={v.id} style={{ background: '#fff', borderRadius: 12, border: `1px solid ${v.is_active ? '#e8e0d5' : '#fecaca'}`, overflow: 'hidden' }}>
-                    {v.photo_url && <img src={v.photo_url} alt={v.name} style={{ width: '100%', height: 140, objectFit: 'cover' }} />}
-                    {!v.photo_url && <div style={{ width: '100%', height: 140, background: '#f7f5f2', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>📷</div>}
+                    <div style={{ position: 'relative' }}>
+  {v.photo_url && <img src={v.photo_url} alt={v.name} style={{ width: '100%', height: 140, objectFit: 'cover', display: 'block' }} />}
+  {!v.photo_url && <div style={{ width: '100%', height: 140, background: '#f7f5f2', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>📷</div>}
+
+  {/* NEW: vendor-controlled active/inactive (online) status badge —
+      distinct from the is_active toggle button below, which is the
+      admin's own account activation control. */}
+  <span style={{
+    position: 'absolute', top: 8, left: 8,
+    display: 'flex', alignItems: 'center', gap: 5,
+    padding: '3px 9px', borderRadius: 20, fontSize: 10, fontWeight: 700,
+    background: v.is_online === false ? 'rgba(120,120,120,0.85)' : 'rgba(34,197,94,0.9)',
+    color: '#fff',
+  }}>
+    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />
+    {v.is_online === false ? 'Inactive' : 'Active'}
+  </span>
+</div>
                     <div style={{ padding: 14 }}>
                       <div style={{ fontSize: 14, fontWeight: 500, color: '#1a1008', marginBottom: 4 }}>{v.name}</div>
                       <div style={{ fontSize: 11, color: '#c9a84c', fontWeight: 600, marginBottom: 4 }}>{vendorServiceLabel(v.service_id)}</div>

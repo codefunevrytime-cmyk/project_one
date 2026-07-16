@@ -42,14 +42,13 @@
 
 #22 filter tab 
 
-# 23 contact and book now 
+#23 contact and book now 
 
-# 24  vendor active or not 
+#24  vendor active or not 
 
 # 25 date match with vendor and admin
 
-# 26 chat details auto filled with db
+#26 chat details auto filled with db
 
-# 27 details for vendors if direct vendor 
+#27 details for vendors if direct vendor 
 
-# 28 quieres via direct booking

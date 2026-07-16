@@ -49,9 +49,41 @@ export function VendorAuthProvider({ children }) {
     return data;
   }, []);
 
-  const signOut = useCallback(() => {
+ const signOut = useCallback(async () => {
+    // Mark the vendor inactive/offline before clearing their session, so
+    // VendorListingPage.jsx and AdminVendors.jsx immediately reflect that
+    // they've signed out. Best-effort — a failed request still lets them
+    // sign out locally.
+    const existingToken = localStorage.getItem(TOKEN_KEY);
+    if (existingToken) {
+      try {
+        await fetch(`${API}/vendor-auth/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${existingToken}` },
+          body: JSON.stringify({ is_online: false }),
+        });
+      } catch {
+        // ignore — still sign out locally below
+      }
+    }
     localStorage.removeItem(TOKEN_KEY);
     setVendorUser(null);
+  }, []);
+
+  // Vendor-controlled online/offline toggle, used by the button in
+  // VendorLayout.jsx. Separate from vendor_users.status (admin-controlled
+  // approval) and vendors.is_active (admin-controlled deactivation).
+  const setOnlineStatus = useCallback(async (isOnline) => {
+    const t = localStorage.getItem(TOKEN_KEY);
+    if (!t) return;
+    const res  = await fetch(`${API}/vendor-auth/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
+      body: JSON.stringify({ is_online: isOnline }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to update status');
+    return data;
   }, []);
 
   const refreshUser = useCallback(async () => {
@@ -63,7 +95,7 @@ export function VendorAuthProvider({ children }) {
   }, []);
 
   return (
-    <VendorAuthContext.Provider value={{ vendorUser, loading, login, signup, signOut, refreshUser }}>
+    <VendorAuthContext.Provider value={{ vendorUser, loading, login, signup, signOut, refreshUser, setOnlineStatus }}>
       {children}
     </VendorAuthContext.Provider>
   );
