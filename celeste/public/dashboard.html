@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Céleste — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--gold:#ffa01e;--dark:#1a1008;--cream:#faf7f2;--border:#e8e0d5;--muted:#9e8e7a}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);min-height:100vh}
+nav{background:var(--dark);padding:0 40px;display:flex;align-items:center;justify-content:space-between;height:64px}
+.nav-logo{display:flex;align-items:center;gap:10px}
+.nav-logo-icon{width:34px;height:34px;border-radius:9px;background:rgba(255,160,30,.15);display:flex;align-items:center;justify-content:center}
+.nav-logo-name{font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:#fff}
+.nav-right{display:flex;align-items:center;gap:16px}
+.user-chip{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:100px;padding:6px 14px 6px 8px;color:rgba(255,255,255,.8);font-size:13px}
+.avatar{width:28px;height:28px;border-radius:50%;background:var(--gold);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--dark)}
+.logout-btn{background:none;border:1px solid rgba(255,255,255,.2);border-radius:9px;padding:7px 14px;color:rgba(255,255,255,.6);font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all .2s}
+.logout-btn:hover{border-color:var(--gold);color:var(--gold)}
+.hero{padding:60px 40px 40px;text-align:center}
+.hero-title{font-family:'Playfair Display',serif;font-size:clamp(28px,4vw,48px);font-weight:700;color:var(--dark);margin-bottom:12px}
+.hero-title em{font-style:italic;color:var(--gold)}
+.hero-sub{font-size:15px;color:var(--muted);max-width:500px;margin:0 auto}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px;padding:0 40px 60px;max-width:900px;margin:0 auto}
+.card{background:#fff;border:1px solid var(--border);border-radius:16px;padding:28px 24px;cursor:pointer;transition:transform .2s,box-shadow .2s}
+.card:hover{transform:translateY(-4px);box-shadow:0 12px 32px rgba(26,16,8,.1)}
+.card-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:16px;font-size:22px}
+.card-title{font-family:'Playfair Display',serif;font-size:17px;font-weight:700;color:var(--dark);margin-bottom:6px}
+.card-sub{font-size:13px;color:var(--muted);line-height:1.5}
+.badge-new{display:inline-block;background:rgba(255,160,30,.12);color:var(--gold);font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:100px;margin-top:10px}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">
+    <div class="nav-logo-icon">
+      <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+        <path d="M10 2l1.8 5.5H18l-4.9 3.6 1.8 5.5L10 13l-4.9 3.6 1.8-5.5L2 7.5h6.2L10 2z" fill="#ffa01e"/>
+      </svg>
+    </div>
+    <span class="nav-logo-name">Céleste</span>
+  </div>
+  <div class="nav-right">
+    <div class="user-chip">
+      <div class="avatar" id="avatar-initials">–</div>
+      <span id="user-name">Loading…</span>
+    </div>
+    <button class="logout-btn" onclick="logout()">Sign out</button>
+  </div>
+</nav>
+
+<div class="hero">
+  <div class="hero-title">Good to see you, <em id="greet-name">friend</em> ✨</div>
+  <div class="hero-sub">Your event planning studio is ready. What would you like to create today?</div>
+</div>
+
+<div class="cards">
+  <div class="card">
+    <div class="card-icon" style="background:#fff8ec">🎉</div>
+    <div class="card-title">New Event</div>
+    <div class="card-sub">Start planning a new celebration from scratch.</div>
+    <div class="badge-new">Quick start</div>
+  </div>
+  <div class="card">
+    <div class="card-icon" style="background:#eef6ff">📋</div>
+    <div class="card-title">My Events</div>
+    <div class="card-sub">View and manage all your upcoming events.</div>
+  </div>
+  <div class="card">
+    <div class="card-icon" style="background:#f0faf4">👥</div>
+    <div class="card-title">Guest Lists</div>
+    <div class="card-sub">Manage RSVPs, invites, and seating plans.</div>
+  </div>
+  <div class="card">
+    <div class="card-icon" style="background:#fdf0f5">💌</div>
+    <div class="card-title">Invitations</div>
+    <div class="card-sub">Design and send beautiful digital invites.</div>
+  </div>
+</div>
+
+<script>
+// Fetch user info from session (the page only loads if logged in, guaranteed by server)
+fetch('/api/me').then(r => r.json()).then(data => {
+  if (data.name) {
+    document.getElementById('greet-name').textContent = data.name;
+    document.getElementById('user-name').textContent = data.name;
+    document.getElementById('avatar-initials').textContent = data.name.charAt(0).toUpperCase();
+  }
+}).catch(() => {});
+
+async function logout() {
+  await fetch('/api/logout', { method: 'POST' });
+  window.location.href = '/login';
+}
+</script>
+</body>
+</html>

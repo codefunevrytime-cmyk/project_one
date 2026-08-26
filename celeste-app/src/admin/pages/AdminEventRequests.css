@@ -1,0 +1,319 @@
+/* src/admin/pages/AdminEventRequests.css */
+
+.aer-page {
+  padding: 24px;
+  color: #2a2018;
+  font-family: 'Inter', sans-serif;
+  background: #ffffff;
+  min-height: 100vh;
+}
+
+.aer-loading { padding: 40px; color: rgba(42,32,24,0.55); font-size: 14px; }
+.aer-empty { padding: 40px; color: rgba(42,32,24,0.45); text-align: center; font-size: 14px; }
+
+.aer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.aer-header h2 { font-size: 22px; font-weight: 700; margin: 0; color: #2a2018; }
+
+.aer-counts { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.aer-count-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(0,0,0,0.1);
+  color: rgba(42,32,24,0.7);
+  background: rgba(0,0,0,0.03);
+}
+
+.aer-count-badge.aer-count-pending { border-color: rgba(180,132,20,0.35); color: #b48414; }
+.aer-count-badge.aer-count-confirmed { border-color: rgba(40,150,80,0.35); color: #289650; }
+.aer-count-badge.aer-count-payment_pending { border-color: rgba(70,110,220,0.35); color: #466edc; }
+.aer-count-badge.aer-count-completed { border-color: rgba(20,150,140,0.4); color: #149688; }
+
+/* ── Cards ── */
+.aer-list { display: flex; flex-direction: column; gap: 12px; }
+
+.aer-card {
+  background: #ffffff;
+  border: 1px solid rgba(0,0,0,0.1);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.aer-card:hover { border-color: rgba(0,0,0,0.18); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.aer-card.aer-status-pending { border-left: 3px solid #d4a843; }
+.aer-card.aer-status-admin_approved { border-left: 3px solid #4a7ce0; }
+.aer-card.aer-status-payment_pending { border-left: 3px solid #9c4de0; }
+.aer-card.aer-status-confirmed { border-left: 3px solid #2fa860; }
+.aer-card.aer-status-completed { border-left: 3px solid #149688; }
+.aer-card.aer-status-cancelled { border-left: 3px solid #e05252; opacity: 0.7; }
+
+.aer-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 16px 20px;
+  cursor: pointer;
+  gap: 16px;
+}
+
+.aer-card-left { flex: 1; }
+
+.aer-event-type {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #b48414;
+  margin-bottom: 4px;
+}
+
+.aer-event-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #2a2018;
+  margin-bottom: 6px;
+}
+
+.aer-event-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 12px;
+  color: rgba(42,32,24,0.6);
+}
+
+.aer-card-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.aer-budget {
+  font-size: 16px;
+  font-weight: 700;
+  color: #b48414;
+}
+
+.aer-status-pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+
+.aer-pill-pending { background: rgba(212,168,67,0.15); color: #a3760f; }
+.aer-pill-admin_reviewing { background: rgba(70,110,220,0.12); color: #3a5fc4; }
+.aer-pill-admin_approved { background: rgba(70,110,220,0.15); color: #3a5fc4; }
+.aer-pill-payment_pending { background: rgba(156,77,224,0.15); color: #8332c9; }
+.aer-pill-confirmed { background: rgba(47,168,96,0.15); color: #218a4f; }
+.aer-pill-completed { background: rgba(20,150,136,0.15); color: #117b70; }
+.aer-pill-cancelled { background: rgba(224,82,82,0.12); color: #c73e3e; }
+
+.aer-expand-icon { font-size: 10px; color: rgba(42,32,24,0.35); margin-top: 4px; }
+
+/* ── Expanded body ── */
+.aer-card-body {
+  padding: 0 20px 20px;
+  border-top: 1px solid rgba(0,0,0,0.08);
+}
+
+.aer-section { margin-top: 20px; }
+
+.aer-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: rgba(42,32,24,0.5);
+  margin-bottom: 10px;
+}
+
+.aer-info-grid {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 6px 16px;
+  font-size: 13px;
+}
+
+.aer-info-grid span:nth-child(odd) { color: rgba(42,32,24,0.55); }
+.aer-info-grid span:nth-child(even) { color: #2a2018; }
+
+/* ── Vendor / add-on rows (shared layout) ── */
+.aer-vendor-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: rgba(0,0,0,0.02);
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.aer-vendor-info { display: flex; flex-direction: column; gap: 2px; }
+.aer-vendor-info strong { font-size: 13px; color: #2a2018; }
+.aer-vendor-info span { font-size: 11px; color: rgba(42,32,24,0.55); text-transform: capitalize; }
+
+.aer-vendor-right { display: flex; align-items: center; gap: 10px; }
+.aer-vendor-price { font-size: 13px; font-weight: 600; color: #b48414; }
+.aer-vendor-status { font-size: 12px; font-weight: 500; text-transform: capitalize; }
+
+/* ── Notes / small form inputs (shared) ── */
+.aer-notes {
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid rgba(0,0,0,0.15);
+  border-radius: 8px;
+  color: #a3760f;
+  font-size: 13px;
+  padding: 10px 12px;
+  outline: none;
+  resize: vertical;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.aer-notes::placeholder { color: rgba(42,32,24,0.4); }
+.aer-notes:focus { border-color: rgba(180,132,20,0.5); }
+
+select.aer-notes {
+  appearance: none;
+  cursor: pointer;
+}
+
+/* ── Status buttons (also reused for "+ Add charge" / "Record payment") ── */
+.aer-status-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.aer-status-btn {
+  background: rgba(0,0,0,0.03);
+  border: 1px solid rgba(0,0,0,0.15);
+  border-radius: 6px;
+  color: rgba(42,32,24,0.75);
+  font-size: 12px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.aer-status-btn:hover:not(:disabled) {
+  background: rgba(0,0,0,0.06);
+  color: #2a2018;
+}
+
+.aer-status-btn-active {
+  background: rgba(212,168,67,0.18);
+  border-color: #d4a843;
+  color: #a3760f;
+  cursor: default;
+}
+
+.aer-status-btn:disabled:not(.aer-status-btn-active) { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Action message banner ── */
+.aer-action-msg {
+  background: rgba(47,168,96,0.1);
+  border: 1px solid rgba(47,168,96,0.3);
+  border-radius: 8px;
+  padding: 10px 16px;
+  margin-bottom: 20px;
+  font-size: 13px;
+  color: #218a4f;
+}
+
+/* ── Reference image preview ── */
+.aer-ref-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  background: rgba(0,0,0,0.02);
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 8px;
+}
+
+.aer-ref-thumb {
+  width: 300px;
+  height: 200px;
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: rgba(0,0,0,0.05);
+}
+
+.aer-ref-thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+.aer-view-img-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  background: #d4a843;
+  color: #1a1008;
+  border: 1px solid #d4a843;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.aer-view-img-btn:hover { background: #c4980f; }
+
+/* ── Terminate / cancel / adjustment buttons ── */
+.aer-terminate-btn {
+  background: rgba(224,82,82,0.08);
+  border: 1px solid rgba(224,82,82,0.35);
+  border-radius: 6px;
+  color: #c73e3e;
+  font-size: 12px;
+  padding: 6px 14px;
+  cursor: pointer;
+  margin-left: auto;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.aer-terminate-btn:hover:not(:disabled) {
+  background: rgba(224,82,82,0.15);
+}
+
+.aer-terminate-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .aer-page { padding: 14px; }
+  .aer-header { flex-direction: column; align-items: flex-start; }
+  .aer-header h2 { font-size: 19px; }
+  .aer-card-header { flex-direction: column; padding: 14px 16px; }
+  .aer-card-right { align-items: flex-start; width: 100%; }
+  .aer-info-grid { grid-template-columns: 90px 1fr; }
+  .aer-vendor-row { flex-direction: column; align-items: flex-start; }
+  .aer-vendor-right { width: 100%; justify-content: space-between; }
+  .aer-status-buttons { width: 100%; }
+  .aer-status-btn { flex: 1 1 auto; text-align: center; }
+  .aer-ref-preview { flex-direction: column; align-items: stretch; }
+  .aer-ref-thumb { width: 100%; height: 180px; }
+  .aer-terminate-btn { margin-left: 0; width: 100%; text-align: center; }
+}
+
+@media (max-width: 480px) {
+  .aer-event-name { font-size: 14px; }
+  .aer-budget { font-size: 14px; }
+  .aer-info-grid { grid-template-columns: 1fr; }
+  .aer-info-grid span:nth-child(odd) { font-weight: 600; margin-top: 6px; }
+}

@@ -1,0 +1,326 @@
+.sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  background: var(--bg-surface, #1A1610);
+  border-radius: 12px;
+  border: 0.5px solid var(--border-soft, rgba(255,255,255,0.06));
+  padding: 20px;
+  overflow-y: auto;
+  height: fit-content;
+  position: sticky;
+  top: 64px;
+  box-shadow: 0 1px 0 rgba(212,134,10,0.08);
+}
+
+.sidebarHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.sidebarTitle {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary, #F5EDD8);
+  font-family: 'DM Sans', sans-serif;
+  letter-spacing: 0;
+  gap: 7px;
+}
+
+.filterCountBadge {
+  background: var(--amber-primary, #D4860A);
+  color: #0F0D0A;
+  font-size: 10px;
+  font-weight: 600;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clearBtn {
+  font-size: 11.5px;
+  color: var(--amber-primary, #D4860A);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0;
+  font-weight: 400;
+  transition: opacity 0.15s;
+}
+.clearBtn:hover { color: var(--amber-bright, #F0A020); text-decoration: underline; }
+
+.section {
+  border-top: 0.5px solid var(--border-soft, rgba(255,255,255,0.06));
+  padding: 14px 0;
+}
+.section:last-child { padding-bottom: 0; }
+
+.sectionTitle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: none;
+  border: none;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-secondary, #B8A888);
+  margin-bottom: 0;
+  font-family: 'DM Sans', sans-serif;
+  text-transform: none;
+  letter-spacing: 0;
+  padding-bottom: 0;
+  cursor: pointer;
+}
+
+.filterBody {
+  margin-top: 12px;
+}
+
+.chipGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.checkChip {
+  padding: 5px 11px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  border: 0.5px solid var(--border-medium, rgba(255,255,255,0.10));
+  cursor: pointer;
+  color: var(--text-muted, #7A6E5C);
+  background: transparent;
+  transition: all 0.15s;
+  user-select: none;
+}
+
+.checkChip:hover {
+  border-color: var(--amber-border, rgba(212,134,10,0.25));
+  color: var(--amber-bright, #F0A020);
+}
+
+.checkChip:global(.is-checked) {
+  background: var(--amber-primary, #D4860A);
+  color: #0F0D0A;
+  border-color: var(--amber-primary, #D4860A);
+  font-weight: 500;
+}
+
+.checkChip input {
+  display: none;
+}
+
+.filterLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  font-size: 12.5px;
+  color: #8a8680;
+  cursor: pointer;
+  border-radius: 7px;
+  transition: background 0.12s, color 0.12s;
+  margin-bottom: 2px;
+}
+.filterLabel:hover {
+  background: #1e1e1e;
+  color: #f0ece4;
+}
+.filterLabel:has(.check:checked) {
+  color: #f0ece4;
+}
+
+.check {
+  accent-color: #d4943a;
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.labelText { flex: 1; }
+
+.count {
+  font-size: 11px;
+  color: #555;
+  background: #1e1e1e;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-weight: 400;
+}
+
+/* ── Mobile drawer wrap ──────────────────────────────────────────────
+   On desktop this is an invisible passthrough box — .sidebar keeps its
+   normal sticky/width styling above. On mobile it becomes the fixed,
+   full-screen slide-in drawer container, and .sidebar resets to just
+   fill it. ── */
+.sidebarWrap {
+  display: contents;
+}
+
+.overlay {
+  display: none;
+}
+
+/* Single mobile-drawer header (title + badge + Clear all + close).
+   FilterPanel's own internal header (.sidebarHeader) is hidden on
+   mobile via CSS below so "Filters" never renders twice. Hidden
+   entirely on desktop. */
+.mobileHeader,
+.mobileHeaderTitle,
+.mobileHeaderBadge,
+.mobileHeaderActions,
+.mobileHeaderClear,
+.mobileCloseBtn,
+.mobileApplyBtn {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  /* Full-screen drawer. `inset: 0` anchors the box to the real viewport
+     edges on every side — more robust than height:100dvh + top/bottom,
+     which can mismatch when the mobile browser's address bar animates
+     and let page content bleed through at the bottom while scrolling. */
+  .sidebarWrap {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    background: var(--bg-surface, #1A1610);
+    z-index: 1001;
+    transform: translateX(-100%);
+    transition: transform 0.28s ease;
+    box-shadow: 2px 0 24px rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+    overscroll-behavior: contain; /* stop scroll from chaining out of the drawer */
+  }
+  .sidebarWrapOpen {
+    transform: translateX(0);
+  }
+
+  .overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+  .overlayVisible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .mobileHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    width: 100%;
+    padding: 16px 20px;
+    border-bottom: 0.5px solid var(--border-soft, rgba(255,255,255,0.06));
+    background: var(--bg-surface, #1A1610);
+  }
+  .mobileHeaderTitle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-primary, #F5EDD8);
+    font-size: 14px;
+    font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .mobileHeaderBadge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--amber-primary, #D4860A);
+    color: #0F0D0A;
+    font-size: 10px;
+    font-weight: 700;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+  }
+  .mobileHeaderActions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .mobileHeaderClear {
+    display: inline-flex;
+    background: none;
+    border: none;
+    color: var(--amber-primary, #D4860A);
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    padding: 0;
+  }
+  .mobileHeaderClear:hover { color: var(--amber-bright, #F0A020); text-decoration: underline; }
+
+  .mobileCloseBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: none;
+    background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+    color: var(--text-primary, #F5EDD8);
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  /* Hide FilterPanel's OWN internal header on mobile — the block above
+     is now the single source of the "Filters" title / count / clear. */
+  .sidebarHeader {
+    display: none;
+  }
+
+  .sidebar {
+    width: 100%;
+    position: static;
+    top: auto;
+    height: auto;
+    max-height: none;
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+    padding: 20px;
+  }
+
+  .mobileApplyBtn {
+    display: block;
+    flex-shrink: 0;
+    margin: 0 16px 16px;
+    padding: 12px;
+    background: var(--amber-primary, #D4860A);
+    color: #0F0D0A;
+    border: none;
+    border-radius: 10px;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+}
+
+@media (max-width: 480px) {
+  .sidebar { padding: 16px; }
+}

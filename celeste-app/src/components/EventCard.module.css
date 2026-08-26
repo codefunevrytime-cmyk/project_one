@@ -1,0 +1,207 @@
+/* NOTE: colors now come from the shared token set (global.css dark
+   defaults + theme-light.css light overrides) — same tokens used by
+   VendorListingPage.css / ExplorePage.module.css. The old `@media
+   (prefers-color-scheme: dark)` block has been removed: it was
+   reacting to the user's OS dark-mode setting, not the in-app toggle,
+   which made this card ignore the theme switch entirely. Do not
+   re-add a prefers-color-scheme block here. */
+
+/* ── MINIMIZED CARD ── */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-medium);
+  border-radius: 14px;
+  overflow: visible;
+  cursor: pointer;
+  transition: transform 0.22s cubic-bezier(0.22,1,0.36,1), box-shadow 0.22s ease, border-color 0.18s ease;
+  position: relative;
+}
+.card:hover {
+  border-color: var(--amber-primary);
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-5px) !important;
+}
+
+/* Image area */
+.imgArea {
+  width: 100%;
+  height: 240px;
+  position: relative;
+  overflow: hidden;
+  border-radius: 13px 13px 0 0;
+}
+.img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.4s ease;
+  filter: brightness(0.9) saturate(0.92);
+}
+.card:hover .img {
+  transform: scale(1.05);
+  filter: brightness(0.98) saturate(1.05);
+}
+.imgGradient {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.emoji {
+  font-size: 54px;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.18));
+}
+.imgOverlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.40) 0%, transparent 55%);
+  pointer-events: none;
+}
+
+/* Verified badge — sits on top of the photo, translucent dark scrim
+   reads fine in both themes, intentionally not tokenized */
+
+
+/* Media/type badge — same reasoning as above */
+.mediaBadge {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  background: rgba(15,13,10,0.72);
+  backdrop-filter: blur(6px);
+  color: var(--amber-bright);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.4px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  border: 0.5px solid rgba(201,168,76,0.28);
+  z-index: 5;
+}
+
+/* Bookmark — bottom right */
+.bmBtn {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s, transform 0.15s;
+  z-index: 5;
+}
+.bmBtn:hover { transform: scale(1.1); }
+
+/* Body */
+.body { padding: 14px 15px 16px; }
+
+.tags {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+.tagType  { font-size:12px; padding:2px 9px; border-radius:10px; font-weight:500; background: var(--amber-subtle); color: var(--amber-bright); }
+.tagVenue { font-size:12px; padding:2px 9px; border-radius:10px; font-weight:500; background: rgba(111,207,151,0.14); color: #6fcf97; }
+.tagScale { font-size:12px; padding:2px 9px; border-radius:10px; font-weight:500; background: rgba(142, 174, 79, 0.14) ; color: #769a2e; }
+
+.title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  line-height: 1.4;
+  font-family: 'Playfair Display', serif;
+}
+
+/* Location + date row */
+.metaRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.location {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.date {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* Price */
+.priceRow {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+.priceVal {
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: 'Playfair Display', serif;
+}
+.priceUnit {
+  font-size: 13px;
+  color: var(--amber-primary);
+  margin-left: 3px;
+}
+
+.bottomRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.meta {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.planner { color: var(--text-faint); }
+
+/* Award tags */
+.awardTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.awardTag {
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  padding: 3px 9px;
+  border-radius: 20px;
+  border: 0.5px solid var(--border-soft);
+}
+
+/* Photography-style price (vendor cards reuse this) */
+.vendorPrice {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+
+/* ── Small phones ── */
+@media (max-width: 420px) {
+  .imgArea { height: 190px; }
+  .emoji { font-size: 40px; }
+  .priceVal { font-size: 23px; }
+  .title { font-size: 14px; }
+  .body { padding: 12px 13px 14px; }
+}

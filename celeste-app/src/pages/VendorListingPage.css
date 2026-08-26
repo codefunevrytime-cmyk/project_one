@@ -1,0 +1,789 @@
+/* src/pages/VendorListingPage.css */
+/* ── Vendor Listing Theme ──
+   NOTE: --bg-base, --bg-surface, --bg-card, --amber-primary, etc. are
+   declared in ONE place:
+     - dark defaults  -> global.css (:root, inside the dark-amber block)
+     - light overrides -> theme-light.css (html[data-theme="light"] block)
+   This file only *consumes* those tokens via var(...). Don't add another
+   local :root block here. */
+
+/* ── Page shell ── */
+.photo-page {
+  min-height: 100vh;
+  background: var(--bg-base);
+  font-family: 'DM Sans', sans-serif;
+}
+
+/* ── Header ── */
+.photo-page-header {
+  background: var(--bg-surface);
+  border-bottom: 0.5px solid var(--border-soft);
+  padding: 28px 0 20px;
+  position: sticky;
+  top: 64px;
+  z-index: 50;
+  box-shadow: 0 1px 0 rgba(212,134,10,0.08);
+}
+.photo-page-header-inner {
+  padding: 0 32px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.page-breadcrumb {
+  font-size: 11px;
+  color: var(--text-faint);
+  letter-spacing: 0.3px;
+  margin-bottom: 6px;
+}
+.page-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 30px;
+  font-weight: 400;
+  color: var(--text-primary);
+  letter-spacing: -0.3px;
+  line-height: 1;
+}
+.page-subtitle {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin-top: 5px;
+}
+.page-subtitle strong { color: var(--amber-bright); font-weight: 500; }
+
+.photo-page-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-elevated);
+  border: 0.5px solid var(--border-medium);
+  border-radius: 8px;
+  padding: 8px 14px;
+  transition: border-color 0.2s;
+}
+.search-box:focus-within {
+  border-color: var(--amber-border);
+  box-shadow: 0 0 0 3px rgba(212,134,10,0.08);
+}
+.search-input {
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  color: var(--text-primary);
+  outline: none;
+  width: 200px;
+  font-family: inherit;
+}
+.search-input::placeholder { color: var(--text-faint); }
+
+.sort-select {
+  appearance: none;
+  background: var(--bg-elevated);
+  border: 0.5px solid var(--border-medium);
+  border-radius: 8px;
+  padding: 8px 32px 8px 12px;
+  font-size: 12.5px;
+  font-family: inherit;
+  color: var(--text-primary);
+  cursor: pointer;
+  outline: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23A86808' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  transition: border-color 0.2s;
+}
+.sort-select:hover { border-color: var(--amber-border); }
+.sort-select option { background: var(--bg-elevated); }
+
+/* Desktop: invisible passthrough so filter-toggle-btn / sort-select sit
+   inline in .photo-page-header-right exactly as before. Mobile: becomes
+   a flex row pairing the two as equal-width pills (see 768px query). */
+.filter-sort-row {
+  display: contents;
+}
+
+.filter-toggle-btn {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 0.5px solid var(--border-medium);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: 12.5px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.2s;
+}
+.filter-toggle-btn:hover { border-color: var(--amber-border); }
+
+.filter-toggle-badge {
+  background: var(--amber-primary);
+  color: var(--bg-base);
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.view-toggle {
+  display: flex;
+  border: 0.5px solid var(--border-medium);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.view-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-family: inherit;
+  background: var(--bg-elevated);
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: background 0.15s, color 0.15s;
+}
+.view-btn.active {
+  background: var(--amber-primary);
+  color: var(--bg-base);
+  font-weight: 600;
+}
+.view-btn + .view-btn { border-left: 0.5px solid var(--border-soft); }
+
+/* ── Body layout ── */
+.page-body {
+  display: flex;
+  min-height: calc(100vh - 64px);
+  align-items: start;
+}
+
+/* ── Sidebar ── */
+.filter-sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  background: var(--bg-surface);
+  border-right: 0.5px solid var(--border-soft);
+  padding: 24px 20px 48px;
+  position: sticky;
+  top: 64px;
+  min-height: calc(100vh - 64px);
+  overflow-y: auto;
+  box-shadow: 1px 0 0 rgba(212,134,10,0.06);
+}
+
+.photo-page .filter-sidebar {
+  top: 148px;
+  max-height: calc(100vh - 148px);
+}
+
+/* ── Mobile filter drawer wrapper ──────────────────────────────────
+   Desktop: `display: contents` makes this div invisible to layout, so
+   .filter-sidebar sits directly in the .page-body flex row exactly as
+   before. Mobile (<=900px, see below): becomes a fixed full-screen
+   slide-in panel. */
+.filter-drawer {
+  display: contents;
+}
+.filter-backdrop {
+  display: none;
+}
+
+/* Single mobile-drawer header (title + count badge + Clear all + close).
+   FilterPanel's own internal header is hidden on mobile via CSS below so
+   "Filters" never renders twice. Hidden entirely on desktop. */
+.filter-drawer-close {
+  display: none;
+}
+.filter-drawer-title,
+.filter-drawer-badge,
+.filter-drawer-actions,
+.filter-drawer-clear,
+.filter-drawer-x,
+.filter-drawer-apply {
+  display: none;
+}
+
+.filter-sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+.filter-sidebar-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.filter-count-badge {
+  background: var(--amber-primary);
+  color: var(--bg-base);
+  font-size: 10px;
+  font-weight: 600;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.clear-all-btn {
+  font-size: 11.5px;
+  color: var(--amber-primary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0;
+  transition: color 0.15s;
+}
+.clear-all-btn:hover { color: var(--amber-bright); text-decoration: underline; }
+
+.filter-section {
+  border-top: 0.5px solid var(--border-soft);
+  padding: 14px 0;
+}
+.filter-section:last-child { padding-bottom: 0; }
+
+.filter-section-title {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 0;
+}
+.filter-body { margin-top: 12px; }
+
+.chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.check-chip {
+  padding: 5px 11px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  border: 0.5px solid var(--border-medium);
+  cursor: pointer;
+  color: var(--text-muted);
+  background: transparent;
+  transition: all 0.15s;
+  user-select: none;
+}
+.check-chip:hover { border-color: var(--amber-border); color: var(--amber-bright); }
+.check-chip.checked {
+  background: var(--amber-primary);
+  color: var(--bg-base);
+  border-color: var(--amber-primary);
+  font-weight: 500;
+}
+
+.rating-options { display: flex; flex-direction: column; gap: 6px; }
+.rating-option {
+  display: flex;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  border: 0.5px solid transparent;
+  transition: all 0.15s;
+}
+.rating-option:hover { background: var(--bg-hover); color: var(--text-secondary); }
+.rating-option.selected {
+  background: var(--amber-subtle);
+  color: var(--amber-bright);
+  border-color: var(--amber-border);
+}
+
+/* ── Results area ── */
+.results-area {
+  flex: 1;
+  min-width: 0;
+  padding: 24px 28px 48px;
+}
+
+/* ── Vendor grid ── */
+.vendor-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px;
+}
+@media (max-width: 1200px) { .vendor-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 720px)  { .vendor-grid { grid-template-columns: 1fr; } }
+
+/* ── Mobile: search full-width, Filters + Sort as two equal pills ── */
+@media (max-width: 768px) {
+  .photo-page-header {
+    top: 60px;
+    padding: 20px 0 16px;
+  }
+  .photo-page-header-inner {
+    padding: 0 1rem;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .photo-page-header-right {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: 10px;
+  }
+  .search-box {
+    width: 100%;
+    border-radius: 999px;
+    padding: 12px 18px;
+  }
+  .search-input {
+    width: 100%;
+  }
+
+  .filter-sort-row {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+  }
+  .filter-toggle-btn,
+  .sort-select {
+    display: inline-flex;
+    flex: 1;
+    width: auto;
+    justify-content: center;
+    text-align: center;
+    text-align-last: center;
+    border-radius: 999px;
+    padding: 12px 16px;
+  }
+
+  .view-toggle {
+    display: none;
+  }
+  .results-area {
+    padding: 16px 1rem 32px;
+  }
+  .vendor-list .vendor-card {
+    grid-template-columns: 1fr;
+  }
+  .vendor-list .vendor-img-wrap,
+  .vendor-list .vendor-img {
+    border-radius: 10px 10px 0 0;
+  }
+  .vendor-list .vendor-img-wrap {
+    height: 200px;
+  }
+}
+
+/* List view */
+.vendor-list {
+  grid-template-columns: 1fr;
+}
+.vendor-list .vendor-card {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  border-radius: 10px;
+}
+.vendor-list .vendor-img-wrap { height: 220px; border-radius: 10px 0 0 10px; }
+.vendor-list .vendor-img { border-radius: 10px 0 0 10px; }
+
+/* ── Vendor Card ── */
+.vendor-card {
+  background: var(--bg-card);
+  border-radius: 14px;
+  border: 1px solid var(--border-medium);
+  overflow: hidden;
+  transition: box-shadow 0.25s, transform 0.25s, border-color 0.25s;
+  cursor: pointer;
+}
+.vendor-card:hover {
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-5px);
+  border-color: var(--amber-border);
+}
+
+.vendor-img-wrap {
+  position: relative;
+  height: 240px;
+  overflow: hidden;
+}
+.vendor-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s;
+  filter: brightness(0.88) saturate(0.9);
+}
+.vendor-card:hover .vendor-img {
+  transform: scale(1.05);
+  filter: brightness(0.95) saturate(1.05);
+}
+
+.vendor-media-badge {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  background: rgba(15,13,10,0.75);
+  backdrop-filter: blur(6px);
+  color: var(--amber-bright);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.4px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  border: 0.5px solid rgba(212,134,10,0.3);
+}
+.vendor-verified {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(15,13,10,0.82);
+  backdrop-filter: blur(6px);
+  color: var(--amber-bright);
+  font-size: 10px;
+  font-weight: 500;
+  padding: 3px 9px;
+  border-radius: 20px;
+  border: 0.5px solid rgba(212,134,10,0.3);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.vendor-info { padding: 14px 16px 18px; }
+
+.vendor-top-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.vendor-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+  font-family: 'Playfair Display', serif;
+}
+.vendor-rating {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.vendor-rating-val { font-size: 12px; font-weight: 500; color: var(--amber-bright); }
+.vendor-reviews { font-size: 11px; color: var(--text-faint); }
+
+.vendor-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 9px;
+}
+.vendor-location {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.vendor-date { font-size: 11px; color: var(--text-faint); }
+
+.vendor-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 12px;
+}
+.type-tag {
+  font-size: 10.5px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  background: var(--amber-subtle);
+  color: var(--amber-bright);
+  border: 0.5px solid var(--amber-border);
+  font-weight: 400;
+}
+
+.vendor-bottom-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.vendor-price { display: flex; align-items: baseline; gap: 2px; }
+.price-symbol { font-size: 13px; color: var(--text-secondary); }
+.price-val {
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--text-primary);
+  font-family: 'Playfair Display', serif;
+}
+.price-unit { font-size: 11px; color: var(--text-faint); margin-left: 3px; }
+
+.vendor-cta {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--amber-primary);
+  background: var(--amber-subtle);
+  border: 0.5px solid var(--amber-border);
+  padding: 7px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.vendor-cta:hover {
+  background: var(--amber-primary);
+  color: var(--bg-base);
+  border-color: var(--amber-primary);
+}
+
+.vendor-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.award-tag {
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  padding: 3px 9px;
+  border-radius: 20px;
+  border: 0.5px solid var(--border-soft);
+}
+
+/* ── Empty state ── */
+.empty-state {
+  text-align: center;
+  padding: 80px 20px;
+  color: var(--text-muted);
+}
+.empty-icon { font-size: 40px; margin-bottom: 16px; }
+.empty-state h3 { font-size: 16px; font-weight: 500; color: var(--text-primary); margin-bottom: 8px; }
+.empty-state p { font-size: 13px; }
+.link-btn {
+  background: none; border: none;
+  color: var(--amber-primary); cursor: pointer;
+  font-family: inherit; font-size: inherit;
+  text-decoration: underline; padding: 0;
+}
+.link-btn:hover { color: var(--amber-bright); }
+
+/* ── Mobile responsive: sidebar becomes a full-screen drawer ── */
+@media (max-width: 900px) {
+  .results-area {
+    padding: 20px 16px 48px;
+  }
+  .photo-page-header-inner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .vendor-grid { grid-template-columns: repeat(2, 1fr); }
+
+  .filter-toggle-btn {
+    display: inline-flex;
+  }
+
+  .filter-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 1000;
+  }
+
+  /* Full-screen drawer. `inset: 0` is used instead of separate
+     top/left/right/bottom + height so the box is always anchored to the
+     real viewport edges — avoids the 100dvh-vs-address-bar mismatch that
+     was letting page content bleed through at the bottom on scroll. */
+  .filter-drawer {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    background: var(--bg-surface);
+    z-index: 1001;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.35);
+    overflow: hidden;
+    overscroll-behavior: contain; /* stop scroll from chaining out of the drawer */
+  }
+
+  .filter-drawer-open {
+    transform: translateX(0);
+  }
+
+  /* Single mobile header: title + badge on the left, Clear all + X on
+     the right. FilterPanel's own internal header is hidden below it. */
+  .filter-drawer-close {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    width: 100%;
+    padding: 16px 20px;
+    border-bottom: 0.5px solid var(--border-soft);
+    background: var(--bg-surface);
+  }
+  .filter-drawer-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .filter-drawer-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--amber-primary);
+    color: var(--bg-base);
+    font-size: 10px;
+    font-weight: 700;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+  }
+  .filter-drawer-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .filter-drawer-clear {
+    display: inline-flex;
+    background: none;
+    border: none;
+    color: var(--amber-primary);
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    padding: 0;
+  }
+  .filter-drawer-clear:hover { color: var(--amber-bright); text-decoration: underline; }
+  .filter-drawer-x {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: none;
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  /* Hide FilterPanel's OWN internal header on mobile — the block above
+     is now the single source of the "Filters" title / count / clear. */
+  .filter-sidebar-head {
+    display: none;
+  }
+
+  .filter-sidebar,
+  .photo-page .filter-sidebar {
+    width: 100%;
+    flex: 1;
+    position: static;
+    top: auto;
+    height: auto;
+    max-height: none;
+    min-height: 0;
+    border-right: none;
+    border-bottom: none;
+    box-shadow: none;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding: 20px;
+  }
+
+  .filter-drawer-apply {
+    display: block;
+    flex-shrink: 0;
+    margin: 12px 16px 16px;
+    padding: 13px;
+    background: var(--amber-primary);
+    color: var(--bg-base);
+    border: none;
+    border-radius: 10px;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+}
+
+@media (max-width: 540px) {
+  .vendor-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 480px) {
+  .page-title { font-size: 24px; }
+  .page-breadcrumb { margin-bottom: 4px; }
+  .vendor-top-row { flex-wrap: wrap; }
+  .vendor-img-wrap { height: 200px; }
+  .price-val { font-size: 19px; }
+  .vendor-bottom-row { flex-wrap: wrap; gap: 8px; }
+  .vendor-cta { width: 100%; text-align: center; }
+  .filter-sidebar { padding: 14px 1rem 18px; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   FIX: Selected filter chips / rating options weren't visually
+   highlighted on VendorListingPage. The underlying <FilterOption>
+   component already adds the "is-checked" class whenever checked={true};
+   this is the matching style rule scoped to this page's class names.
+   ───────────────────────────────────────────────────────────────────── */
+.check-chip.is-checked {
+  background: #D4860A;
+  color: #0F0D0A;
+  border-color: #D4860A;
+  font-weight: 600;
+}
+.check-chip.is-checked:hover {
+  background: #c07a0a;
+  border-color: #c07a0a;
+}
+.rating-option.is-checked {
+  background: rgba(212, 134, 10, 0.14);
+  border-color: rgba(212, 134, 10, 0.5);
+  color: #D4860A;
+}
+.rating-option.is-checked:hover {
+  background: rgba(212, 134, 10, 0.2);
+}

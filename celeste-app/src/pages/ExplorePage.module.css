@@ -1,0 +1,261 @@
+/* NOTE: colors now come from the shared token set defined once in
+   global.css (dark defaults) and theme-light.css (light overrides) —
+   the same tokens VendorListingPage.css uses. Previously this file had
+   its own hardcoded hex colors PLUS an `@media (prefers-color-scheme:
+   dark)` block, which reacted to the user's OS dark-mode setting
+   instead of the in-app toggle. That media query has been removed —
+   do not re-add it here. */
+
+.layout {
+  display: flex;
+  min-height: calc(100vh - 64px);
+  background: var(--bg-base);
+}
+
+.main {
+  flex: 1;
+  padding: 20px 24px 40px;
+  min-width: 0;
+  overflow-y: auto;
+  background: var(--bg-base);
+}
+
+.topBar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+/* Mobile-only "Filters" trigger — opens the Sidebar as a slide-in
+   drawer (see Sidebar.module.css). Hidden entirely on desktop, where
+   the sidebar is already visible in the layout. */
+.filterToggleBtn {
+  display: none;
+}
+.filterToggleIcon {
+  font-size: 12px;
+}
+.filterToggleBadge {
+  background: var(--amber-primary);
+  color: #0F0D0A;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────── */
+
+/* Tablet: sidebar becomes a drawer, so the main column just takes the
+   full width instead of stacking under it */
+@media (max-width: 900px) {
+  .layout {
+    flex-direction: column;
+    min-height: auto;
+  }
+  .main {
+    padding: 16px 18px 32px;
+  }
+  .filterToggleBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 42px;
+    padding: 0 16px;
+    border-radius: 10px;
+    border: 1.5px solid var(--border-medium);
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: 'Jost', inherit;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .filterToggleBtn:active {
+    border-color: var(--amber-primary);
+  }
+}
+
+/* Small tablet / large phone: search + sort stack, sort goes full width */
+@media (max-width: 640px) {
+  .topBar {
+    flex-wrap: wrap;
+  }
+  .filterToggleBtn {
+    flex-basis: 50%;
+    justify-content: center;
+        border-radius: 999px;
+
+  }
+  .searchBox {
+    flex-basis: 100%;
+        border-radius: 999px;
+
+  }
+  .sortSelect {
+    flex: 1;
+    width: 100%;
+        border-radius: 999px;
+  }
+}
+
+/* Phone */
+@media (max-width: 480px) {
+  .main {
+    padding: 14px 14px 28px;
+  }
+  .searchHint {
+    display: none;
+  }
+  .grid {
+    gap: 14px;
+  }
+  .resultsCount {
+    margin-bottom: 12px;
+  }
+}
+
+.searchBox {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-elevated);
+  border: 1.5px solid var(--border-medium);
+  border-radius: 999px;
+  padding: 0 14px;
+  height: 42px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.searchBox:focus-within {
+  border-color: var(--amber-primary);
+  box-shadow: 0 0 0 3px var(--amber-subtle);
+}
+.searchIcon {
+  color: var(--text-faint);
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.searchInput {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+  color: var(--text-primary);
+  flex: 1;
+  font-family: 'Jost', inherit;
+}
+.searchInput::placeholder { color: var(--text-faint); }
+.clearSearch {
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color 0.12s;
+}
+.clearSearch:hover { color: var(--amber-bright); }
+
+.searchHint {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg-hover);
+  padding: 2px 7px;
+  border-radius: 5px;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.sortSelect {
+  height: 42px;
+  border: 1.5px solid var(--border-medium);
+  padding: 0 14px;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+  font-family: 'Jost', inherit;
+  cursor: pointer;
+  outline: none;
+  white-space: nowrap;
+  transition: border-color 0.15s;
+}
+.sortSelect:focus { border-color: var(--amber-primary); }
+
+/* Filter chips */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+  align-items: center;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  background: var(--amber-subtle);
+  color: var(--amber-bright);
+  border: 1px solid var(--amber-border);
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s, opacity 0.12s;
+}
+.chip:hover { background: var(--bg-hover); opacity: 1; }
+.chipX { font-size: 11px; line-height: 1; opacity: 0.6; }
+.chipClear {
+  font-size: 12px;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  font-family: inherit;
+  transition: color 0.12s;
+}
+.chipClear:hover { color: var(--amber-bright); }
+
+/* Results count */
+.resultsCount {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+  font-family: 'Jost', inherit;
+}
+.resultsCount strong { color: var(--text-primary); font-weight: 600; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px;
+}
+
+@media (max-width: 1024px) {
+  .grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+  .grid { grid-template-columns: 1fr; }
+}
+
+.empty {
+  text-align: center;
+  padding: 80px 20px;
+  color: var(--text-faint);
+}
+.emptyIcon { font-size: 42px; margin-bottom: 14px; }
+.emptyTitle { font-size: 16px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; font-family: 'Playfair Display', serif; }
+.emptySub { font-size: 13px; color: var(--text-faint); }

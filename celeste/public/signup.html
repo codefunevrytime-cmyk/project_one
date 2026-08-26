@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Céleste — Create Account</title>
+<link rel="stylesheet" href="/css/lo.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  /* Override panel for tighter signup — everything fits without scrolling */
+  .panel {
+    padding: 14px 32px 16px;
+    justify-content: flex-start;
+    overflow: hidden; /* no scroll */
+  }
+  .form-title { font-size: 22px; margin-bottom: 2px; }
+  .form-sub   { margin-bottom: 12px; font-size: 12px; }
+  .field      { margin-bottom: 8px; }
+  .field label { font-size: 10px; margin-bottom: 4px; }
+  .field input { padding: 9px 14px; font-size: 13px; border-radius: 10px; }
+  .field input.has-icon { padding-right: 40px; }
+  .eye-btn    { top: 50%; transform: translateY(2px); right: 10px; }
+  .field-err  { font-size: 10px; min-height: 11px; margin-top: 2px; }
+  .strength-wrap { margin-top: 4px; }
+  .strength-label { font-size: 10px; min-height: 12px; }
+  .strength-bar { gap: 3px; }
+  .strength-seg { height: 2px; }
+  .terms { margin-bottom: 10px; font-size: 11px; }
+  .btn-main { padding: 11px; margin-bottom: 10px; font-size: 14px; }
+  .or-row { margin: 8px 0; }
+  .btn-google { padding: 9px; font-size: 13px; }
+  .switch-text { margin-top: 10px; font-size: 12px; }
+  .field-row { gap: 8px; }
+  .options-row { margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+
+<div class="scene">
+  <div class="particles" id="particles"></div>
+
+  <!-- Left branding -->
+  <div class="left">
+    <div class="l-bg"></div>
+    <div class="orb orb1"></div>
+    <div class="orb orb2"></div>
+    <div class="orb orb3"></div>
+    <div class="scan-line"></div>
+    <div class="stub" style="top:32px;right:22px;width:90px;animation:stubFloat 3.5s ease-in-out infinite alternate">
+      <div class="stub-bar"></div><div class="stub-bar" style="width:70%"></div><div class="stub-bar"></div>
+    </div>
+    <div class="stub" style="top:118px;right:38px;width:68px;animation:stubFloat 4.2s ease-in-out infinite alternate-reverse;opacity:.65">
+      <div class="stub-bar" style="width:80%"></div><div class="stub-bar"></div>
+    </div>
+    <div class="stub" style="top:184px;right:12px;width:52px;animation:stubFloat 3s ease-in-out infinite alternate;animation-delay:-1s;opacity:.4">
+      <div class="stub-bar"></div><div class="stub-bar" style="width:50%"></div>
+    </div>
+    <div class="l-inner">
+      <div class="badge"><div class="badge-dot"></div>Event Planning Studio</div>
+      <div class="l-title">Make every<br>moment <em>unforgettable.</em></div>
+      <div class="l-sub">Plan, manage, and celebrate every event with elegance — from intimate dinners to grand galas.</div>
+      <div class="stats">
+        <div><div class="stat-num" id="c1">0+</div><div class="stat-lbl">Events Hosted</div></div>
+        <div><div class="stat-num" id="c2">0+</div><div class="stat-lbl">Happy Clients</div></div>
+        <div><div class="stat-num" id="c3">0</div><div class="stat-lbl">Cities</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right panel -->
+  <div class="panel-wrap">
+    <div class="panel-topbar">
+      <a href="/login" class="back-btn">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Back
+      </a>
+      <div class="topbar-logo">
+        <div class="topbar-logo-icon">
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+            <path d="M10 2l1.8 5.5H18l-4.9 3.6 1.8 5.5L10 13l-4.9 3.6 1.8-5.5L2 7.5h6.2L10 2z" fill="#ffa01e"/>
+          </svg>
+        </div>
+        <span class="topbar-logo-name">Céleste</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="form-title">Join Céleste 🌟</div>
+      <div class="form-sub">Start planning extraordinary events today</div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>First name</label>
+<input type="text" id="fname-input" placeholder="Aria" autocomplete="given-name" oninput="this.value=this.value.replace(/[^A-Za-z]/g,'')"/>          <div class="field-err" id="fname-err"></div>
+        </div>
+        <div class="field">
+          <label>Last name</label>
+          <input type="text" id="lname-input" placeholder="Sharma" autocomplete="family-name" oninput="this.value=this.value.replace(/[^A-Za-z]/g,'')"/>
+          <div class="field-err" id="lname-err"></div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Email address</label>
+        <input type="email" id="email-input" placeholder="you@example.com" autocomplete="email"/>
+        <div class="field-err" id="email-err"></div>
+      </div>
+
+      <div class="field">
+        <label>Phone <span style="text-transform:none;font-size:10px;color:#c5b9aa">(optional)</span></label>
+        <input type="tel" id="phone-input" placeholder="+91 98765 43210" autocomplete="tel"/>
+        <div class="field-err" id="phone-err"></div>
+      </div>
+
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="pw-input" placeholder="Create a strong password" class="has-icon" autocomplete="new-password" oninput="onPwInput(this.value)"/>
+        <button class="eye-btn" type="button" id="pw-eye" onclick="toggleEye('pw-input','pw-eye')" aria-label="Show/hide password">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+        <div class="strength-wrap">
+          <div class="strength-bar">
+            <div class="strength-seg" id="seg1"></div>
+            <div class="strength-seg" id="seg2"></div>
+            <div class="strength-seg" id="seg3"></div>
+            <div class="strength-seg" id="seg4"></div>
+          </div>
+          <div class="strength-label" id="s-label"></div>
+        </div>
+        <div class="field-err" id="pw-err"></div>
+      </div>
+
+      <div class="field">
+        <label>Confirm password</label>
+        <input type="password" id="pw2-input" placeholder="Repeat your password" class="has-icon" autocomplete="new-password" oninput="onConfirmInput()"/>
+        <button class="eye-btn" type="button" id="pw2-eye" onclick="toggleEye('pw2-input','pw2-eye')" aria-label="Show/hide confirm password">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+        <div class="field-err" id="pw2-err"></div>
+      </div>
+
+      <div class="terms" id="terms-row">
+        <input type="checkbox" id="s-terms"/>
+        <span>I agree to the <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a> of Céleste Events.</span>
+      </div>
+
+      <button class="btn-main" id="signup-btn" onclick="handleSignup()">
+        <div class="btn-shine"></div>
+        Create My Account
+      </button>
+
+      <div class="or-row"><span>or</span></div>
+
+      <button class="btn-google" type="button">
+        <svg width="16" height="16" viewBox="0 0 24 24">
+          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+          <path d="M5.84 14.09c-.22-.66-.35-2.09 0 0 .13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+        </svg>
+        Sign up with Google
+      </button>
+
+      <div class="switch-text">
+        Already have an account? <a href="/login">Sign in →</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/shared.js"></script>
+<script>
+let pwScore = 0;
+
+function onPwInput(val) {
+  pwScore = checkStrength(val, ['seg1','seg2','seg3','seg4'], 's-label');
+  clearField('pw-input','pw-err');
+  onConfirmInput(); // re-check confirm live
+}
+
+function onConfirmInput() {
+  const pw  = document.getElementById('pw-input').value;
+  const pw2 = document.getElementById('pw2-input').value;
+  if (!pw2) return clearField('pw2-input','pw2-err');
+  if (pw === pw2) setErr('pw2-input','pw2-err','');
+  else setErr('pw2-input','pw2-err','Passwords do not match');
+}
+
+async function handleSignup() {
+  let hasErr = false;
+
+  const fname   = document.getElementById('fname-input').value.trim();
+  const lname   = document.getElementById('lname-input').value.trim();
+  const email   = document.getElementById('email-input').value.trim();
+  const phone   = document.getElementById('phone-input').value.trim();
+  const pw      = document.getElementById('pw-input').value;
+  const pw2     = document.getElementById('pw2-input').value;
+  const terms   = document.getElementById('s-terms').checked;
+
+  // First name
+  if (!fname || fname.length < 2) {
+    setErr('fname-input','fname-err', fname ? 'Too short' : 'Required');
+    shakeInput('fname-input'); hasErr = true;
+  } else clearField('fname-input','fname-err');
+
+  // Last name
+  if (!lname) {
+    setErr('lname-input','lname-err','Required');
+    shakeInput('lname-input'); hasErr = true;
+  } else clearField('lname-input','lname-err');
+
+  // Email
+  if (!email) {
+    setErr('email-input','email-err','Email is required');
+    shakeInput('email-input'); hasErr = true;
+  } else if (!isValidEmail(email)) {
+    setErr('email-input','email-err','Enter a valid email');
+    shakeInput('email-input'); hasErr = true;
+  } else clearField('email-input','email-err');
+
+  // Phone (optional)
+  if (phone && !isValidPhone(phone)) {
+    setErr('phone-input','phone-err','Enter a valid phone number');
+    shakeInput('phone-input'); hasErr = true;
+  } else clearField('phone-input','phone-err');
+
+  // Password
+  if (!pw) {
+    setErr('pw-input','pw-err','Password is required');
+    shakeInput('pw-input'); hasErr = true;
+  } else if (pw.length < 8) {
+    setErr('pw-input','pw-err','Must be at least 8 characters');
+    shakeInput('pw-input'); hasErr = true;
+  } else if (pwScore < 2) {
+    setErr('pw-input','pw-err','Too weak — add numbers or symbols');
+    shakeInput('pw-input'); hasErr = true;
+  } else clearField('pw-input','pw-err');
+
+  // Confirm
+  if (!pw2) {
+    setErr('pw2-input','pw2-err','Please confirm your password');
+    shakeInput('pw2-input'); hasErr = true;
+  } else if (pw !== pw2) {
+    setErr('pw2-input','pw2-err','Passwords do not match');
+    shakeInput('pw2-input'); hasErr = true;
+  } else clearField('pw2-input','pw2-err');
+
+  // Terms
+  if (!terms) {
+    const row = document.getElementById('terms-row');
+    row.classList.add('err-terms');
+    setTimeout(() => row.classList.remove('err-terms'), 2000);
+    hasErr = true;
+  }
+
+  if (hasErr) return;
+
+  const btn = document.getElementById('signup-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Creating account…';
+
+  try {
+    const data = await apiPost('/api/signup', {
+      firstName: fname, lastName: lname,
+      email, phone, password: pw,
+      confirmPassword: pw2, terms: 'true'
+    });
+
+    if (data.success) {
+  showToast(`🎉 Welcome to Céleste, ${data.name}!`);
+  setTimeout(() => window.location.href = data.redirect, 900);
+    }
+    else {
+      btn.disabled = false;
+      btn.innerHTML = '<div class="btn-shine"></div>Create My Account';
+      applyServerErrors(data.errors || []);
+      if (data.errors && data.errors.length) showToast(data.errors[0].msg, 'error');
+    }
+  } catch(e) {
+    btn.disabled = false;
+    btn.innerHTML = '<div class="btn-shine"></div>Create My Account';
+    showToast('Network error — please try again', 'error');
+  }
+}
+
+// Enter submits
+document.addEventListener('keydown', e => { if (e.key === 'Enter') handleSignup(); });
+
+// Blur validations
+document.getElementById('email-input').addEventListener('blur', function() {
+  if (!this.value) return clearField('email-input','email-err');
+  if (!isValidEmail(this.value)) setErr('email-input','email-err','Enter a valid email');
+  else setErr('email-input','email-err','');
+});
+document.getElementById('phone-input').addEventListener('blur', function() {
+  if (!this.value) return clearField('phone-input','phone-err');
+  if (!isValidPhone(this.value)) setErr('phone-input','phone-err','Enter a valid phone number');
+  else setErr('phone-input','phone-err','');
+});
+</script>
+</body>
+</html>

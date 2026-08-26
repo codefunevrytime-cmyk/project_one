@@ -1,0 +1,16 @@
+# Generated dependencies and build output
+node_modules/
+**/node_modules/
+dist/
+build/
+
+# Local configuration and diagnostics
+.env
+.env.*
+!.env.example
+*.log
+*-dev.err
+
+# Runtime uploads must live outside Git
+uploads/
+**/uploads/
