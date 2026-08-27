@@ -68,6 +68,13 @@ const pool    = require('../db');
 const jwt     = require('jsonwebtoken');
 const { emitEventUpdate, emitAddonsUpdate } = require('../lib/emitEventUpdate');
 const adminAuth = require('../middleware/adminAuth');
+const rateLimit = require('../middleware/rateLimit');
+
+// Same per-IP throttle pattern used in auth.js / admin.js / etc. This
+// router was previously unthrottled — event creation (POST /) and vendor
+// slot responses were both callable at unlimited rate per IP.
+router.use(rateLimit({ max: 30 }));
+
 // ── Auto-migrate ──────────────────────────────────────────────────────────────
 async function ensureTables() {
   // Main event requests table

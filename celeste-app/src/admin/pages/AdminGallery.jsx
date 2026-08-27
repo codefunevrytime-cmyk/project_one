@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Star } from 'lucide-react';
 import { API_URL } from '../../config/api';
 
 const API = API_URL;
@@ -205,7 +204,6 @@ export default function AdminGallery() {
       <div style={{ marginBottom: 32 }}>
        
         <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 26, color: '#1a1008', marginBottom: 4 }}>Gallery</h2>
-               <Star size={30} color="red" />
         <p style={{ fontSize: 13, color: '#9e8e7a' }}>Upload and manage event photos with multi-image carousels</p>
       
       </div>

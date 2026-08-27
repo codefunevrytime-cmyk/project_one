@@ -8,10 +8,17 @@ const crypto   = require('crypto');
 const { emitEventUpdate, emitAddonsUpdate } = require('../lib/emitEventUpdate');
 const adminAuth = require('../middleware/adminAuth');
 const { vendorOrAdminAuth, ownsVendor } = require('../middleware/vendorOrAdminAuth');
+const rateLimit = require('../middleware/rateLimit');
 const razorpay = new Razorpay({
   key_id:     process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
+
+// Same per-IP throttle pattern used in auth.js / admin.js / etc. This
+// router was previously unthrottled — Razorpay order-creation routes
+// (advance/balance/addon/deposit topup) and the deposit admin actions
+// were all callable at unlimited rate per IP.
+router.use(rateLimit({ max: 30 }));
 
 // Default platform commission — now a FLAT percentage of each vendor's
 // FULL quoted price, taken once, regardless of how many payments (advance/

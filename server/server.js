@@ -97,9 +97,10 @@ const io = new Server(server, {
 
 // Identify each connecting socket from its JWT (same token the client
 // already sends as "Authorization: Bearer <token>" on REST calls).
-// TODO: confirm the actual shape of your decoded JWT payload — this
-// assumes { id, role } based on the adminToken/token pattern seen in the
-// frontend. Adjust the field names once you confirm against routes/auth.js.
+// Two token shapes exist in this app:
+//   - client/admin tokens: { id, role }        (see routes/auth.js)
+//   - vendor tokens:       { vendorUserId }     (see routes/vendorAuth.js)
+// Both are read here so every connection type lands in the right room.
 io.use((socket, next) => {
   const token = socket.handshake.auth?.token || getToken({ headers: socket.handshake.headers });
   if (!token) {
@@ -110,7 +111,8 @@ io.use((socket, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     socket.userId = decoded.id;
     socket.isAdmin = decoded.role === 'admin';
-    console.log(`[socket] token verified — id=${decoded.id} role=${decoded.role || '(none)'}`);
+    socket.vendorUserId = decoded.vendorUserId; // vendor tokens carry this instead of id/role
+    console.log(`[socket] token verified — id=${decoded.id || '(none)'} role=${decoded.role || '(none)'} vendorUserId=${decoded.vendorUserId || '(none)'}`);
   } catch (err) {
     console.warn('[socket] auth FAILED — invalid/expired token:', err.message);
   }
@@ -126,7 +128,11 @@ io.on('connection', (socket) => {
     socket.join(`client:${socket.userId}`);
     console.log(`[socket] ${socket.id} joined room "client:${socket.userId}"`);
   }
-  if (!socket.isAdmin && !socket.userId) {
+  if (socket.vendorUserId) {
+    socket.join(`vendor:${socket.vendorUserId}`);
+    console.log(`[socket] ${socket.id} joined room "vendor:${socket.vendorUserId}"`);
+  }
+  if (!socket.isAdmin && !socket.userId && !socket.vendorUserId) {
     console.log(`[socket] ${socket.id} connected but joined NO room (no valid token)`);
   }
 

@@ -7,6 +7,13 @@ const fs = require('fs');
 const adminAuth = require('../middleware/adminAuth');
 const { vendorOrAdminAuth, ownsVendor } = require('../middleware/vendorOrAdminAuth');
 const { validateImageUpload } = require('../lib/imageUpload');
+const rateLimit = require('../middleware/rateLimit');
+
+// Same per-IP throttle pattern used in auth.js / admin.js / etc. This
+// router was previously unthrottled — portfolio image uploads in
+// particular (multipart, disk writes) were callable at unlimited rate
+// per IP.
+router.use(rateLimit({ max: 30 }));
 
 const uploadDir = path.join(__dirname, '..', 'uploads');
 fs.mkdirSync(uploadDir, { recursive: true });

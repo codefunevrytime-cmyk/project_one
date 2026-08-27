@@ -23,6 +23,24 @@ function parseEventDetails(message) {
   return result;
 }
 
+// Escapes the five HTML-significant characters before any value is
+// interpolated into a string that gets handed to document.write(). Every
+// field below can ultimately come from user input (signup name, an
+// event_name the client typed, etc.), so without this a value like
+// `<img src=x onerror=alert(1)>` as a client name would execute in the
+// receipt popup. Values that are already known-safe (amounts we computed,
+// dates we formatted) don't strictly need this, but it's applied uniformly
+// below so nothing new added to `rows` later can slip through unescaped.
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (ch) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[ch]));
+}
+
 function generateReceipt(payment) {
   const amtPaid = Math.round(payment.amount / 100);
   const eventDate = payment.event_date
@@ -51,7 +69,7 @@ function generateReceipt(payment) {
     <html>
     <head>
       <meta charset="utf-8" />
-      <title>Receipt - BKG-${payment.booking_id}</title>
+      <title>Receipt - BKG-${escapeHtml(payment.booking_id)}</title>
       <style>
         body { font-family: Georgia, serif; background: #fff; color: #1a1208; padding: 48px; max-width: 600px; margin: 0 auto; }
         h1 { font-size: 22px; font-weight: 400; border-bottom: 2px solid #C9A96E; padding-bottom: 16px; margin-bottom: 24px; }
@@ -70,11 +88,11 @@ function generateReceipt(payment) {
       <table>
         ${rows.map(([label, val]) => `
           <tr class="${label === 'Amount paid' ? 'total-row' : ''}">
-            <td>${label}</td>
-            <td>${val}</td>
+            <td>${escapeHtml(label)}</td>
+            <td>${escapeHtml(val)}</td>
           </tr>`).join('')}
       </table>
-      <div class="footer">Generated on ${new Date().toLocaleString('en-IN')}. This is a system-generated receipt.</div>
+      <div class="footer">Generated on ${escapeHtml(new Date().toLocaleString('en-IN'))}. This is a system-generated receipt.</div>
       <script>window.onload = () => window.print();</script>
     </body>
     </html>
