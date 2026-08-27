@@ -5,18 +5,33 @@ const multer  = require('multer');
 const path    = require('path');
 const fs      = require('fs');
 const adminAuth = require('../middleware/adminAuth');
-const { validateImageUpload } = require('../lib/imageUpload');
+const { finalizeImageUpload } = require('../lib/imageUpload');
 
 const uploadDir = path.join(__dirname, '..', 'uploads');
 fs.mkdirSync(uploadDir, { recursive: true });
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
+  // Temp name only — the real extension is assigned by finalizeImageUpload()
+  // below, after it sniffs the file's actual magic bytes. Never derive it
+  // from file.originalname (client-controlled — see lib/imageUpload.js).
   filename:    (req, file, cb) => {
     const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, unique + path.extname(file.originalname));
+    cb(null, unique + '.tmp');
   }
 });
 const upload = multer({ storage, limits: { fileSize: 8 * 1024 * 1024 }, fileFilter: (req, file, cb) => cb(null, ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) });
+
+// Must match LANDING_SLOTS in AdminGallery.jsx (the 3x3 grid on
+// LandingPage.jsx). The frontend disables the toggle button once this many
+// items are marked, but that's UI-only — a direct API call (POST / with
+// show_on_landing=true, or PATCH /:id/landing) bypassed it entirely, so the
+// cap is enforced here too, server-side, as the actual source of truth.
+const LANDING_SLOTS = 9;
+
+async function landingCount() {
+  const result = await pool.query('SELECT COUNT(*) FROM gallery WHERE show_on_landing = true');
+  return Number(result.rows[0].count);
+}
 
 // ── Ensure gallery_images table exists ───────────────────────────────────
 async function ensureGalleryImagesTable() {
@@ -100,7 +115,13 @@ router.post('/', adminAuth, upload.single('image'), async (req, res) => {
   try {
     const { title, description, event_date, price, tags, event_type, venue, scale, show_on_landing } = req.body;
     if (!req.file) return res.status(400).json({ error: 'A JPEG, PNG, or WebP image is required' });
-    if (!await validateImageUpload(req.file)) return res.status(400).json({ error: 'Uploaded file is not a valid JPEG, PNG, or WebP image' });
+
+    // FIXED: finalizeImageUpload() verifies the file's real magic bytes AND
+    // renames it to an extension derived from that verified type — never
+    // from the client-supplied original filename. See lib/imageUpload.js
+    // for why trusting the original extension is a stored-XSS vector.
+    const finalFilename = await finalizeImageUpload(req.file);
+    if (!finalFilename) return res.status(400).json({ error: 'Uploaded file is not a valid JPEG, PNG, or WebP image' });
 
     // FIXED: store a relative path instead of a full URL built from
     // req.protocol/req.get('host'). A full URL bakes in whatever host the
@@ -109,9 +130,16 @@ router.post('/', adminAuth, upload.single('image'), async (req, res) => {
     // correctly from that exact host. A relative path always resolves
     // against whatever host is currently serving the frontend, on any
     // device (laptop, phone via ngrok, production domain, etc).
-    const image_url  = `/uploads/${req.file.filename}`;
+    const image_url  = `/uploads/${finalFilename}`;
     const tagsArray  = tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [];
-    const showOnLanding = show_on_landing === 'true' || show_on_landing === true;
+    let showOnLanding = show_on_landing === 'true' || show_on_landing === true;
+
+    // Enforce the same cap the toggle route enforces below — a crafted
+    // upload request setting show_on_landing=true was a second way past
+    // the frontend-only limit, bypassing /:id/landing entirely.
+    if (showOnLanding && (await landingCount()) >= LANDING_SLOTS) {
+      return res.status(400).json({ error: `All ${LANDING_SLOTS} landing page slots are full. Remove one before adding another.` });
+    }
 
     const insertResult = await pool.query(
       `INSERT INTO gallery
@@ -143,9 +171,11 @@ router.post('/:id/images', adminAuth, upload.single('image'), async (req, res) =
   try {
     const { caption, sort_order } = req.body;
     if (!req.file) return res.status(400).json({ error: 'A JPEG, PNG, or WebP image is required' });
-    if (!await validateImageUpload(req.file)) return res.status(400).json({ error: 'Uploaded file is not a valid JPEG, PNG, or WebP image' });
-    // FIXED: relative path — see note above in the '/' POST route.
-    const image_url = `/uploads/${req.file.filename}`;
+
+    // FIXED: see note in the '/' POST route above.
+    const finalFilename = await finalizeImageUpload(req.file);
+    if (!finalFilename) return res.status(400).json({ error: 'Uploaded file is not a valid JPEG, PNG, or WebP image' });
+    const image_url = `/uploads/${finalFilename}`;
 
     await pool.query(
       `INSERT INTO gallery_images (gallery_id, image_url, caption, sort_order)
@@ -175,12 +205,24 @@ router.get('/:id/images', async (req, res) => {
 // ── PATCH toggle show_on_landing for a gallery item (admin) ──────────────
 router.patch('/:id/landing', adminAuth, async (req, res) => {
   try {
+    const current = await pool.query('SELECT show_on_landing FROM gallery WHERE id = $1', [req.params.id]);
+    if (current.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+
+    const isCurrentlyOn = current.rows[0].show_on_landing === true;
+    // Only check the cap when turning ON — turning off always succeeds and
+    // never needs the count. Check + toggle isn't atomic against a second
+    // concurrent request, but this is a low-traffic admin-only action, so
+    // a rare off-by-one race is an acceptable tradeoff for keeping this a
+    // single simple query pair rather than a transaction/row lock.
+    if (!isCurrentlyOn && (await landingCount()) >= LANDING_SLOTS) {
+      return res.status(400).json({ error: `All ${LANDING_SLOTS} landing page slots are full. Remove one before adding another.` });
+    }
+
     const result = await pool.query(
       `UPDATE gallery SET show_on_landing = NOT COALESCE(show_on_landing, false)
        WHERE id = $1 RETURNING show_on_landing`,
       [req.params.id]
     );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     res.json({ success: true, show_on_landing: result.rows[0].show_on_landing });
   } catch (err) {
     res.status(500).json({ error: err.message });

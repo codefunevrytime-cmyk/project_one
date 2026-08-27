@@ -13,13 +13,26 @@
 //   id, name, email, password, phone, google_id
 // (password is the existing bcrypt-hash column — NOT password_hash. A
 // Google-only account has no password, so it's left NULL there.)
+//
+// UPDATED: issues the same access-token/refresh-token pair as
+// routes/auth.js's login/signup, using the helpers exported from that
+// file, rather than a separate single 7-day cookie token. Both routes are
+// mounted at /api/auth, so their tokens must be interchangeable —
+// duplicating the signing logic here was how the two could quietly drift
+// apart (e.g. missing `type: 'access'`, different TTL).
 
 const express = require('express');
 const router = express.Router();
 const { OAuth2Client } = require('google-auth-library');
-const jwt = require('jsonwebtoken');
-const { setSession } = require('../lib/session');
 const pool = require('../db');
+const {
+  signAccessToken,
+  signRefreshToken,
+  REFRESH_COOKIE_NAME,
+  REFRESH_COOKIE_PATH,
+  REFRESH_COOKIE_MAX_AGE,
+} = require('./auth');
+const { setRefreshCookie } = require('../lib/session');
 
 // Keep the users table in sync — same self-healing pattern routes/auth.js
 // already uses for `phone`, so this doesn't require a separate manual
@@ -76,14 +89,16 @@ router.post('/google', async (req, res) => {
       user.google_id = googleId;
     }
 
-    // 4. Issue your app's own session JWT — same payload shape as
-    //    routes/auth.js login/signup (`id`, not `userId`), so /api/auth/me
-    //    (which expects `id`) can decode either token type identically.
-    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    setSession(res, token);
+    // 4. Issue the same access+refresh pair as routes/auth.js's own
+    //    login/signup, so /api/auth/me and /api/auth/refresh work
+    //    identically no matter which route the user signed in through.
+    const accessToken = signAccessToken(user.id);
+    const refreshToken = signRefreshToken(user.id);
+    setRefreshCookie(res, REFRESH_COOKIE_NAME, refreshToken, REFRESH_COOKIE_PATH, REFRESH_COOKIE_MAX_AGE);
 
     return res.json({
-      token,
+      token: accessToken,
+      expiresIn: 15 * 60,
       user: {
         id: user.id,
         name: user.name,

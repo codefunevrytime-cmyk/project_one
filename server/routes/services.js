@@ -3,6 +3,15 @@ const router = express.Router();
 const pool = require('../db');
 const adminAuth = require('../middleware/adminAuth');
 
+// Must match SERVICE_OPTIONS in VendorSignup.jsx / SERVICE_CONFIGS in
+// VendorProfile.jsx. Kept as the single source of truth here — both POST /
+// and PATCH /:id/category enforce this same list, so a service can no
+// longer be created with a category the frontend doesn't recognize (it
+// previously could only be caught after the fact via the /:id/category
+// fix-up route, once a vendor was already silently stuck showing
+// photography fields).
+const VALID_CATEGORIES = ['photography', 'invitation', 'decor', 'catering', 'music', 'makeup', 'venue'];
+
 // GET all active services
 router.get('/', async (req, res) => {
   try {
@@ -37,6 +46,14 @@ router.post('/', adminAuth, async (req, res) => {
     if (!name) {
       return res.status(400).json({ error: 'name is required' });
     }
+    // category is optional (existing callers may not send one), but if
+    // it's present it must be a value the frontend actually recognizes —
+    // previously a typo or unsupported value here would insert silently
+    // and only surface later as a vendor stuck in the "category not set"
+    // fallback state.
+    if (category != null && !VALID_CATEGORIES.includes(category)) {
+      return res.status(400).json({ error: `category must be one of: ${VALID_CATEGORIES.join(', ')}` });
+    }
     await pool.query(
       'INSERT INTO services (name, description, category) VALUES ($1, $2, $3)',
       [name, description || null, category || null]
@@ -66,9 +83,8 @@ router.patch('/:id/toggle', adminAuth, async (req, res) => {
 router.patch('/:id/category', adminAuth, async (req, res) => {
   try {
     const { category } = req.body;
-    const VALID = ['photography', 'invitation', 'decor', 'catering', 'music', 'makeup', 'venue'];
-    if (!VALID.includes(category)) {
-      return res.status(400).json({ error: `category must be one of: ${VALID.join(', ')}` });
+    if (!VALID_CATEGORIES.includes(category)) {
+      return res.status(400).json({ error: `category must be one of: ${VALID_CATEGORIES.join(', ')}` });
     }
     await pool.query('UPDATE services SET category = $1 WHERE id = $2', [category, req.params.id]);
     res.json({ success: true });

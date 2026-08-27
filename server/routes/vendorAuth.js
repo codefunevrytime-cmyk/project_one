@@ -7,7 +7,7 @@ const { logVendorStatusChange } = require('./payments');
 const adminAuth = require('../middleware/adminAuth');
 const rateLimit = require('../middleware/rateLimit');
 const { isEmail, isPassword, text } = require('../lib/validation');
-const { validateImageUpload } = require('../lib/imageUpload');
+const { finalizeImageUpload } = require('../lib/imageUpload');
 router.use(rateLimit({ max: 30 }));
 
 // ── Ensure vendor_users table ─────────────────────────────────────────────
@@ -317,30 +317,18 @@ router.get('/reviews', vendorAuth, async (req, res) => {
   }
 });
 
-// PUT /api/vendor-auth/profile — vendor updates their own vendor record
-const multer = require('multer');
-const path   = require('path');
-const fs     = require('fs');
-const uploadDir = path.join(__dirname, '..', 'uploads');
-fs.mkdirSync(uploadDir, { recursive: true });
-const multerStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
-  filename:    (req, file, cb) => cb(null, Date.now() + '-' + Math.round(Math.random()*1e9) + path.extname(file.originalname)),
-});
-const upload = multer({ storage: multerStorage, limits: { fileSize: 8 * 1024 * 1024 }, fileFilter: (req, file, cb) => cb(null, ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) });
-
-// ── UPDATED ──────────────────────────────────────────────────────────────
-// Now reads and persists `price_per_day` — the average price computed on
-// the frontend (VendorProfile.jsx) from whichever services the vendor
-// ticked and priced individually. This is the ONLY price value ever shown
-// on the public profile / listing pages; per-service prices stay internal
-// to the vendor's own edit form (stored in the `prices` JSONB column, but
-// never rendered publicly).
-// GET /api/vendor-auth/profile  — get linked vendor profile
+// GET /api/vendor-auth/profile — get linked vendor profile, including
+// portfolio and tags. `price_per_day` here is the single price shown
+// publicly; per-service prices stay internal to the vendor's own edit
+// form (stored in the `prices` JSONB column, but never rendered publicly).
 router.get('/profile', vendorAuth, async (req, res) => {
   try {
-    const userRes = await pool.query('SELECT * FROM vendor_users WHERE id = $1', [req.vendorUserId]);
+    const userRes = await pool.query(
+      'SELECT id, name, email, phone, status, vendor_id, created_at FROM vendor_users WHERE id = $1',
+      [req.vendorUserId]
+    );
     const user = userRes.rows[0];
+    if (!user) return res.status(404).json({ error: 'Not found' });
     if (!user.vendor_id) return res.json({ user, vendor: null, portfolio: [], tags: [] });
 
     const [vendorRes, portRes, tagsRes] = await Promise.all([
@@ -391,9 +379,41 @@ router.patch('/status', vendorAuth, async (req, res) => {
   }
 });
 
+// PUT /api/vendor-auth/profile — vendor updates their own vendor record
+const multer = require('multer');
+const path   = require('path');
+const fs     = require('fs');
+const uploadDir = path.join(__dirname, '..', 'uploads');
+fs.mkdirSync(uploadDir, { recursive: true });
+const multerStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadDir),
+  // Temp name only — the real extension is assigned by finalizeImageUpload()
+  // below, after it sniffs the file's actual magic bytes. Never derive it
+  // from file.originalname (client-controlled — see lib/imageUpload.js).
+  filename:    (req, file, cb) => cb(null, Date.now() + '-' + Math.round(Math.random()*1e9) + '.tmp'),
+});
+const upload = multer({ storage: multerStorage, limits: { fileSize: 8 * 1024 * 1024 }, fileFilter: (req, file, cb) => cb(null, ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) });
+
+// ── UPDATED ──────────────────────────────────────────────────────────────
+// Now reads and persists `price_per_day` — the average price computed on
+// the frontend (VendorProfile.jsx) from whichever services the vendor
+// ticked and priced individually. This is the ONLY price value ever shown
+// publicly; the underlying per-service `prices` map stays internal to this
+// route's own edit form and is never selected by the public GET / route in
+// vendors.js (that route explicitly excludes it).
 router.put('/profile', vendorAuth, upload.single('photo'), async (req, res) => {
   try {
-    if (req.file && !await validateImageUpload(req.file)) return res.status(400).json({ error: 'Uploaded file is not a valid JPEG, PNG, or WebP image' });
+    // FIXED: finalizeImageUpload() verifies the file's real magic bytes AND
+    // renames it to an extension derived from that verified type — never
+    // from the client-supplied original filename. See lib/imageUpload.js
+    // for why trusting the original extension is a stored-XSS vector.
+    let photo_url = null;
+    if (req.file) {
+      const finalFilename = await finalizeImageUpload(req.file);
+      if (!finalFilename) return res.status(400).json({ error: 'Uploaded file is not a valid JPEG, PNG, or WebP image' });
+      photo_url = `/uploads/${finalFilename}`;
+    }
+
     const userRes = await pool.query('SELECT * FROM vendor_users WHERE id = $1', [req.vendorUserId]);
     const user = userRes.rows[0];
 
@@ -403,7 +423,6 @@ router.put('/profile', vendorAuth, upload.single('photo'), async (req, res) => {
     const prices   = req.body.prices   ? JSON.parse(req.body.prices)   : {};
     // Relative path — same fix already applied in vendors.js and gallery.js,
     // so the URL isn't baked to whichever host (or ngrok tunnel) served this request.
-    const photo_url = req.file ? `/uploads/${req.file.filename}` : null;
     const priceVal  = price_per_day ? Number(price_per_day) : null;
 
     // Ensure vendors table has these columns
@@ -428,10 +447,22 @@ router.put('/profile', vendorAuth, upload.single('photo'), async (req, res) => {
       vendorId = ins.rows[0].id;
       await pool.query('UPDATE vendor_users SET vendor_id = $1 WHERE id = $2', [vendorId, req.vendorUserId]);
     } else {
-      const photoClause = photo_url ? `, photo_url = '${photo_url}'` : '';
+      const setClauses = [
+        'name=$1', 'specialty=$2', 'contact=$3', 'location=$4', 'bio=$5',
+        'travel_info=$6', 'delivery_time=$7', 'payment_terms=$8',
+        'services=$9', 'prices=$10', 'price_per_day=$11'
+      ];
+      const params = [name, specialty, contact, location, bio, travel_info, delivery_time, payment_terms, JSON.stringify(services), JSON.stringify(prices), priceVal];
+
+      if (photo_url) {
+        setClauses.push(`photo_url=$${params.length + 1}`);
+        params.push(photo_url);
+      }
+      params.push(vendorId); // WHERE id = $N
+
       await pool.query(
-        `UPDATE vendors SET name=$1, specialty=$2, contact=$3, location=$4, bio=$5, travel_info=$6, delivery_time=$7, payment_terms=$8, services=$9, prices=$10, price_per_day=$11 ${photoClause} WHERE id=$12`,
-        [name, specialty, contact, location, bio, travel_info, delivery_time, payment_terms, JSON.stringify(services), JSON.stringify(prices), priceVal, vendorId]
+        `UPDATE vendors SET ${setClauses.join(', ')} WHERE id=$${params.length}`,
+        params
       );
     }
 

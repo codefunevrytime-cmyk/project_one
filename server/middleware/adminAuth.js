@@ -4,9 +4,12 @@
 // that the decoded payload has role === 'admin'. Mirrors the pattern
 // vendorAuth() already uses in routes/vendorAuth.js.
 //
-// The admin login route (routes/admin.js) already signs { id, role: 'admin' }
-// into the token — this middleware is just the missing "verify it on every
-// admin-only route" half of that.
+// UPDATED: now also requires payload.type === 'access'. Since the
+// admin login route (routes/admin.js) started issuing a short-lived
+// access token (15 min, Bearer) separate from a long-lived refresh
+// token (7 days, HttpOnly cookie only), this check is what stops a
+// leaked/exfiltrated refresh token from being usable directly against
+// admin-only routes.
 
 const jwt = require('jsonwebtoken');
 const { getToken } = require('../lib/session');
@@ -18,7 +21,7 @@ function adminAuth(req, res, next) {
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
 
-    if (payload.role !== 'admin') {
+    if (payload.role !== 'admin' || payload.type !== 'access') {
       return res.status(403).json({ error: 'Admin access required' });
     }
 

@@ -8,17 +8,12 @@ const { getToken } = require('../lib/session');
 //   req.vendorUserId    - the vendor_users.id, if this was a vendor token
 //   req.vendorId        - the vendor_users' linked vendors.id, if any
 //
-// NOTE: this middleware only AUTHENTICATES. It does not by itself check
-// that a vendor "owns" the resource being touched — that's necessarily
-// route-specific (e.g. comparing req.vendorId to a :id param, or to a
-// vendor_id column looked up from the target row). Each route below
-// does that comparison itself via ownsVendor().
-//
-// ASSUMPTION: mirrors the shape described for middleware/adminAuth.js —
-// an admin JWT has `role: 'admin'` in its payload. If adminAuth actually
-// checks something else (a DB-backed admin flag, a different claim
-// name, etc.), update the `payload.role === 'admin'` check below to
-// match.
+// UPDATED: both branches now also require payload.type === 'access'.
+// Admin and vendor logins both now issue short-lived access tokens
+// (Bearer, 15 min) plus a separate long-lived refresh token that only
+// ever lives in an HttpOnly cookie and is never accepted here. Without
+// this check, a leaked refresh token (or a pre-migration 7-day token)
+// could be used directly against every route this middleware guards.
 async function vendorOrAdminAuth(req, res, next) {
   const token = getToken(req);
   if (!token) return res.status(401).json({ error: 'No token' });
@@ -27,6 +22,10 @@ async function vendorOrAdminAuth(req, res, next) {
   try {
     payload = jwt.verify(token, process.env.JWT_SECRET);
   } catch {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+
+  if (payload.type !== 'access') {
     return res.status(401).json({ error: 'Invalid token' });
   }
 
@@ -54,9 +53,6 @@ async function vendorOrAdminAuth(req, res, next) {
   return res.status(403).json({ error: 'Forbidden' });
 }
 
-// Returns true if the authenticated caller (admin or vendor) is allowed
-// to act on the given vendorId. Admins can act on any vendor; a vendor
-// can only act on their own linked vendor_id.
 function ownsVendor(req, vendorId) {
   if (req.isAdmin) return true;
   return !!req.vendorId && String(req.vendorId) === String(vendorId);

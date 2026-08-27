@@ -9,7 +9,7 @@ const { Server } = require('socket.io');
 require('dotenv').config();
 
 const app = express();
-
+app.set('trust proxy', 1);
 // Baseline browser hardening without relying on a reverse proxy.
 app.disable('x-powered-by');
 app.use((req, res, next) => {

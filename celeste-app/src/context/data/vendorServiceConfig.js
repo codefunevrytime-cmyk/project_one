@@ -1,3 +1,27 @@
+import { PHOTOGRAPHERS } from '../data/photographyData'; // adjust path if your data folder differs
+
+// Maps the demo/static PHOTOGRAPHERS shape (camelCase, e.g. pricePerDay,
+// no portfolio array) onto the field names real DB-backed vendor objects
+// use elsewhere in the app (snake_case, e.g. price_per_day) so static and
+// DB vendors are interchangeable to every component that consumes them.
+//
+// NOTE: I mapped price_per_day and left `portfolio` unset (falls back to
+// demoPortfolio below) based on the pricingModel comment in this file
+// ("total = vendor.price_per_day * days"). I have NOT confirmed the exact
+// field names a real /api/vendors response uses (e.g. whether the image
+// field is `image_url`, `cover_url`, etc., or whether `specialty` vs
+// `type` is expected). Once you share a sample DB vendor object or the
+// mapVendorToCard function, tell me and I'll tighten this mapping —
+// otherwise double check field names before relying on this for anything
+// beyond photography.
+function mapStaticVendor(p) {
+  return {
+    ...p,
+    price_per_day: p.pricePerDay,
+    specialty: p.type?.[0] ?? p.type,
+  };
+}
+
 export const VENDOR_SERVICE_CONFIGS = [
   {
     id: 'photography',
@@ -16,9 +40,10 @@ export const VENDOR_SERVICE_CONFIGS = [
     priceUnit: '/ day',
 
     // Static/demo vendors shown alongside real DB vendors on the listing
-    // page. Previously this was gated by `serviceConfig.id === 'photography'`
-    // inside VendorListingPage itself — now every service supplies its own.
-    staticData: [], // <- point this at your existing PHOTOGRAPHERS array
+    // page. Wired to the PHOTOGRAPHERS array in src/data/photographyData.js,
+    // remapped to price_per_day for compatibility with computeVendorTotal()
+    // and any component reading DB-shaped vendor fields.
+    staticData: PHOTOGRAPHERS.map(mapStaticVendor),
 
     // Fallback portfolio images for demo vendors that don't define their
     // own `portfolio` array. Replace the placeholders below with real URLs,
@@ -163,4 +188,4 @@ export function getVendorServiceConfig(idOrServiceId) {
     VENDOR_SERVICE_CONFIGS.find(c => String(c.serviceId) === String(idOrServiceId)) ||
     DEFAULT_VENDOR_SERVICE
   );
-}
+} 

@@ -18,15 +18,18 @@ const path    = require('path');
 const fs      = require('fs');
 const jwt     = require('jsonwebtoken');
 const adminAuth = require('../middleware/adminAuth');
-const { validateImageUpload } = require('../lib/imageUpload');
+const { finalizeImageUpload } = require('../lib/imageUpload');
 
 const uploadDir = path.join(__dirname, '..', 'uploads');
 fs.mkdirSync(uploadDir, { recursive: true });
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
+  // Temp name only — the real extension is assigned by finalizeImageUpload()
+  // below, after it sniffs the file's actual magic bytes. Never derive it
+  // from file.originalname (client-controlled — see lib/imageUpload.js).
   filename:    (req, file, cb) => {
     const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, unique + path.extname(file.originalname));
+    cb(null, unique + '.tmp');
   }
 });
 const upload = multer({
@@ -122,13 +125,19 @@ router.post('/', adminAuth, upload.single('image'), async (req, res) => {
     }
     if (!title || !title.trim()) return res.status(400).json({ error: 'title is required' });
     if (!req.file) return res.status(400).json({ error: 'A JPEG, PNG, or WebP image is required' });
-    if (!await validateImageUpload(req.file)) {
+
+    // FIXED: finalizeImageUpload() verifies the file's real magic bytes AND
+    // renames it to an extension derived from that verified type — never
+    // from the client-supplied original filename. See lib/imageUpload.js
+    // for why trusting the original extension is a stored-XSS vector.
+    const finalFilename = await finalizeImageUpload(req.file);
+    if (!finalFilename) {
       return res.status(400).json({ error: 'Uploaded file is not a valid JPEG, PNG, or WebP image' });
     }
 
     // Relative path — resolves against whatever host is currently serving
     // the frontend (same reasoning already used in gallery.js / vendors.js).
-    const image_url = `/uploads/${req.file.filename}`;
+    const image_url = `/uploads/${finalFilename}`;
 
     const result = await pool.query(
       `INSERT INTO decoration_venues (venue_type, title, image_url, description)

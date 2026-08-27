@@ -26,8 +26,49 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 8 * 1024 * 1024 }, fileFilter: (req, file, cb) => cb(null, ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) });
 
-// GET all vendors
+// GET all vendors — PUBLIC route, consumed by VendorListingPage.jsx.
+// FIXED (2 issues):
+//   1. No `is_active` filter — every vendor row, including ones an admin
+//      rejected/deactivated, was returned. VendorListingPage.jsx filtered
+//      `is_active` client-side, but that's cosmetic only: anyone hitting
+//      this endpoint directly (curl/Postman) saw the full unfiltered set.
+//      Now filtered server-side with `WHERE is_active = true`.
+//   2. `SELECT *` was returning every column, including `prices` — the
+//      vendor's per-service internal pricing map. Per the comment in
+//      vendorAuth.js's PUT /profile handler, `prices` is explicitly meant
+//      to stay internal to the vendor's own edit form and is never shown
+//      publicly; only the computed `price_per_day` is public-facing. Now
+//      excluded via an explicit column list instead of `SELECT *`.
+//
+// NOTE: I did NOT strip payment_terms / travel_info / delivery_time / bio
+// / contact here, even though some of those read as "internal" at first
+// glance — this file has no GET /:id route, so it's possible
+// VendorProfilePage.jsx (not shown to me) also reads its data from this
+// same list response, in which case removing those fields would silently
+// break the public vendor profile page. If those fields are NOT rendered
+// anywhere public, let me know (or share VendorProfilePage.jsx) and I'll
+// tighten this list further.
 router.get('/', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, name, specialty, photo_url, contact, location, bio,
+              travel_info, delivery_time, payment_terms, service_id,
+              price_per_day, pricing_packages, services, event_types,
+              is_online, is_active, created_at
+       FROM vendors
+       WHERE is_active = true
+       ORDER BY created_at DESC`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET all vendors — ADMIN, full unfiltered record set (all statuses,
+// all columns including internal `prices`). AdminVendors.jsx should be
+// pointed at this route instead of the public GET / above.
+router.get('/all', adminAuth, async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM vendors ORDER BY created_at DESC');
     res.json(result.rows);
