@@ -35,17 +35,22 @@ import { API_URL } from './config/api';
 
 // ── Decides which payments page to show based on real payment history ─────────
 function PaymentsGate() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [hasPayments, setHasPayments] = useState(false);
   const [checking,    setChecking]    = useState(true);
 
   useEffect(() => {
-    if (!user?.email) { setChecking(false); return; }
-    fetch(`${API_URL}/payments/history`, { headers: { Authorization: `Bearer ${localStorage.getItem('celeste_token')}` } })
+    if (!user?.email || !token) { setChecking(false); return; }
+    // Previously read localStorage.getItem('celeste_token') — a key
+    // nothing in the app ever set, so this was silently sending
+    // "Authorization: Bearer null" and always falling through to
+    // PaymentsEmpty regardless of real history. `token` now comes from
+    // AuthContext.jsx's access-token state instead.
+    fetch(`${API_URL}/payments/history`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(d => { setHasPayments(Array.isArray(d) && d.length > 0); setChecking(false); })
       .catch(() => setChecking(false));
-  }, [user]);
+  }, [user, token]);
 
   if (checking) return null;
   return hasPayments ? <PaymentsHistory /> : <PaymentsEmpty />;

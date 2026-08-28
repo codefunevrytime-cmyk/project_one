@@ -3,6 +3,8 @@
 // so AdminVendors.jsx, AdminGallery.jsx, AdminVendorPayouts.jsx etc. don't
 // each need their own token/refresh logic.
 
+import { API_URL } from '../config/api';
+
 let accessToken = null;
 let refreshPromise = null; // dedupes concurrent refreshes if multiple calls 401 at once
 
@@ -16,12 +18,7 @@ export function getAdminAccessToken() {
 
 async function refreshAccessToken() {
   if (!refreshPromise) {
-    // NOTE: hardcoded relative path. If your frontend and backend run on
-    // different hosts/ports (check how AdminVendors.jsx etc. currently
-    // build their fetch URLs — via an API_URL config, a proxy, or same-origin),
-    // swap this for whatever base URL those components already use, the
-    // same way vendorApi.js does with API_URL from config/api.
-    refreshPromise = fetch('/api/admin/refresh', {
+    refreshPromise = fetch(`${API_URL}/api/admin/refresh`, {
       method: 'POST',
       credentials: 'include',
     })
@@ -38,9 +35,13 @@ async function refreshAccessToken() {
 }
 
 // Use this instead of raw fetch() for every admin API call.
+// Pass either a full URL or a path starting with '/api/...' — paths are
+// automatically prefixed with API_URL, same convention as vendorApi.js.
 export async function adminFetch(url, options = {}) {
+  const fullUrl = url.startsWith('/') ? `${API_URL}${url}` : url;
+
   const doFetch = (token) =>
-    fetch(url, {
+    fetch(fullUrl, {
       ...options,
       headers: {
         ...(options.headers || {}),

@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { DEFAULT_VENDOR_SERVICE } from '../context/data/vendorServiceConfig';
 import { BookmarkIcon } from '../components/BookmarkIcon';
+import { SafeImage } from '../components/SafeImage';
 import { useAuth } from '../hooks/useAuth';
 import './VendorProfilePage.css';
 import ClientMessaging from '../components/ClientMessaging';
@@ -59,8 +60,8 @@ function mapDbVendorToProfile(vendor, tags, serviceConfig) {
 
   // ── Real multi-select "Services Offered" list ─────────────────────────
   // This is the actual list of services the vendor ticked in their profile
-  // form (VendorProfile.jsx → the "Services Offered" pills / "Pricing per
-  // Service" checkboxes), stored on vendors.services (JSONB). Previously
+  // form (VendorProfile.jsx → the "Services Offered" pills / "Pricing
+  // per Service" checkboxes), stored on vendors.services (JSONB). Previously
   // this page never read this column at all — it only ever derived a
   // single tag from the free-text `specialty` field, so selecting several
   // services never surfaced here.
@@ -199,7 +200,7 @@ function PortfolioCarousel({ images }) {
     <div className="pp-carousel">
       <style>{PP_CAROUSEL_STYLES}</style>
       <div className="pp-carousel-stage">
-        <img
+        <SafeImage
           key={current.url}
           src={current.url}
           alt={`Portfolio ${idx + 1}`}
@@ -232,7 +233,7 @@ function PortfolioCarousel({ images }) {
         <div className="pp-carousel-thumbs">
           {images.map((img, i) => (
             <div key={i} className={`pp-carousel-thumb${i === idx ? ' active' : ''}`} onClick={() => goTo(i)}>
-              <img src={img.url} alt={`Thumbnail ${i + 1}`} loading="lazy" />
+              <SafeImage src={img.url} alt={`Thumbnail ${i + 1}`} loading="lazy" />
             </div>
           ))}
         </div>
@@ -242,6 +243,12 @@ function PortfolioCarousel({ images }) {
 }
 
 // ── Write Review Form ──────────────────────────────────────────────────────
+// UPDATED: reviews.js POST / now requires clientAuth (see routes/reviews.js),
+// so this form is only ever rendered when `user` is truthy (the parent
+// section swaps it for a "Sign in to write a review" prompt otherwise —
+// same pattern as handleSendMessage's login gate). The submit request now
+// also carries the Bearer access token, or every submission would fail
+// with a silent 401 even from a logged-in user.
 const REVIEW_WORD_LIMIT = 250;
 
 function countWords(str) {
@@ -249,7 +256,7 @@ function countWords(str) {
   return trimmed ? trimmed.split(/\s+/).length : 0;
 }
 
-function WriteReviewForm({ vendorId, vendorName, services, user, onReviewSubmitted }) {
+function WriteReviewForm({ vendorId, vendorName, services, user, token, onReviewSubmitted }) {
   const [reviewText,       setReviewText]       = useState('');
   const [reviewRating,     setReviewRating]     = useState(0);
   const [hoverRating,      setHoverRating]      = useState(0);
@@ -273,7 +280,6 @@ function WriteReviewForm({ vendorId, vendorName, services, user, onReviewSubmitt
       client_name: reviewerName.trim(),
       message:     reviewText.trim(),
       rating:      reviewRating,           // 1-5 stars directly
-      approved:    false,
       vendor_id:   vendorId || null,
       sub_service: subService || null,     // NEW — which specific service this review is about
     };
@@ -281,7 +287,12 @@ function WriteReviewForm({ vendorId, vendorName, services, user, onReviewSubmitt
     try {
       const res  = await fetch(`${API}/reviews`, {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          // Required now that reviews.js's POST / route sits behind
+          // clientAuth — without this every submission comes back 401.
+          Authorization: `Bearer ${token}`,
+        },
         body:    JSON.stringify(payload),
       });
       const data = await res.json();
@@ -291,11 +302,12 @@ function WriteReviewForm({ vendorId, vendorName, services, user, onReviewSubmitt
         setReviewRating(0);
         setBudget('');
         setSubService(''); // NEW
-        if (!user) setReviewerName('');
         setTimeout(() => setReviewSuccess(''), 5000);
         if (onReviewSubmitted) onReviewSubmitted();
+      } else if (res.status === 401) {
+        setReviewError('Your session has expired. Please log in again to submit a review.');
       } else {
-        setReviewError('Something went wrong. Please try again.');
+        setReviewError(data.error || 'Something went wrong. Please try again.');
       }
     } catch {
       setReviewError('Could not connect to server.');
@@ -318,7 +330,7 @@ function WriteReviewForm({ vendorId, vendorName, services, user, onReviewSubmitt
         </div>
       )}
 
-      {/* Reviewer name — pre-filled if logged in */}
+      {/* Reviewer name — pre-filled from the logged-in account */}
       <div style={{ marginBottom: 16 }}>
         <label style={{ display: 'block', fontSize: 12, color: 'var(--pp-text-2)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
           Your name *
@@ -446,7 +458,12 @@ function WriteReviewForm({ vendorId, vendorName, services, user, onReviewSubmitt
 export default function VendorProfilePage({ bookmarks, onBookmarkToggle, serviceConfig = DEFAULT_VENDOR_SERVICE }) {
   const { id }   = useParams();
   const navigate = useNavigate();
-  const { user, openLoginPrompt } = useAuth();
+  // NOTE: `token` is assumed to come off useAuth() alongside `user`,
+  // matching the access-token pattern routes/auth.js now issues. If your
+  // AuthContext exposes it under a different name (e.g. `accessToken`),
+  // rename this destructure — WriteReviewForm needs it to attach the
+  // Bearer header, or POST /reviews will 401 for every logged-in user too.
+  const { user, token, openLoginPrompt } = useAuth();
 
  const staticPhotographer = null; // resolved after DB fetch
 
@@ -726,7 +743,7 @@ const photographer = dbVendor
       {/* ── Hero ── */}
       <div className="pp-hero">
         <div className="pp-hero-img-wrap">
-          <img src={heroCover} alt={photographer.name} className="pp-hero-img" />
+          <SafeImage src={heroCover} alt={photographer.name} className="pp-hero-img" />
           <div className="pp-hero-overlay" />
         </div>
         <div className="pp-hero-content">
@@ -825,7 +842,7 @@ const photographer = dbVendor
               <div className="pp-albums-grid">
                 {portfolioImages.slice(0, 5).map((img, i) => (
                   <div key={i} className="pp-album-card">
-                    <img src={img.url} alt={`Album ${i+1}`} loading="lazy" />
+                    <SafeImage src={img.url} alt={`Album ${i+1}`} loading="lazy" />
                     <div className="pp-album-label">Album {i+1}</div>
                   </div>
                 ))}
@@ -835,7 +852,7 @@ const photographer = dbVendor
               <div className="pp-videos-grid">
                 {portfolioImages.slice(0, 3).map((img, i) => (
                   <div key={i} className="pp-video-card">
-                    <img src={img.url} alt={`Video ${i+1}`} loading="lazy" />
+                    <SafeImage src={img.url} alt={`Video ${i+1}`} loading="lazy" />
                     <div className="pp-video-play">
                       <svg width="28" height="28" viewBox="0 0 32 32" fill="currentColor">
                         <circle cx="16" cy="16" r="15" fill="rgba(0,0,0,0.5)" />
@@ -947,14 +964,38 @@ const photographer = dbVendor
                   )}
                 </div>
 
-                {/* Write review form */}
-                <WriteReviewForm
-                  vendorId={resolvedVendorId}
-                  vendorName={photographer.name}
-                  services={servicesOffered}
-                  user={user}
-                  onReviewSubmitted={fetchReviews}
-                />
+                {/* Write review form — login-gated. A logged-out visitor
+                    sees a prompt instead of the form, matching the same
+                    pattern handleSendMessage/openBookingModal already use
+                    for messaging and booking. This mirrors the backend:
+                    reviews.js POST / now requires clientAuth, so there was
+                    no point rendering a form a guest could fill out and
+                    then have rejected with a 401 on submit. */}
+                {user ? (
+                  <WriteReviewForm
+                    vendorId={resolvedVendorId}
+                    vendorName={photographer.name}
+                    services={servicesOffered}
+                    user={user}
+                    token={token}
+                    onReviewSubmitted={fetchReviews}
+                  />
+                ) : (
+                  <div className="pp-write-review" style={{ textAlign: 'center', padding: '28px 20px' }}>
+                    <h3 className="pp-subsection-title" style={{ marginBottom: 8 }}>
+                      Write a Review for {photographer.name}
+                    </h3>
+                    <p style={{ color: 'var(--pp-text-2)', fontSize: 13.5, marginBottom: 18 }}>
+                      Sign in to share your experience — it helps other couples pick the right vendor.
+                    </p>
+                    <button
+                      className="pp-submit-review-btn"
+                      onClick={() => openLoginPrompt('review')}
+                    >
+                      Sign in to Write a Review
+                    </button>
+                  </div>
+                )}
               </>
             ) : (
               <div style={{

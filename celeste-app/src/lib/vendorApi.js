@@ -6,7 +6,7 @@
 // lives relative to config/api.js — it must resolve the same way it does
 // in VendorAuthContext.jsx. Using API_URL (not a hardcoded relative path)
 // matters if frontend and backend run on different hosts/ports in dev.
-import { API_URL } from '../../config/api';
+import { API_URL } from '../config/api';
 
 let accessToken = null;
 let refreshPromise = null;

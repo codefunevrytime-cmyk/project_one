@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { BookmarkButton } from "./CommonControls";
+import { SafeImage } from "./SafeImage";
 import { THEME_GRADIENTS, EVENT_CATEGORIES } from "../context/data/events";
 import styles from "./EventCard.module.css";
 import { useNavigate } from "react-router-dom";
@@ -234,7 +235,7 @@ navigate("/create-event", {
           background: currentImg ? "#1a1008" : getGradient(event.type),
         }}>
           {currentImg
-            ? <img src={currentImg} alt={event.title} key={currentImg}
+            ? <SafeImage src={currentImg} alt={event.title} key={currentImg}
                 className={`ep-main-img${sliding ? ' ep-slide-enter' : ''}`} />
             : <span style={{ zIndex:1, position:"relative", filter:"drop-shadow(0 6px 16px rgba(0,0,0,0.18))" }}>
                 {getEmoji(event.type)}
@@ -376,7 +377,7 @@ navigate("/create-event", {
             {related.map((r) => (
               <div key={r.id} className="ep-rel-card" onClick={() => onRelatedClick(r)}>
                 {r.image_url
-                  ? <img src={r.image_url} alt={r.title} />
+                  ? <SafeImage src={r.image_url} alt={r.title} />
                   : <div style={{ width:"100%", height:"100%", background:getGradient(r.type), display:"flex", alignItems:"center", justifyContent:"center", fontSize:26 }}>
                       {getEmoji(r.type)}
                     </div>
@@ -455,7 +456,7 @@ export function EventCard({ event, isBookmarked, onBookmarkToggle, allEvents = [
         {/* ── Image area ── */}
         <div className={`${styles.imgArea} common-card-media`}>
           {images.length > 0
-            ? <img key={images[imgIdx]} src={images[imgIdx]} alt={event.title} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", transition:"transform 0.4s, opacity 0.2s", transform: hovered ? "scale(1.05)" : "scale(1)" }} />
+            ? <SafeImage key={images[imgIdx]} src={images[imgIdx]} alt={event.title} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", transition:"transform 0.4s, opacity 0.2s", transform: hovered ? "scale(1.05)" : "scale(1)" }} />
             : <div style={{ width:"100%", height:"100%", background: getGradient(event.type), display:"flex", alignItems:"center", justifyContent:"center", fontSize:54 }}>{getEmoji(event.type)}</div>
           }
 

@@ -8,7 +8,39 @@ const adminAuth = require('../middleware/adminAuth');
 const rateLimit = require('../middleware/rateLimit');
 const { isEmail, isPassword, text } = require('../lib/validation');
 const { finalizeImageUpload } = require('../lib/imageUpload');
+const { getCookie, setRefreshCookie, clearRefreshCookie } = require('../lib/session');
 router.use(rateLimit({ max: 30 }));
+
+// ── Refresh-token config ──────────────────────────────────────────────────
+// ASSUMPTION: cookie name follows the `<role>RefreshToken` pattern implied
+// by lib/session.js's comments (adminRefreshToken, clientRefreshToken).
+// Verify this matches routes/admin.js exactly before relying on it.
+const REFRESH_COOKIE_NAME = 'vendorRefreshToken';
+// Scoped so this cookie is only ever sent to this one endpoint, per
+// lib/session.js's documented rationale for why SameSite=Strict is safe here.
+const REFRESH_COOKIE_PATH = '/api/vendor-auth/refresh';
+// ASSUMPTION: 30 days. Not specified anywhere available to me — confirm
+// against routes/admin.js's refresh-token expiry and match it if different.
+const REFRESH_TOKEN_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+const REFRESH_TOKEN_EXPIRES_IN = '30d';
+// Matches the "Bearer, 15 min" access-token lifetime described in
+// vendorOrAdminAuth.js's header comment.
+const ACCESS_TOKEN_EXPIRES_IN = '15m';
+
+function issueVendorTokens(res, vendorUserId) {
+  const accessToken = jwt.sign(
+    { vendorUserId, type: 'access' },
+    process.env.JWT_SECRET,
+    { expiresIn: ACCESS_TOKEN_EXPIRES_IN }
+  );
+  const refreshToken = jwt.sign(
+    { vendorUserId, type: 'refresh' },
+    process.env.JWT_SECRET,
+    { expiresIn: REFRESH_TOKEN_EXPIRES_IN }
+  );
+  setRefreshCookie(res, REFRESH_COOKIE_NAME, refreshToken, REFRESH_COOKIE_PATH, REFRESH_TOKEN_MAX_AGE_MS);
+  return accessToken;
+}
 
 // ── Ensure vendor_users table ─────────────────────────────────────────────
 async function ensureTables() {
@@ -71,11 +103,20 @@ async function ensureTables() {
 ensureTables().catch(console.error);
 
 // ── Middleware: verify vendor JWT ─────────────────────────────────────────
+// FIXED: vendor tokens signed below now carry `type: 'access'`. This
+// middleware now enforces that too, for the same reason
+// vendorOrAdminAuth.js does (see its header comment) — this route file
+// mints its own vendor tokens independently of that shared middleware, so
+// the same requirement has to be duplicated here or a leaked/pre-fix token
+// missing `type` would still work against every route below.
 function vendorAuth(req, res, next) {
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No token' });
   try {
     const payload = jwt.verify(auth.replace('Bearer ', ''), process.env.JWT_SECRET);
+    if (payload.type !== 'access') {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
     if (!payload.vendorUserId || payload.role || payload.id) {
       return res.status(403).json({ error: 'Vendor access required' });
     }
@@ -146,7 +187,18 @@ router.post('/signup', async (req, res) => {
       user.vendor_id = insVendor.rows[0].id;
     }
 
-    const token = jwt.sign({ vendorUserId: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    // FIXED: token now carries `type: 'access'`, matching what
+    // vendorOrAdminAuth.js requires and what the local vendorAuth
+    // middleware above now also enforces. Without this field, every
+    // freshly-signed-up vendor's token was silently rejected as
+    // "Invalid token" by any route protected with vendorOrAdminAuth
+    // (availability, portfolio, deposit, etc.).
+    //
+    // FIXED: also now sets the HttpOnly vendorRefreshToken cookie via
+    // issueVendorTokens(), so VendorAuthContext.jsx's POST /refresh call
+    // on mount has something to redeem. Previously nothing set this
+    // cookie, so every vendor was logged out on page reload.
+    const token = issueVendorTokens(res, user.id);
     res.json({ token, user });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -164,7 +216,9 @@ router.post('/login', async (req, res) => {
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
 
-    const token = jwt.sign({ vendorUserId: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    // FIXED: same missing `type: 'access'` field as /signup above, plus
+    // the same missing refresh cookie — see the comment in /signup.
+    const token = issueVendorTokens(res, user.id);
 
     // Fetch full profile including service_category, same shape as /me
     const fullRes = await pool.query(
@@ -181,6 +235,60 @@ router.post('/login', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// POST /api/vendor-auth/refresh
+// ADDED: VendorAuthContext.jsx (on every mount) and vendorApi.js's
+// vendorFetch() (on any 401) both already call this unconditionally —
+// it just didn't exist server-side, so it 404'd, the frontend treated
+// that as "not logged in", and vendor sessions never survived a reload.
+// Reads the HttpOnly refresh cookie (never a header — access tokens only
+// ever come from Authorization per lib/session.js), verifies it's a
+// `type: 'refresh'` token, and issues a fresh short-lived access token.
+// Does NOT rotate the refresh token itself — confirm whether admin's
+// /refresh does, and match that behavior here if so.
+router.post('/refresh', async (req, res) => {
+  try {
+    const raw = getCookie(req, REFRESH_COOKIE_NAME);
+    if (!raw) return res.status(401).json({ error: 'No refresh token' });
+
+    let payload;
+    try {
+      payload = jwt.verify(raw, process.env.JWT_SECRET);
+    } catch {
+      return res.status(401).json({ error: 'Invalid refresh token' });
+    }
+    if (payload.type !== 'refresh' || !payload.vendorUserId) {
+      return res.status(401).json({ error: 'Invalid refresh token' });
+    }
+
+    // Confirm the vendor_user still exists (e.g. wasn't deleted) before
+    // minting a new access token off a still-valid-but-stale refresh token.
+    const userRes = await pool.query('SELECT id FROM vendor_users WHERE id = $1', [payload.vendorUserId]);
+    if (userRes.rows.length === 0) {
+      clearRefreshCookie(res, REFRESH_COOKIE_NAME, REFRESH_COOKIE_PATH);
+      return res.status(401).json({ error: 'Invalid refresh token' });
+    }
+
+    const token = jwt.sign(
+      { vendorUserId: payload.vendorUserId, type: 'access' },
+      process.env.JWT_SECRET,
+      { expiresIn: ACCESS_TOKEN_EXPIRES_IN }
+    );
+    res.json({ token });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/vendor-auth/logout
+// ADDED: VendorAuthContext.jsx's signOut() already calls this. Clears the
+// HttpOnly refresh cookie server-side so a stolen/cached refresh token
+// (or a background tab) can't silently resurrect the session after the
+// vendor has explicitly signed out.
+router.post('/logout', (req, res) => {
+  clearRefreshCookie(res, REFRESH_COOKIE_NAME, REFRESH_COOKIE_PATH);
+  res.json({ success: true });
 });
 
 // GET /api/vendor-auth/me

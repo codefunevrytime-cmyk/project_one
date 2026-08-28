@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { API_URL } from '../config/api';
 
 /* Forgot Password Page - Same split-screen layout as LoginPage */
 export default function ForgotPasswordPage() {
@@ -56,7 +57,7 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     setToast('');
     try {
-      const res = await fetch('/api/auth/forgot-password', {
+      const res = await fetch(`${API_URL}/api/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),

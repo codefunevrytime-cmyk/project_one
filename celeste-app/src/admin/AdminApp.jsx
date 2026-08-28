@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import AdminLogin from './pages/AdminLogin';
 import AdminDashboard from './pages/AdminDashboard';
 import { setAdminAccessToken } from "../lib/adminApi";
+import { API_URL } from '../config/api';
+
 export default function AdminApp() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
 
   useEffect(() => {
-    fetch('/api/admin/refresh', { method: 'POST', credentials: 'include' })
+    fetch(`${API_URL}/api/admin/refresh`, { method: 'POST', credentials: 'include' })
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((data) => {
         setAdminAccessToken(data.token);
@@ -29,7 +31,7 @@ export default function AdminApp() {
   };
 
   const handleLogout = async () => {
-    await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' });
+    await fetch(`${API_URL}/api/admin/logout`, { method: 'POST', credentials: 'include' });
     setAdminAccessToken(null);
     setLoggedIn(false);
   };

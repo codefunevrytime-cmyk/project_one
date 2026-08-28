@@ -56,6 +56,30 @@
 // is fixed at submission time and left untouched here, since a client may
 // already have paid an advance against that original total.
 //
+// ── VENDOR SLOT VALIDATION (NEW) ─────────────────────────────────────────
+// Previously, POST / trusted req.body.vendors wholesale: any vendor_id and
+// quoted_price the client sent was inserted directly into
+// event_vendor_slots, with no check that the vendor_id existed, was
+// active, matched the requested service_type, or that the price was
+// anything close to real. Since event_vendor_slots.quoted_price feeds
+// straight into payout math (via effective_price in GET /my and
+// GET /admin/all), a fabricated vendor_id/price pair could drive real
+// payouts off a vendor that's inactive, deleted, or belongs to a
+// different category entirely — or off an arbitrary price the client
+// made up.
+//
+// validateVendorSlot() below re-fetches each vendor server-side and
+// rejects the whole submission (400) if a slot references a vendor that
+// doesn't exist, isn't active, or whose service category doesn't match
+// v.service_type. For price, it does NOT trust the client's quoted_price
+// as the authoritative number — it's kept only as an informational note
+// (vendor_notes-style), while the price actually persisted is always
+// computed server-side from the vendor's own price_per_day. If your
+// vendors use per-service pricing (the `prices` JSONB column) instead of
+// a flat price_per_day for some categories, tell me and I'll switch this
+// to look up prices->service_type instead.
+// ─────────────────────────────────────────────────────────────────────────────
+//
 // ── SOCKET.IO LIVE UPDATES ────────────────────────────────────────────────
 // emitEventUpdate(io, eventId) is called after every write that changes an
 // event row OR a vendor slot's status, so both the client's MyEvents page
@@ -188,6 +212,43 @@ function getClientFromToken(req) {
   } catch { return null; }
 }
 
+// ── NEW: server-side vendor slot validation ───────────────────────────────────
+// Re-fetches the vendor from the DB (never trusts the client's payload) and
+// checks it exists, is active, and — if the client specified a
+// service_type — that it matches the vendor's actual service category.
+// Returns { ok: true, vendor } on success or { ok: false, error } on
+// failure; the caller rejects the whole submission on any failure rather
+// than silently dropping/ignoring the bad slot, since a partially-created
+// event with missing vendor coverage is its own kind of confusing state.
+async function validateVendorSlot(v) {
+  if (!v.vendor_id) {
+    // No vendor attached to this slot at all — nothing to validate.
+    return { ok: true, vendor: null };
+  }
+
+  const vendorRes = await pool.query(
+    `SELECT v.id, v.is_active, v.price_per_day, v.prices, s.category AS service_category
+     FROM vendors v
+     LEFT JOIN services s ON v.service_id = s.id
+     WHERE v.id = $1`,
+    [v.vendor_id]
+  );
+  const vendor = vendorRes.rows[0];
+
+  if (!vendor) {
+    return { ok: false, error: `Vendor ${v.vendor_id} does not exist` };
+  }
+  if (!vendor.is_active) {
+    return { ok: false, error: `Vendor ${v.vendor_id} is not currently active` };
+  }
+  if (v.service_type && vendor.service_category &&
+      String(v.service_type).toLowerCase() !== String(vendor.service_category).toLowerCase()) {
+    return { ok: false, error: `Vendor ${v.vendor_id} does not offer ${v.service_type}` };
+  }
+
+  return { ok: true, vendor };
+}
+
 // ── Payment-flow helper ────────────────────────────────────────────────────────
 // Call this any time a vendor slot status changes OR admin changes event
 // status. It checks: are all (non-replaced) vendor slots 'accepted'? Is the
@@ -258,6 +319,19 @@ router.post('/', async (req, res) => {
   vendors = [],
 } = req.body;
 
+    // NEW: validate every vendor slot BEFORE creating anything. Fail the
+    // whole submission (400) rather than the event partially existing
+    // with a bad/missing vendor slot — a client resubmits from scratch
+    // instead of ending up with a half-broken event to sort out later.
+    const validated = [];
+    for (const v of vendors) {
+      const result = await validateVendorSlot(v);
+      if (!result.ok) {
+        return res.status(400).json({ error: result.error });
+      }
+      validated.push({ input: v, vendor: result.vendor });
+    }
+
 const eventResult = await pool.query(
   `INSERT INTO event_requests
      (client_id, client_name, client_email, client_phone,
@@ -297,7 +371,7 @@ const eventResult = await pool.query(
 
     const eventId = eventResult.rows[0].id;
 
-    for (const v of vendors) {
+    for (const { input: v, vendor } of validated) {
       let vendorUserId = null;
       if (v.vendor_id) {
         const vuRes = await pool.query(
@@ -306,6 +380,20 @@ const eventResult = await pool.query(
         ).catch(() => ({ rows: [] }));
         vendorUserId = vuRes.rows[0]?.id || null;
       }
+
+      // NEW: the persisted price is always computed server-side from the
+      // vendor's own price_per_day (never the client-supplied
+      // quoted_price directly) — this is what stops a fabricated price
+      // from ever reaching payout math. If this vendor has no
+      // price_per_day set at all (shouldn't normally happen for an
+      // active vendor, but not impossible), fall back to null rather
+      // than inventing a number; GET /my and GET /admin/all already
+      // handle a null/zero quoted_price via their effective_price
+      // COALESCE, so the UI won't silently show 0.
+      const days = v.days || 1;
+      const serverPrice = vendor?.price_per_day != null
+        ? Number(vendor.price_per_day) * days
+        : null;
 
       await pool.query(
         `INSERT INTO event_vendor_slots
@@ -318,8 +406,8 @@ const eventResult = await pool.query(
           v.vendor_id   || null,
           vendorUserId,
           v.service_type || null,
-          v.quoted_price || null,
-          v.days         || 1,
+          serverPrice,
+          days,
           v.coverage_types?.length ? v.coverage_types : null,
           v.quantity     || null,
           v.vendor_notes || null,

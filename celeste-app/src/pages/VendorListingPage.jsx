@@ -5,6 +5,7 @@ import { YEARS } from "../context/data/photographyData";
 import { DEFAULT_VENDOR_SERVICE } from "../context/data/vendorServiceConfig";
 import PriceSlider from "../components/PriceSlider";
 import { BookmarkButton, FilterOption, FilterPanel, FilterSection, SearchBar } from "../components/CommonControls";
+import { SafeImage } from "../components/SafeImage";
 import './VendorListingPage.css';
 
 import { API_URL } from '../config/api';
@@ -314,7 +315,7 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
       <div className="ep-top">
 
         <div className="ep-img-col">
-          <img
+          <SafeImage
             src={currentImg.url}
             alt={vendor.name}
             key={currentImg.url}
@@ -459,7 +460,7 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
           <div className="ep-related-grid">
             {related.map(r => (
               <div key={r.id} className="ep-rel-card" onClick={() => onRelatedClick(r)}>
-                <img src={r.cover} alt={r.name} />
+                <SafeImage src={r.cover} alt={r.name} />
                 <div className="ep-rel-title">{r.name}</div>
               </div>
             ))}
@@ -493,7 +494,7 @@ function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark,
       }}
     >
       <div className="vendor-img-wrap common-card-media">
-        <img src={vendor.cover} alt={vendor.name} className="vendor-img" />
+        <SafeImage src={vendor.cover} alt={vendor.name} className="vendor-img" />
 
         {/* NEW: active/inactive status badge — vendor-controlled, also
             visible on the admin side in AdminVendors.jsx. */}

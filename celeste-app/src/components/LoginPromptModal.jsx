@@ -1,9 +1,10 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
-// Shown when a guest tries to bookmark, or tries to message a vendor —
-// only logged-in users can do either. Same modal, copy varies by `reason`
-// so each flow explains itself without duplicating the dialog.
+// Shown when a guest tries to bookmark, message a vendor, or leave a
+// review — only logged-in users can do any of these. Same modal, copy
+// varies by `reason` so each flow explains itself without duplicating
+// the dialog.
 const COPY = {
   bookmark: {
     icon: (
@@ -18,6 +19,13 @@ const COPY = {
     ),
     title: "Sign in to message vendors",
     text: "Log in or create a free account to start a conversation with vendors and get replies to your enquiries.",
+  },
+  review: {
+    icon: (
+      <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+    ),
+    title: "Sign in to leave a review",
+    text: "Log in or create a free account to share your experience — it helps other couples pick the right vendor.",
   },
 };
 

@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const adminAuth = require('../middleware/adminAuth');
 const { vendorOrAdminAuth, ownsVendor } = require('../middleware/vendorOrAdminAuth');
-const { validateImageUpload } = require('../lib/imageUpload');
+const { finalizeImageUpload } = require('../lib/imageUpload');
 const rateLimit = require('../middleware/rateLimit');
 
 // Same per-IP throttle pattern used in auth.js / admin.js / etc. This
@@ -17,12 +17,17 @@ router.use(rateLimit({ max: 30 }));
 
 const uploadDir = path.join(__dirname, '..', 'uploads');
 fs.mkdirSync(uploadDir, { recursive: true });
+// FIXED: filename no longer derives its extension from file.originalname
+// (client-controlled). Write a temp name only — finalizeImageUpload()
+// below sniffs the real magic bytes and renames to an extension it
+// derives itself. Same fix already applied to the profile-photo upload
+// in vendorAuth.js; see lib/imageUpload.js for why trusting the client's
+// extension is a stored-XSS vector (a JPEG-bytes file named foo.svg or
+// foo.html previously kept that extension and was served by
+// express.static with a matching Content-Type).
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => {
-    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, unique + path.extname(file.originalname));
-  }
+  filename: (req, file, cb) => cb(null, Date.now() + '-' + Math.round(Math.random() * 1e9) + '.tmp'),
 });
 const upload = multer({ storage, limits: { fileSize: 8 * 1024 * 1024 }, fileFilter: (req, file, cb) => cb(null, ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) });
 
@@ -107,11 +112,19 @@ router.get('/:id/tags', async (req, res) => {
 // FIXED: was adminAuth-only, which 403'd every vendor self-upload from
 // VendorPortfolio.jsx (it sends the vendor token, not an admin token).
 // Now accepts either an admin token or the vendor that owns this :id.
+//
+// FIXED (stored XSS): now calls finalizeImageUpload() instead of
+// validateImageUpload() — see storage/upload setup above for why. The
+// upload is only trusted at the filename finalizeImageUpload() itself
+// derived from the real file contents, never req.file.filename or
+// file.originalname.
 router.post('/:id/portfolio', vendorOrAdminAuth, upload.single('image'), async (req, res) => {
   try {
     if (!ownsVendor(req, req.params.id)) return res.status(403).json({ error: 'Forbidden' });
     if (!req.file) return res.status(400).json({ error: 'A JPEG, PNG, or WebP image is required' });
-    if (!await validateImageUpload(req.file)) return res.status(400).json({ error: 'Uploaded file is not a valid JPEG, PNG, or WebP image' });
+
+    const finalFilename = await finalizeImageUpload(req.file);
+    if (!finalFilename) return res.status(400).json({ error: 'Uploaded file is not a valid JPEG, PNG, or WebP image' });
 
     const { caption, tags } = req.body;
     // FIXED: store a relative path instead of a full URL built from
@@ -120,7 +133,7 @@ router.post('/:id/portfolio', vendorOrAdminAuth, upload.single('image'), async (
     // that changes every restart) — so the image only ever loads from that
     // exact host. A relative path always resolves against whatever host is
     // currently serving the frontend, on any device.
-    const image_url = `/uploads/${req.file.filename}`;
+    const image_url = `/uploads/${finalFilename}`;
     const tagsArray = tags ? tags.split(',').map(t => t.trim()) : [];
     await pool.query(
       'INSERT INTO vendor_portfolio (vendor_id, image_url, caption, tags) VALUES ($1, $2, $3, $4)',
@@ -152,14 +165,20 @@ router.post('/:id/tags', vendorOrAdminAuth, async (req, res) => {
 // POST add new vendor — admin only. Vendors get their vendor row created
 // implicitly during signup (see vendorAuth.js /signup), so this stays
 // admin-only rather than moving to vendorOrAdminAuth.
+//
+// FIXED (stored XSS): same finalizeImageUpload() fix as the portfolio
+// upload above — the admin-add-vendor photo was the same trust-the-
+// original-extension pattern.
 router.post('/', adminAuth, upload.single('photo'), async (req, res) => {
   try {
-    if (req.file && !await validateImageUpload(req.file)) return res.status(400).json({ error: 'Uploaded file is not a valid JPEG, PNG, or WebP image' });
+    let photo_url = null;
+    if (req.file) {
+      const finalFilename = await finalizeImageUpload(req.file);
+      if (!finalFilename) return res.status(400).json({ error: 'Uploaded file is not a valid JPEG, PNG, or WebP image' });
+      // FIXED: relative path — see note above in the portfolio POST route.
+      photo_url = `/uploads/${finalFilename}`;
+    }
     const { name, specialty, contact, service_id, price_per_day } = req.body;
-    // FIXED: relative path — see note above in the portfolio POST route.
-    const photo_url = req.file
-      ? `/uploads/${req.file.filename}`
-      : null;
     await pool.query(
       'INSERT INTO vendors (name, specialty, photo_url, contact, service_id, price_per_day) VALUES ($1, $2, $3, $4, $5, $6)',
       [name, specialty, photo_url, contact, service_id || null, price_per_day ? Number(price_per_day) : null]

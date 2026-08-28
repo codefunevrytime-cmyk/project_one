@@ -1,9 +1,15 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AuthContext } from './auth-context';
 import { clearUserSession } from './authStorage';
 
 import { API_BASE } from '../config/api';
 const BOOKMARKS_KEY = 'celeste_bookmarks';
+
+// Access tokens are short-lived (15 min — see routes/auth.js). Refresh a
+// bit before they actually expire so an in-progress session never trips
+// a 401 out from under the user mid-action.
+const ACCESS_TOKEN_LIFETIME_MS = 15 * 60 * 1000;
+const REFRESH_MARGIN_MS = 60 * 1000;
 
 function readBookmarkedEventIds() {
   try {
@@ -15,23 +21,79 @@ function readBookmarkedEventIds() {
 
 export function AuthProvider({ children }) {
   const [user,   setUser]   = useState(null);
+  // The short-lived access token, kept in memory only (never localStorage —
+  // it's attached as a Bearer header by callers, e.g. WriteReviewForm in
+  // VendorProfilePage.jsx). Lost on a hard refresh by design; restored via
+  // the refresh-cookie flow below.
+  const [token,  setToken]  = useState(null);
   const [loading, setLoading] = useState(true);
   const [bookmarkedEventIds, setBookmarkedEventIds] = useState(readBookmarkedEventIds);
   const [loginPromptOpen, setLoginPromptOpen] = useState(false);
   const [loginPromptReason, setLoginPromptReason] = useState('bookmark');
 
-  // Restore the HttpOnly-cookie session on mount.
+  const refreshTimerRef = useRef(null);
+
+  const scheduleRefresh = useCallback((refreshFn) => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(refreshFn, ACCESS_TOKEN_LIFETIME_MS - REFRESH_MARGIN_MS);
+  }, []);
+
+  // Mint a fresh access token from the HttpOnly refresh cookie
+  // (POST /api/auth/refresh — see routes/auth.js). Used both on initial
+  // mount (to restore a session across a page reload, now that the access
+  // token itself isn't persisted) and on a timer to keep the session alive
+  // past the 15-minute access-token lifetime.
+  const refreshAccessToken = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include', // sends the HttpOnly refresh cookie
+      });
+      if (!res.ok) {
+        setToken(null);
+        setUser(null);
+        return null;
+      }
+      const data = await res.json();
+      setToken(data.token);
+      scheduleRefresh(refreshAccessToken);
+      return data.token;
+    } catch {
+      setToken(null);
+      setUser(null);
+      return null;
+    }
+  }, [scheduleRefresh]);
+
+  // Restore session on mount: refresh → get a fresh access token → fetch
+  // the profile with it. Replaces the old direct GET /me + cookie
+  // approach, which stopped working once /me required a Bearer header
+  // (Lax cookies were never actually sent on this cross-origin fetch to
+  // begin with — see the earlier trust-proxy/cookie discussion).
   useEffect(() => {
-    fetch(`${API_BASE}/api/auth/me`, {
-      credentials: 'include',
-    })
-      .then(r => r.json())
-      .then(data => {
-        if (data.user) setUser(data.user);
-        else setUser(null);
-      })
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false));
+    let cancelled = false;
+    (async () => {
+      const accessToken = await refreshAccessToken();
+      if (cancelled) return;
+      if (!accessToken) { setLoading(false); return; }
+
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/me`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const data = await res.json();
+        if (!cancelled) setUser(res.ok && data.user ? data.user : null);
+      } catch {
+        if (!cancelled) setUser(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Persist bookmarks
@@ -43,45 +105,56 @@ export function AuthProvider({ children }) {
     const res  = await fetch(`${API_BASE}/api/auth/login`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', // lets the server set the refresh cookie
       body:    JSON.stringify({ email, password }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Login failed');
     setUser(data.user);
+    setToken(data.token);
+    scheduleRefresh(refreshAccessToken);
     return data;
-  }, []);
+  }, [refreshAccessToken, scheduleRefresh]);
 
   const signup = useCallback(async (firstName, lastName, email, password) => {
     const name = `${firstName} ${lastName}`.trim();
     const res  = await fetch(`${API_BASE}/api/auth/signup`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body:    JSON.stringify({ name, email, password }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Signup failed');
     setUser(data.user);
+    setToken(data.token);
+    scheduleRefresh(refreshAccessToken);
     return data;
-  }, []);
+  }, [refreshAccessToken, scheduleRefresh]);
 
-  // NEW — Google Sign-In. Takes the ID token (credential) from the
-  // GoogleLogin component and exchanges it for our own session JWT,
-  // same shape/response as login and signup above.
+  // Google Sign-In. Takes the ID token (credential) from the GoogleLogin
+  // component and exchanges it for our own access+refresh pair, same
+  // shape/response as login and signup above.
   const loginWithGoogle = useCallback(async (credential) => {
     const res  = await fetch(`${API_BASE}/api/auth/google`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body:    JSON.stringify({ credential }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Google sign-in failed');
     setUser(data.user);
+    setToken(data.token);
+    scheduleRefresh(refreshAccessToken);
     return data;
-  }, []);
+  }, [refreshAccessToken, scheduleRefresh]);
 
   const signOut = useCallback(() => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     fetch(`${API_BASE}/api/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {});
     clearUserSession();
+    setToken(null);
     setUser(null);
   }, []);
 
@@ -125,9 +198,12 @@ export function AuthProvider({ children }) {
 
   const closeLoginPrompt = useCallback(() => setLoginPromptOpen(false), []);
 
-  // NEW — generic login gate other features (e.g. vendor chat "Send Message")
-  // can reuse so guests see the same modal as the bookmark flow, just with
-  // copy tailored to why they were asked to log in.
+  // Generic login gate other features (bookmark, vendor chat "Send
+  // Message", "Write a Review", etc.) reuse so guests see the same modal,
+  // just with copy tailored to why they were asked to log in. `reason`
+  // is passed straight through as LoginPromptModal's `reason` prop —
+  // any string LoginPromptModal's COPY table recognises works here
+  // ('bookmark' | 'message' | 'review', currently).
   const openLoginPrompt = useCallback((reason = 'bookmark') => {
     setLoginPromptReason(reason);
     setLoginPromptOpen(true);
@@ -138,8 +214,31 @@ export function AuthProvider({ children }) {
     [bookmarkedEventIds]
   );
 
+  // Convenience wrapper for authenticated API calls: attaches the current
+  // access token and retries once after a silent refresh if the first
+  // attempt comes back 401 (covers the case where the token expired
+  // between page load and this call, before the proactive refresh timer
+  // fired). Callers can keep passing their own Authorization header
+  // manually (as VendorProfilePage.jsx currently does via the raw `token`
+  // value) — this is just here for new call sites that want the retry
+  // behaviour without reimplementing it.
+  const authFetch = useCallback(async (url, options = {}) => {
+    const doFetch = (bearerToken) => fetch(url, {
+      ...options,
+      headers: { ...(options.headers || {}), Authorization: `Bearer ${bearerToken}` },
+    });
+
+    let res = await doFetch(token);
+    if (res.status === 401) {
+      const freshToken = await refreshAccessToken();
+      if (freshToken) res = await doFetch(freshToken);
+    }
+    return res;
+  }, [token, refreshAccessToken]);
+
   const value = {
     user,
+    token,
     loading,
     isLoggedIn: Boolean(user),
     bookmarkedEventIds,
@@ -156,6 +255,7 @@ export function AuthProvider({ children }) {
     openLoginPrompt,
     getInitials,
     avatarColor,
+    authFetch,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
