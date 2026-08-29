@@ -70,14 +70,17 @@
 //
 // validateVendorSlot() below re-fetches each vendor server-side and
 // rejects the whole submission (400) if a slot references a vendor that
-// doesn't exist, isn't active, or whose service category doesn't match
-// v.service_type. For price, it does NOT trust the client's quoted_price
-// as the authoritative number — it's kept only as an informational note
-// (vendor_notes-style), while the price actually persisted is always
-// computed server-side from the vendor's own price_per_day. If your
-// vendors use per-service pricing (the `prices` JSONB column) instead of
-// a flat price_per_day for some categories, tell me and I'll switch this
-// to look up prices->service_type instead.
+// doesn't exist, isn't active, whose service category doesn't match
+// v.service_type, or that requests a sub-service (coverage_type) the
+// vendor never priced on their own profile. The price actually persisted
+// mirrors CreateEventPage.jsx's computeVendorTotal() exactly: sum of the
+// vendor's own per-sub-service prices for whichever coverage_types were
+// picked (falling back to price_per_day if none were), × days. This is
+// what keeps the price the client sees at Review/Checkout in sync with
+// what's actually stored in event_vendor_slots and fed into payout math
+// in payments.js — previously the server ignored coverage_types entirely
+// and always charged a flat price_per_day × days, which could diverge
+// significantly from what the client was shown and agreed to.
 // ─────────────────────────────────────────────────────────────────────────────
 //
 // ── SOCKET.IO LIVE UPDATES ────────────────────────────────────────────────
@@ -216,14 +219,38 @@ function getClientFromToken(req) {
 // Re-fetches the vendor from the DB (never trusts the client's payload) and
 // checks it exists, is active, and — if the client specified a
 // service_type — that it matches the vendor's actual service category.
-// Returns { ok: true, vendor } on success or { ok: false, error } on
-// failure; the caller rejects the whole submission on any failure rather
-// than silently dropping/ignoring the bad slot, since a partially-created
-// event with missing vendor coverage is its own kind of confusing state.
+//
+// ALSO computes the authoritative price here, mirroring
+// CreateEventPage.jsx's computeVendorTotal() exactly:
+//   - if the client picked sub-services (coverage_types), sum THIS
+//     vendor's own price for each one (from the vendors.prices JSONB
+//     column they set on their own profile)
+//   - otherwise fall back to price_per_day
+//   - multiply by days
+// The "multiply by days" step matches frontend behaviour for BOTH pricing
+// models without the backend needing to know which one a service_type
+// uses: only "perDay" services ever send a real `days` value in the
+// payload (see CreateEventPage.jsx's extraFields config) — a "flat"
+// service never sends `days`, so it defaults to 1 here and the
+// multiplication is a no-op, same as frontend's `if (pricingModel ===
+// "flat") return base` short-circuit.
+//
+// Any coverage_type the client sends that the vendor hasn't actually
+// priced (missing from vendors.prices) is rejected outright, rather than
+// silently contributing ₹0 — otherwise a client could request a
+// sub-service the vendor never offered/priced and get it inserted for
+// free, which is its own price-fabrication path even with the flat-price
+// fallback closed off.
+//
+// Returns { ok: true, vendor, price } on success or { ok: false, error }
+// on failure; the caller rejects the whole submission on any failure
+// rather than silently dropping/ignoring the bad slot, since a
+// partially-created event with missing vendor coverage is its own kind
+// of confusing state.
 async function validateVendorSlot(v) {
   if (!v.vendor_id) {
     // No vendor attached to this slot at all — nothing to validate.
-    return { ok: true, vendor: null };
+    return { ok: true, vendor: null, price: null };
   }
 
   const vendorRes = await pool.query(
@@ -246,7 +273,28 @@ async function validateVendorSlot(v) {
     return { ok: false, error: `Vendor ${v.vendor_id} does not offer ${v.service_type}` };
   }
 
-  return { ok: true, vendor };
+  const vendorPrices = vendor.prices || {};
+  const coverageTypes = Array.isArray(v.coverage_types) ? v.coverage_types : [];
+
+  let base;
+  if (coverageTypes.length > 0) {
+    for (const svc of coverageTypes) {
+      // hasOwnProperty (not just a truthy/undefined check) so a
+      // legitimately-priced-at-0 sub-service isn't confused with one the
+      // vendor never priced at all.
+      if (!Object.prototype.hasOwnProperty.call(vendorPrices, svc)) {
+        return { ok: false, error: `Vendor ${v.vendor_id} has not priced "${svc}"` };
+      }
+    }
+    base = coverageTypes.reduce((sum, svc) => sum + (Number(vendorPrices[svc]) || 0), 0);
+  } else {
+    base = vendor.price_per_day != null ? Number(vendor.price_per_day) : 0;
+  }
+
+  const days = Number(v.days) || 1;
+  const price = base * days;
+
+  return { ok: true, vendor, price };
 }
 
 // ── Payment-flow helper ────────────────────────────────────────────────────────
@@ -371,7 +419,7 @@ const eventResult = await pool.query(
 
     const eventId = eventResult.rows[0].id;
 
-    for (const { input: v, vendor } of validated) {
+    for (const { input: v, vendor, price } of validated) {
       let vendorUserId = null;
       if (v.vendor_id) {
         const vuRes = await pool.query(
@@ -381,19 +429,7 @@ const eventResult = await pool.query(
         vendorUserId = vuRes.rows[0]?.id || null;
       }
 
-      // NEW: the persisted price is always computed server-side from the
-      // vendor's own price_per_day (never the client-supplied
-      // quoted_price directly) — this is what stops a fabricated price
-      // from ever reaching payout math. If this vendor has no
-      // price_per_day set at all (shouldn't normally happen for an
-      // active vendor, but not impossible), fall back to null rather
-      // than inventing a number; GET /my and GET /admin/all already
-      // handle a null/zero quoted_price via their effective_price
-      // COALESCE, so the UI won't silently show 0.
       const days = v.days || 1;
-      const serverPrice = vendor?.price_per_day != null
-        ? Number(vendor.price_per_day) * days
-        : null;
 
       await pool.query(
         `INSERT INTO event_vendor_slots
@@ -406,7 +442,7 @@ const eventResult = await pool.query(
           v.vendor_id   || null,
           vendorUserId,
           v.service_type || null,
-          serverPrice,
+          v.vendor_id ? price : null,
           days,
           v.coverage_types?.length ? v.coverage_types : null,
           v.quantity     || null,

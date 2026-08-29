@@ -1,9 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 
-import { API_URL } from '../../config/api';
+import { adminFetch } from '../../lib/adminApi';
 
-const API = API_URL;
-const token = () => localStorage.getItem('adminToken');
 
 /* ── Palette — clean minimal, neutral with a single accent ───────────── */
 const C = {
@@ -126,7 +124,7 @@ export default function AdminVendorPayouts() {
 
   const fetchMonths = async () => {
     try {
-      const res = await fetch(`${API}/vendor-payouts/admin/available-months`, { headers: { Authorization: `Bearer ${token()}` } });
+      const res = await adminFetch(`/vendor-payouts/admin/available-months`);
       const data = await res.json();
       setMonths(Array.isArray(data) ? data : []);
     } catch { /* silent */ }
@@ -137,7 +135,7 @@ export default function AdminVendorPayouts() {
     try {
       const params = new URLSearchParams({ month: selectedMonth });
       if (filter !== 'all') params.set('status', filter);
-      const res = await fetch(`${API}/vendor-payouts/admin?${params}`, { headers: { Authorization: `Bearer ${token()}` } });
+      const res = await adminFetch(`/vendor-payouts/admin?${params}`);
       const data = await res.json();
       setPayouts(Array.isArray(data) ? data : []);
     } catch { /* silent */ }
@@ -148,7 +146,7 @@ export default function AdminVendorPayouts() {
   // totals in the summary table always reflect the whole selected month.
   const fetchAllPayouts = async () => {
     try {
-      const res = await fetch(`${API}/vendor-payouts/admin?month=${selectedMonth}`, { headers: { Authorization: `Bearer ${token()}` } });
+      const res = await adminFetch(`/vendor-payouts/admin?month=${selectedMonth}`);
       const data = await res.json();
       setAllPayouts(Array.isArray(data) ? data : []);
     } catch { /* silent */ }
@@ -157,7 +155,7 @@ export default function AdminVendorPayouts() {
   const fetchCommissionSummary = async () => {
     setCommissionLoading(true);
     try {
-      const res = await fetch(`${API}/vendor-payouts/admin/commission-summary?month=${selectedMonth}`, { headers: { Authorization: `Bearer ${token()}` } });
+      const res = await adminFetch(`/vendor-payouts/admin/commission-summary?month=${selectedMonth}`);
       const data = await res.json();
       setCommissionSummary(Array.isArray(data) ? data : []);
     } catch { /* silent */ }
@@ -173,9 +171,9 @@ export default function AdminVendorPayouts() {
   const markPaid = async (id) => {
     const note = window.prompt('Reference note (e.g. UPI transaction ID / cheque number):') || '';
     try {
-      const res = await fetch(`${API}/vendor-payouts/${id}/mark-paid`, {
+      const res = await adminFetch(`/vendor-payouts/${id}/mark-paid`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reference_note: note }),
       });
       const data = await res.json();
@@ -192,9 +190,15 @@ export default function AdminVendorPayouts() {
     }
   };
 
+  // FIXED: was keyed by vendor_name alone, which silently merges the
+  // pending/paid totals of two different vendors that happen to share a
+  // display name. Key by vendor_id (the stable identity already used
+  // elsewhere in this file — see `Vendor #${p.vendor_id}` and the
+  // vendorSummary `key` prop below), only falling back to vendor_name if
+  // vendor_id is genuinely missing from the payload.
   const pendingPaidByVendor = {};
   allPayouts.forEach(p => {
-    const key = p.vendor_name || `Vendor #${p.vendor_id}`;
+    const key = p.vendor_id ?? p.vendor_name;
     if (!pendingPaidByVendor[key]) pendingPaidByVendor[key] = { pending: 0, paid: 0 };
     pendingPaidByVendor[key][p.status === 'paid' ? 'paid' : 'pending'] += Number(p.amount);
   });
@@ -202,8 +206,8 @@ export default function AdminVendorPayouts() {
   const vendorSummary = commissionSummary
     .map(c => ({
       ...c,
-      pending: pendingPaidByVendor[c.vendor_name]?.pending || 0,
-      paid: pendingPaidByVendor[c.vendor_name]?.paid || 0,
+      pending: pendingPaidByVendor[c.vendor_id ?? c.vendor_name]?.pending || 0,
+      paid: pendingPaidByVendor[c.vendor_id ?? c.vendor_name]?.paid || 0,
     }))
     .sort((a, b) => b.commission_total - a.commission_total);
 

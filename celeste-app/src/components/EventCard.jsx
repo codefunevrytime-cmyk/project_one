@@ -68,6 +68,19 @@ function getBookmarkPayload(event) {
   };
 }
 
+// Renders a price as a smaller ₹ symbol followed by the larger amount,
+// mirroring the grid card's .priceSym / .priceVal split (see
+// EventCard.module.css) so price typography reads the same whether it's
+// shown on the card or in the expand panel.
+function PriceDisplay({ amount, symbolStyle, valueStyle }) {
+  return (
+    <>
+      <span style={symbolStyle}>₹</span>
+      {Number(amount).toLocaleString("en-IN")}
+    </>
+  );
+}
+
 // ── Expand Panel ──────────────────────────────────────────────────────────
 function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, onBookmark, pickContext, onAddToEvent }) {
   const related = getRelated(event, allEvents);
@@ -101,30 +114,48 @@ function ExpandPanel({ event, allEvents, onClose, onRelatedClick, isBookmarked, 
   const nextImg = () => goTo((activeIdx + 1) % total);
   const currentImg = images[activeIdx] || null;
 
+  // Was re-deriving its own local `images` here (shadowing the outer
+  // `images` declared above from getImages(event)) with near-identical
+  // logic. Now just reuses the outer one — single source of truth, no
+  // risk of the two derivations drifting apart on a future edit.
   const handleCtaClick = () => {
     if (isPicking) {
       onAddToEvent(event);
     } else {
       onClose();
-      const images = Array.isArray(event.images) && event.images.length > 0
-  ? event.images
-  : (event.image_url ? [event.image_url] : []);
-
-navigate("/create-event", {
-  state: {
-    referenceEvent: {
-      id: event.id,
-      title: event.title,
-      type: event.type,
-      img: event.image_url || images[0] || null,
-      city: event.venue || '',
-      dateLabel: `${event.month || ''} ${event.year || ''}`.trim(),
-      price: event.price ? `₹${Number(event.price).toLocaleString('en-IN')}` : '',
-    },
-  },
-});
+      navigate("/create-event", {
+        state: {
+          referenceEvent: {
+            id: event.id,
+            title: event.title,
+            type: event.type,
+            img: event.image_url || images[0] || null,
+            city: event.venue || '',
+            dateLabel: `${event.month || ''} ${event.year || ''}`.trim(),
+            price: event.price ? `₹${Number(event.price).toLocaleString('en-IN')}` : '',
+          },
+        },
+      });
     }
   };
+
+  // Meta grid cells — Date always shown; Price only when present. Price is
+  // rendered via PriceDisplay so the ₹ symbol matches the grid card's
+  // smaller-symbol-next-to-larger-number treatment instead of a flat string.
+  const metaCells = [
+    { label: "Date", val: formatDateDMY(event) },
+    ...(event.price
+      ? [{
+          label: "Price",
+          val: (
+            <PriceDisplay
+              amount={event.price}
+              symbolStyle={{ fontSize: 12, marginRight: 2 }}
+            />
+          ),
+        }]
+      : []),
+  ];
 
   return (
     <div className="ep-wrap">
@@ -323,10 +354,7 @@ navigate("/create-event", {
 <br />
             {/* meta grid — Date + Price only */}
             <div className="ep-grid">
-              {[
-                ["Date", formatDateDMY(event)],
-                ...(event.price ? [["Price", `₹${Number(event.price).toLocaleString("en-IN")}`]] : []),
-              ].map(([label, val]) => (
+              {metaCells.map(({ label, val }) => (
                 <div key={label} className="ep-cell">
                   <div className="ep-cell-label">{label}</div>
                   <div className="ep-cell-val">{val}</div>

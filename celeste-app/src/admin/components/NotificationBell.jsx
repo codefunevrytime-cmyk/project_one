@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { API_URL } from '../../config/api';
+import { adminFetch } from '../../lib/adminApi';
 
-const API = API_URL;
-const token = () => localStorage.getItem('adminToken');
 const POLL_MS = 12000;
 
 const TYPE_META = {
@@ -28,9 +26,13 @@ function timeAgo(dateStr) {
   return `${days}d ago`;
 }
 
-async function safeJson(url, opts) {
+// Uses adminFetch (in-memory token, auto-attaches Authorization, silently
+// refreshes on 401) instead of a raw fetch + manually-read token — see
+// lib/adminApi.js. Pass a path starting with '/', e.g. '/queries';
+// adminFetch prefixes it with API_URL itself, so don't prefix it here too.
+async function safeJson(path) {
   try {
-    const res = await fetch(url, opts);
+    const res = await adminFetch(path);
     const data = await res.json();
     return Array.isArray(data) ? data : [];
   } catch {
@@ -93,16 +95,14 @@ export default function NotificationBell({ onNavigate }) {
   };
 
   const fetchAll = useCallback(async () => {
-    const headers = { Authorization: `Bearer ${token()}` };
-
     const [vendorApps, reviews, queries, convos, events, payouts, deposits] = await Promise.all([
-      safeJson(`${API}/vendor-auth/all`, { headers }),
-      safeJson(`${API}/reviews?all=true`, { headers }),
-      safeJson(`${API}/queries`, { headers }),
-      safeJson(`${API}/messages/admin`, { headers }),
-      safeJson(`${API}/events/admin/all`, { headers }),
-      safeJson(`${API}/vendor-payouts/admin`, { headers }),
-      safeJson(`${API}/payments/deposit/admin/all`, { headers }),
+      safeJson(`/vendor-auth/all`),
+      safeJson(`/reviews?all=true`),
+      safeJson(`/queries`),
+      safeJson(`/messages/admin`),
+      safeJson(`/events/admin/all`),
+      safeJson(`/vendor-payouts/admin`),
+      safeJson(`/payments/deposit/admin/all`),
     ]);
 
     const list = [];

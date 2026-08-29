@@ -148,6 +148,12 @@
   gap: 2px;
   margin-bottom: 10px;
 }
+.priceSym {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: 'Playfair Display', serif;
+}
 .priceVal {
   font-size: 28px;
   font-weight: 600;

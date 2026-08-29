@@ -3,10 +3,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-import { API_URL } from '../../config/api';
+import { adminFetch } from '../../lib/adminApi';
 
-const API = API_URL;
-const token = () => localStorage.getItem('adminToken');
 
 function Bubble({ msg }) {
   const isAdmin  = msg.sender_type === 'admin';
@@ -56,7 +54,7 @@ export default function AdminMessages() {
 
   const fetchConvs = async () => {
     try {
-      const res  = await fetch(`${API}/messages/admin`, { headers: { Authorization: `Bearer ${token()}` } });
+      const res  = await adminFetch(`/messages/admin`);
       const data = await res.json();
       setConvs(Array.isArray(data) ? data : []);
     } catch { /* silent */ }
@@ -66,7 +64,7 @@ export default function AdminMessages() {
   const fetchMessages = useCallback(async (id) => {
     if (!id) return;
     try {
-      const res  = await fetch(`${API}/messages/admin/${id}`, { headers: { Authorization: `Bearer ${token()}` } });
+      const res  = await adminFetch(`/messages/admin/${id}`);
       const data = await res.json();
       if (data.messages) setMessages(data.messages);
     } catch { /* silent */ }
@@ -91,9 +89,9 @@ export default function AdminMessages() {
     if (!reply.trim() || !selected) return;
     setSending(true);
     try {
-      await fetch(`${API}/messages/admin/${selected.id}`, {
+      await adminFetch(`/messages/admin/${selected.id}`, {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+        headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ message: reply }),
       });
       setReply('');
@@ -105,9 +103,9 @@ export default function AdminMessages() {
 
   const updateStatus = async (status) => {
     if (!selected) return;
-    await fetch(`${API}/messages/admin/${selected.id}/status`, {
+    await adminFetch(`/messages/admin/${selected.id}/status`, {
       method:  'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+      headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ status }),
     });
     fetchConvs();

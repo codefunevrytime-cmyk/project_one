@@ -70,6 +70,16 @@ async function ensureAddonsTable() {
   `);
   await pool.query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS addon_id INTEGER REFERENCES event_addons(id) ON DELETE SET NULL`).catch(() => {});
   await pool.query(`ALTER TABLE payments ALTER COLUMN razorpay_order_id DROP NOT NULL`).catch(() => {});
+
+  // NEW — contingency-funded add-ons. An add-on no longer always bills the
+  // client in full: if the event still has unspent 5% contingency buffer
+  // (see getContingencyBreakdownPaise below), that gets drawn down first
+  // and the client is only billed the remainder (if any).
+  //   funded_by:            'contingency' | 'client' | 'mixed'
+  //   contingency_covered:  rupees of THIS add-on's amount that came out
+  //                         of the buffer rather than being billed
+  await pool.query(`ALTER TABLE event_addons ADD COLUMN IF NOT EXISTS funded_by TEXT DEFAULT 'client'`).catch(() => {});
+  await pool.query(`ALTER TABLE event_addons ADD COLUMN IF NOT EXISTS contingency_covered NUMERIC NOT NULL DEFAULT 0`).catch(() => {});
 }
 ensureAddonsTable().catch(console.error);
 
@@ -325,6 +335,54 @@ async function getEventOnlyCostPaise(eventId, totalBudgetRupees) {
   return Math.max(0, totalBudgetPaise - vendorCostsTotalPaise);
 }
 
+// ── Contingency reconciliation (NEW) ──────────────────────────────────────
+// The 5% contingency buffer isn't its own stored column — it's implicit in
+// budget_estimate exactly the way CreateEventPage.jsx computed it at
+// submission: contingency = (event-only cost) − reference_event_price.
+// "Event-only cost" is budget_estimate minus the vendor slots' own total
+// (getEventOnlyCostPaise above), so this stays correct even if
+// reference_event_price is set/changed later by admin's
+// PATCH /admin/:id/reference-price (a client-uploaded reference starts at
+// 0, so 100% of the event-only cost is contingency until admin prices it).
+//
+// "Consumed" is the running total of event_addons.contingency_covered
+// across every non-cancelled add-on — see POST /addons below, which is
+// the only place that column is ever written.
+//
+// IMPORTANT CAVEAT this does not attempt to solve: contingency is drawn
+// down here against the full BUDGETED amount, not against cash actually
+// collected so far. Only the 20% event-advance has necessarily been
+// collected before the balance payment lands (see computeAdvanceSplit) —
+// so a contingency-funded add-on created mid-event may be "spending"
+// buffer that hasn't been fully paid in yet. Budget-estimate itself works
+// the same way (it's a commitment, not a bank balance), so this mirrors
+// existing behavior rather than introducing a new inconsistency — but
+// it's worth knowing before treating "remaining contingency" as literal
+// cash on hand.
+async function getContingencyBreakdownPaise(eventId, budgetEstimateRupees) {
+  const eventOnlyPaise = await getEventOnlyCostPaise(eventId, budgetEstimateRupees);
+
+  const evRes = await pool.query(
+    `SELECT reference_event_price FROM event_requests WHERE id = $1`,
+    [eventId]
+  );
+  const refPricePaise = Math.round(Number(evRes.rows[0]?.reference_event_price || 0) * 100);
+
+  const contingencyTotalPaise = Math.max(0, eventOnlyPaise - refPricePaise);
+
+  const consumedRes = await pool.query(
+    `SELECT COALESCE(SUM(contingency_covered), 0) AS total
+     FROM event_addons
+     WHERE event_id = $1 AND status != 'cancelled'`,
+    [eventId]
+  );
+  const consumedPaise = Math.round(Number(consumedRes.rows[0].total) * 100);
+
+  const remainingPaise = Math.max(0, contingencyTotalPaise - consumedPaise);
+
+  return { contingencyTotalPaise, consumedPaise, remainingPaise, refPricePaise };
+}
+
 // Pulls a percentage out of a vendor's free-text payment_terms field
 // (e.g. "20% adv" -> 20). Falls back to DEFAULT_VENDOR_ADVANCE_PCT if the
 // field is empty, unparseable, or out of a sane 1-100 range.
@@ -455,7 +513,10 @@ async function computeBalanceSplit(eventId, balancePaise, commissionPct) {
 // vendor's own quoted price/advance terms, so they keep the original
 // proportional-split behavior: split across active vendor slots by their
 // share of total vendor cost, commission taken proportionally. This is
-// unrelated to the advance/balance restructuring above.
+// unrelated to the advance/balance restructuring above. NOTE: this now
+// only ever runs against the CLIENT-BILLED portion of an add-on (see
+// POST /addons / /offline below) — the contingency-covered portion never
+// creates a payment or a vendor payout, since no new client money moved.
 async function splitPaymentProportional(eventId, totalBudgetRupees, paymentAmountPaise, commissionPct) {
   const totalBudgetPaise = Math.round(Number(totalBudgetRupees || 0) * 100);
   const vendorCostsTotalPaise = await getVendorCostsTotalPaise(eventId);
@@ -596,7 +657,13 @@ router.post('/create-order', clientAuth, async (req, res) => {
       const addon = addonRes.rows[0];
       if (!addon) return res.status(404).json({ error: 'Add-on not found' });
       if (addon.status !== 'pending') return res.status(400).json({ error: 'This add-on is not payable' });
-      amount = Math.round(Number(addon.amount) * 100);
+      // Only the portion NOT already covered by contingency is billable —
+      // see POST /addons, which sets contingency_covered at creation time.
+      const billablePaise = Math.round((Number(addon.amount) - Number(addon.contingency_covered || 0)) * 100);
+      if (billablePaise <= 0) {
+        return res.status(400).json({ error: 'This add-on is fully covered by contingency — nothing to pay' });
+      }
+      amount = billablePaise;
     } else {
       return res.status(400).json({ error: "payment_type must be 'advance', 'balance', or 'addon'" });
     }
@@ -787,6 +854,49 @@ router.post('/refund', adminAuth, async (req, res) => {
   }
 });
 
+// ── GET /api/payments/contingency/:eventId — admin, reconciliation view ──
+// Surfaces the contingency breakdown so admin can see, at any point, how
+// much of the buffer is left and how much add-ons have eaten into it —
+// without having to derive it by hand from budget_estimate. Also what
+// AdminEventRequests.jsx calls when an event is marked 'completed' to
+// offer a contingency refund via the existing /refund (Cost Adjustment)
+// pathway.
+router.get('/contingency/:eventId', adminAuth, async (req, res) => {
+  try {
+    const eventId = req.params.eventId;
+    const evRes = await pool.query(
+      `SELECT id, budget_estimate, status, payment_status FROM event_requests WHERE id = $1`,
+      [eventId]
+    );
+    const event = evRes.rows[0];
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+
+    const breakdown = await getContingencyBreakdownPaise(eventId, event.budget_estimate);
+
+    const addonsRes = await pool.query(
+      `SELECT id, label, amount, funded_by, contingency_covered, status
+       FROM event_addons WHERE event_id = $1 AND status != 'cancelled' AND contingency_covered > 0
+       ORDER BY created_at ASC`,
+      [eventId]
+    );
+
+    res.json({
+      event_id: Number(eventId),
+      contingency_total: breakdown.contingencyTotalPaise / 100,
+      contingency_consumed: breakdown.consumedPaise / 100,
+      contingency_remaining: breakdown.remainingPaise / 100,
+      // Only meaningful as an actual refund once the client has paid in
+      // full — before that, "remaining" is a budgeted figure, not
+      // necessarily collected cash. See getContingencyBreakdownPaise's
+      // comment for why.
+      refund_ready: event.payment_status === 'fully_paid',
+      funded_addons: addonsRes.rows,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Add-on charges ────────────────────────────────────────────────────
 
 router.post('/addons', adminAuth, async (req, res) => {
@@ -795,16 +905,48 @@ router.post('/addons', adminAuth, async (req, res) => {
     if (!event_id || !label || !amount) {
       return res.status(400).json({ error: 'event_id, label and amount are required' });
     }
+
+    const evRes = await pool.query('SELECT budget_estimate FROM event_requests WHERE id = $1', [event_id]);
+    if (evRes.rows.length === 0) return res.status(404).json({ error: 'Event not found' });
+
+    // NEW — check unspent contingency first. Whatever the buffer can
+    // cover is drawn down silently (no client charge, no payment record);
+    // only the remainder (if any) becomes a billable add-on the way it
+    // always did.
+    const { remainingPaise } = await getContingencyBreakdownPaise(event_id, evRes.rows[0].budget_estimate);
+    const amountPaise = Math.round(Number(amount) * 100);
+    const contingencyCoveredPaise = Math.min(remainingPaise, amountPaise);
+    const billablePaise = amountPaise - contingencyCoveredPaise;
+
+    const funded_by = contingencyCoveredPaise <= 0
+      ? 'client'
+      : billablePaise <= 0
+        ? 'contingency'
+        : 'mixed';
+
+    // Fully contingency-covered add-ons need no client payment at all —
+    // mark 'paid' immediately so it doesn't sit on the client's "amount
+    // due" list forever. Partially/fully client-billed ones stay
+    // 'pending' exactly as before, and go through the normal
+    // create-order/offline flow for whatever portion is still owed.
+    const initialStatus = billablePaise <= 0 ? 'paid' : 'pending';
+
     const result = await pool.query(
-      `INSERT INTO event_addons (event_id, label, amount, notes) VALUES ($1,$2,$3,$4) RETURNING *`,
-      [event_id, label, amount, notes || null]
+      `INSERT INTO event_addons (event_id, label, amount, notes, funded_by, contingency_covered, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [
+        event_id, label, amount, notes || null,
+        funded_by,
+        contingencyCoveredPaise / 100,
+        initialStatus,
+      ]
     );
 
     // New charge created — client's MyEvents "Pay ₹X" prompt and admin's
     // add-on list should both pick it up without a reload.
     await emitAddonsUpdate(req.app.get('io'), event_id);
 
-    res.json({ success: true, addon: result.rows[0] });
+    res.json({ success: true, addon: result.rows[0], billable_amount: billablePaise / 100 });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -895,7 +1037,11 @@ router.post('/offline', adminAuth, async (req, res) => {
       if (!addonRow || addonRow.status !== 'pending') {
         return res.status(400).json({ error: 'Add-on not found or already settled' });
       }
-      amountPaise = Math.round(Number(addonRow.amount) * 100);
+      // Same as /create-order — only the un-covered portion is payable.
+      amountPaise = Math.round((Number(addonRow.amount) - Number(addonRow.contingency_covered || 0)) * 100);
+      if (amountPaise <= 0) {
+        return res.status(400).json({ error: 'This add-on is fully covered by contingency — nothing to record' });
+      }
     } else {
       return res.status(400).json({ error: 'Invalid payment_type' });
     }

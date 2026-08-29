@@ -18,7 +18,7 @@ export function getAdminAccessToken() {
 
 async function refreshAccessToken() {
   if (!refreshPromise) {
-    refreshPromise = fetch(`${API_URL}/api/admin/refresh`, {
+    refreshPromise =  fetch(`${API_URL}/admin/refresh`, {
       method: 'POST',
       credentials: 'include',
     })

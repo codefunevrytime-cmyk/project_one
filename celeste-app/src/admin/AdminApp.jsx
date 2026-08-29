@@ -9,7 +9,7 @@ export default function AdminApp() {
   const [checkingSession, setCheckingSession] = useState(true);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/admin/refresh`, { method: 'POST', credentials: 'include' })
+  fetch(`${API_URL}/admin/refresh`, { method: 'POST', credentials: 'include' })
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((data) => {
         setAdminAccessToken(data.token);
@@ -31,7 +31,7 @@ export default function AdminApp() {
   };
 
   const handleLogout = async () => {
-    await fetch(`${API_URL}/api/admin/logout`, { method: 'POST', credentials: 'include' });
+ await fetch(`${API_URL}/admin/logout`, { method: 'POST', credentials: 'include' });
     setAdminAccessToken(null);
     setLoggedIn(false);
   };

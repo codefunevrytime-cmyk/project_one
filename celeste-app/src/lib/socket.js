@@ -18,10 +18,22 @@ const SOCKET_URL = API_BASE;
 
 let socket = null;
 
+// server.js reads socket.handshake.auth.token and expects one of three
+// JWT shapes: { id, role } for client/admin tokens (routes/auth.js) or
+// { vendorUserId } for vendor tokens (routes/vendorAuth.js). This app
+// stores the active JWT under the single key "celeste_token" regardless
+// of which login flow (client/admin/vendor) produced it.
+function getStoredToken() {
+  return localStorage.getItem("celeste_token") || null;
+}
+
 export function getSocket() {
   if (socket) return socket;
 
+  const token = getStoredToken();
+
   console.log("[socket] connecting to", SOCKET_URL || "(same origin, via Vite proxy)");
+  console.log("[socket] auth token present:", Boolean(token));
 
   socket = io(SOCKET_URL || undefined, {
     withCredentials: true,
@@ -29,6 +41,7 @@ export function getSocket() {
     reconnection: true,
     reconnectionDelay: 1000,
     reconnectionAttempts: Infinity,
+    auth: { token }, // ← server.js reads this via socket.handshake.auth.token
   });
 
   socket.on("connect", () => {
@@ -46,7 +59,11 @@ export function getSocket() {
   return socket;
 }
 
-// Call this on logout so the next login gets a fresh authed connection
+// Call this on logout so the next login gets a fresh authed connection.
+// IMPORTANT: after a login/logout that changes the token, you must call
+// disconnectSocket() before the next getSocket() — the module caches
+// `socket` in memory, so simply calling getSocket() again after a token
+// change will keep returning the OLD connection with the OLD token.
 export function disconnectSocket() {
   if (socket) {
     socket.disconnect();

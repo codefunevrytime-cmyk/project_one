@@ -19,16 +19,31 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:5174',
-    // Frontend ngrok tunnel — update this if the tunnel URL changes
-    // (free ngrok URLs change every time you restart the tunnel).
-    'https://sharpie-pasty-equity.ngrok-free.dev'
-  ],
+// ── CORS origins ─────────────────────────────────────────────────────────
+// Read from FRONTEND_ORIGINS (comma-separated) instead of hardcoding.
+// Free ngrok tunnel URLs rotate on every restart — before this change, the
+// tunnel URL was hardcoded in two places (Express cors() below and the
+// Socket.IO Server config further down), so a restart silently broke
+// cross-origin requests until someone noticed and edited both spots by hand.
+// Now: update .env, restart the process, done — one source of truth.
+//
+// Example .env line:
+//   FRONTEND_ORIGINS=http://localhost:5173,http://localhost:5174,https://sharpie-pasty-equity.ngrok-free.dev
+const allowedOrigins = (process.env.FRONTEND_ORIGINS || '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+if (allowedOrigins.length === 0) {
+  console.warn('[cors] WARNING: FRONTEND_ORIGINS is empty — no origins will be allowed. Set it in .env.');
+}
+
+const corsOptions = {
+  origin: allowedOrigins,
   credentials: true
-}));
+};
+
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '1mb' }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Some legacy database rows reference images that were removed from local
@@ -68,13 +83,22 @@ app.use('/api/vendor-payouts', require('./routes/vendorPayouts'));
 app.use('/api/auth',           require('./routes/auth'));
 app.use('/api/auth',           require('./routes/googleAuth'));
 app.use('/api/messages',       require('./routes/messages'));
-app.use('/api/events',         require('./routes/events'));
-app.use('/api/upload',         require('./routes/upload'));
-app.use('/api/analytics',      require('./routes/analytics'));
 // NEW — real venue photos for the Create Event "decoration location"
 // secondary-screen picker (replaces the emoji-only dropdown). See
 // routes/decorationVenues.js for the table + admin upload endpoints.
+//
+// MUST be required before ./routes/events: events.js's ensureTables()
+// runs `ALTER TABLE event_requests ADD COLUMN decoration_venue_id
+// INTEGER REFERENCES decoration_venues(id)` at module-load time, and
+// Postgres will refuse to create a FK against a table that doesn't exist
+// yet. That failure was being silently swallowed by the `.catch(() =>
+// {})` around each ALTER, so on a fresh DB decoration_venue_id never got
+// created — requiring this router first guarantees decoration_venues
+// exists before events.js's migration runs.
 app.use('/api/decoration-venues', require('./routes/decorationVenues'));
+app.use('/api/events',         require('./routes/events'));
+app.use('/api/upload',         require('./routes/upload'));
+app.use('/api/analytics',      require('./routes/analytics'));
 
 const { router: vendorAuthRouter } = require('./routes/vendorAuth');
 app.use('/api/vendor-auth', vendorAuthRouter);
@@ -84,15 +108,10 @@ app.use('/api/vendor-auth', vendorAuthRouter);
 // so the same port can serve both the REST API and the WebSocket upgrade.
 const server = http.createServer(app);
 
+// Reuses the exact same corsOptions object as the Express cors() middleware
+// above, so there's only one place to update the allowed origins list.
 const io = new Server(server, {
-  cors: {
-    origin: [
-      'http://localhost:5173',
-      'http://localhost:5174',
-      'https://sharpie-pasty-equity.ngrok-free.dev'
-    ],
-    credentials: true
-  }
+  cors: corsOptions
 });
 
 // Identify each connecting socket from its JWT (same token the client

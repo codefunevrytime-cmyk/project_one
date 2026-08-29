@@ -2,10 +2,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import './AdminEventRequests.css';
 
-import { API_URL } from '../../config/api';
 import { getSocket } from '../../lib/socket'; // adjust path if your lib folder sits elsewhere
-
-const API = API_URL;
+import { adminFetch } from '../../lib/adminApi'; // adjust path if your lib folder sits elsewhere
 
 // ── Status lifecycle ──────────────────────────────────────────────────────
 // pending          → auto-set on client submit. Admin never needs a
@@ -252,13 +250,9 @@ export default function AdminEventRequests() {
 
   const showMsg = (msg) => { setActionMsg(msg); setTimeout(() => setActionMsg(''), 3500); };
 
-  const adminToken = () => localStorage.getItem('adminToken') || localStorage.getItem('token');
-
   const fetchEvents = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/events/admin/all`, {
-        headers: { Authorization: `Bearer ${adminToken()}` }
-      });
+      const res = await adminFetch(`/events/admin/all`);
       const data = await res.json();
       setEvents(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -272,7 +266,7 @@ export default function AdminEventRequests() {
 
   async function fetchAddons(eventId) {
     try {
-      const res = await fetch(`${API}/payments/addons/${eventId}`, { headers: { Authorization: `Bearer ${adminToken()}` } });
+      const res = await adminFetch(`/payments/addons/${eventId}`);
       const data = await res.json();
       setAddonsByEvent(a => ({ ...a, [eventId]: Array.isArray(data) ? data : [] }));
     } catch (err) {
@@ -283,9 +277,9 @@ export default function AdminEventRequests() {
   async function updateStatus(eventId, status) {
     setStatusUpdating(s => ({ ...s, [eventId]: true }));
     try {
-      await fetch(`${API}/events/admin/${eventId}/status`, {
+      await adminFetch(`/events/admin/${eventId}/status`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, admin_notes: notes[eventId] || '' })
       });
       setEvents(ev => ev.map(e => e.id === eventId ? { ...e, status } : e));
@@ -305,16 +299,16 @@ export default function AdminEventRequests() {
 
     setStatusUpdating(s => ({ ...s, [eventId]: true }));
     try {
-      await fetch(`${API}/events/admin/${eventId}/status`, {
+      await adminFetch(`/events/admin/${eventId}/status`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'cancelled', admin_notes: notes[eventId] || 'Terminated by admin — deal not finalised' })
       });
 
       if (hasPaid) {
-        const refRes = await fetch(`${API}/payments/refund`, {
+        const refRes = await adminFetch(`/payments/refund`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ booking_id: eventId, refund_pct: 100, reason: 'Event terminated by admin' })
         });
         const refData = await refRes.json();
@@ -338,9 +332,9 @@ export default function AdminEventRequests() {
     const reason = window.prompt('Reason for this adjustment (shown in the payment ledger):') || 'Cost adjustment by admin';
 
     try {
-      const res = await fetch(`${API}/payments/refund`, {
+      const res = await adminFetch(`/payments/refund`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ booking_id: eventId, refund_pct: pct, reason }),
       });
       const data = await res.json();
@@ -360,9 +354,9 @@ export default function AdminEventRequests() {
 
     setAddonSubmitting(s => ({ ...s, [eventId]: true }));
     try {
-      const res = await fetch(`${API}/payments/addons`, {
+      const res = await adminFetch(`/payments/addons`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ event_id: eventId, label: form.label, amount: Number(form.amount), notes: form.notes || null }),
       });
       const data = await res.json();
@@ -381,9 +375,8 @@ export default function AdminEventRequests() {
 
   async function handleCancelAddon(eventId, addonId) {
     if (!window.confirm('Cancel this add-on charge?')) return;
-    await fetch(`${API}/payments/addons/${addonId}/cancel`, {
+    await adminFetch(`/payments/addons/${addonId}/cancel`, {
       method: 'PATCH',
-      headers: { Authorization: `Bearer ${adminToken()}` },
     });
     fetchAddons(eventId);
   }
@@ -401,9 +394,9 @@ export default function AdminEventRequests() {
 
     setOfflineSubmitting(s => ({ ...s, [eventId]: true }));
     try {
-      const res = await fetch(`${API}/payments/offline`, {
+      const res = await adminFetch(`/payments/offline`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           booking_id: eventId,
           payment_type: form.payment_type,
@@ -438,9 +431,9 @@ export default function AdminEventRequests() {
 
     setRefPriceSubmitting(s => ({ ...s, [eventId]: true }));
     try {
-      const res = await fetch(`${API}/events/admin/${eventId}/reference-price`, {
+      const res = await adminFetch(`/events/admin/${eventId}/reference-price`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reference_event_price: val }),
       });
       const data = await res.json();

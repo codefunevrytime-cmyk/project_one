@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 
-import { API_URL } from '../../config/api';
+import { adminFetch } from '../../lib/adminApi';
 
-const API = API_URL;
-const token = () => localStorage.getItem('adminToken');
 
 export default function AdminQueries() {
   const [queries, setQueries] = useState([]);
@@ -11,9 +9,7 @@ export default function AdminQueries() {
 
   const fetchQueries = async () => {
     try {
-      const res = await fetch(`${API}/queries`, {
-        headers: { Authorization: `Bearer ${token()}` }
-      });
+      const res = await adminFetch(`/queries`);
       const data = await res.json();
       setQueries(data);
     } catch {
@@ -25,9 +21,8 @@ export default function AdminQueries() {
   useEffect(() => { fetchQueries(); }, []);
 
   const markReplied = async (id) => {
-    await fetch(`${API}/queries/${id}/replied`, {
+    await adminFetch(`/queries/${id}/replied`, {
       method: 'PATCH',
-      headers: { Authorization: `Bearer ${token()}` }
     });
     fetchQueries();
   };

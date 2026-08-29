@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 
-import { API_URL } from '../../config/api';
+import { adminFetch } from '../../lib/adminApi';
 
-const API = API_URL;
-const token = () => localStorage.getItem('adminToken');
 
 export default function AdminVendorApplications() {
   const [applications, setApplications] = useState([]);
@@ -14,12 +12,19 @@ export default function AdminVendorApplications() {
 
   const load = async () => {
     setLoading(true);
-    const [appRes, crRes] = await Promise.all([
-      fetch(`${API}/vendor-auth/all`, { headers: { Authorization: `Bearer ${token()}` } }),
-      fetch(`${API}/vendor-auth/contact-requests`, { headers: { Authorization: `Bearer ${token()}` } }),
-    ]);
-    setApplications(await appRes.json());
-    setContactRequests(await crRes.json());
+    try {
+      const [appRes, crRes] = await Promise.all([
+        adminFetch(`/vendor-auth/all`),
+        adminFetch(`/vendor-auth/contact-requests`),
+      ]);
+      const appData = await appRes.json();
+      const crData = await crRes.json();
+      setApplications(Array.isArray(appData) ? appData : []);
+      setContactRequests(Array.isArray(crData) ? crData : []);
+    } catch {
+      // Network error, rate limit, or non-JSON response — keep whatever
+      // was already loaded rather than crashing the tab.
+    }
     setLoading(false);
   };
 
@@ -28,19 +33,19 @@ export default function AdminVendorApplications() {
   const showMsg = m => { setMsg(m); setTimeout(() => setMsg(''), 3000); };
 
   const approve = async (id) => {
-    await fetch(`${API}/vendor-auth/${id}/approve`, { method: 'PATCH', headers: { Authorization: `Bearer ${token()}` } });
+    await adminFetch(`/vendor-auth/${id}/approve`, { method: 'PATCH' });
     showMsg('Vendor approved'); load();
   };
   const reject = async (id) => {
-    await fetch(`${API}/vendor-auth/${id}/reject`, { method: 'PATCH', headers: { Authorization: `Bearer ${token()}` } });
+    await adminFetch(`/vendor-auth/${id}/reject`, { method: 'PATCH' });
     showMsg('Vendor rejected'); load();
   };
   const approveContact = async (id) => {
-    await fetch(`${API}/vendor-auth/contact-requests/${id}/approve`, { method: 'PATCH', headers: { Authorization: `Bearer ${token()}` } });
+    await adminFetch(`/vendor-auth/contact-requests/${id}/approve`, { method: 'PATCH' });
     showMsg('Contact revealed to vendor'); load();
   };
   const denyContact = async (id) => {
-    await fetch(`${API}/vendor-auth/contact-requests/${id}/deny`, { method: 'PATCH', headers: { Authorization: `Bearer ${token()}` } });
+    await adminFetch(`/vendor-auth/contact-requests/${id}/deny`, { method: 'PATCH' });
     showMsg('Contact request denied'); load();
   };
 

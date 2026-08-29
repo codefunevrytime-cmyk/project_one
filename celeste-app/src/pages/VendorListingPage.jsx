@@ -13,6 +13,16 @@ import { API_URL } from '../config/api';
 const API = API_URL;
 const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+// How many vendors' portfolio/tags/reviews to fetch in parallel at once.
+// The old code did Promise.all() across ALL active vendors × 3 endpoints
+// each (e.g. 14 vendors → 43 simultaneous requests). That burst is fine
+// against localhost but trips ngrok free-tier's rate limiter on mobile/
+// remote access — and because those requests were all inside ONE
+// Promise.all(), a single 429 anywhere rejected the whole batch, the
+// outer try/catch silently swallowed it, and the vendor list silently
+// fell back to zero DB vendors (only hardcoded/static ones showed).
+const VENDOR_FETCH_BATCH_SIZE = 3;
+
 function mapVendorToCard(vendor, portfolio, tags, serviceConfig, reviews = []) {
   const coverImg = portfolio[0]?.image_url || vendor.photo_url || '';
   const allTags  = tags.map(t => t.tag);
@@ -677,28 +687,54 @@ export default function VendorListingPage({ bookmarks, onBookmarkToggle, service
         const res     = await fetch(`${API}/vendors`);
         const vendors = await res.json();
         const active  = vendors.filter(v => v.is_active && isVendorForService(v, serviceConfig));
-        const enriched = await Promise.all(active.map(async (vendor) => {
-          const [portRes, tagsRes, reviewsRes] = await Promise.all([
-            fetch(`${API}/vendors/${vendor.id}/portfolio`),
-            fetch(`${API}/vendors/${vendor.id}/tags`),
-            // ── NEW: fetch this vendor's reviews so the card can show a
-            // real rating/count instead of the previous hardcoded 5.0 (0).
-            fetch(`${API}/reviews?vendor_id=${vendor.id}`),
-          ]);
-          const portfolio = await portRes.json();
-          const tags      = await tagsRes.json();
-          const reviews   = await reviewsRes.json().catch(() => []);
-          return mapVendorToCard(
-            vendor,
-            Array.isArray(portfolio) ? portfolio : [],
-            Array.isArray(tags) ? tags : [],
-            serviceConfig,
-            Array.isArray(reviews) ? reviews : [],
-          );
-        }));
+
+        // ── Batched fetch instead of one giant Promise.all() ─────────────
+        // Previously ALL active vendors' portfolio+tags+reviews requests
+        // (3 endpoints × N vendors) fired simultaneously in a single
+        // Promise.all(). Against localhost that's harmless, but through
+        // an ngrok free-tier tunnel (mobile/remote access) that burst
+        // trips the rate limiter — and because everything was in ONE
+        // Promise.all(), a single 429 anywhere rejected the ENTIRE
+        // batch. The outer try/catch then silently swallowed that
+        // rejection, so setDbVendors() never ran and the page fell back
+        // to showing only the hardcoded/static vendors, with no error
+        // visible anywhere.
+        //
+        // Fetching in small batches keeps concurrent requests low enough
+        // to stay under ngrok's rate limit while still being much faster
+        // than doing every vendor fully sequentially.
+        const enriched = [];
+        for (let i = 0; i < active.length; i += VENDOR_FETCH_BATCH_SIZE) {
+          const batch = active.slice(i, i + VENDOR_FETCH_BATCH_SIZE);
+          const results = await Promise.all(batch.map(async (vendor) => {
+            const [portRes, tagsRes, reviewsRes] = await Promise.all([
+              fetch(`${API}/vendors/${vendor.id}/portfolio`),
+              fetch(`${API}/vendors/${vendor.id}/tags`),
+              // ── NEW: fetch this vendor's reviews so the card can show a
+              // real rating/count instead of the previous hardcoded 5.0 (0).
+              fetch(`${API}/reviews?vendor_id=${vendor.id}`),
+            ]);
+            const portfolio = await portRes.json().catch(() => []);
+            const tags      = await tagsRes.json().catch(() => []);
+            const reviews   = await reviewsRes.json().catch(() => []);
+            return mapVendorToCard(
+              vendor,
+              Array.isArray(portfolio) ? portfolio : [],
+              Array.isArray(tags) ? tags : [],
+              serviceConfig,
+              Array.isArray(reviews) ? reviews : [],
+            );
+          }));
+          enriched.push(...results);
+        }
         setDbVendors(enriched);
-      } catch {
-        // Ignore vendor fetch errors silently.
+      } catch (err) {
+        // Was previously a silent no-op — that's exactly why the "only 9
+        // hardcoded vendors on mobile" bug went unnoticed for so long.
+        // Logging it means the next time something fails here (rate
+        // limit, network error, bad JSON, etc.) it's visible in devtools
+        // instead of just quietly showing incomplete data.
+        console.error('[vendors] fetch failed:', err);
       }
     };
     fetchVendors();

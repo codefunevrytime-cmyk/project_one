@@ -1491,11 +1491,25 @@ export default function CreateEventPage() {
       });
     }
 
+    // ── Vendor line items ─────────────────────────────────────────────
+    // FIX: previously gated on `sel?.vendor?.price_per_day`, which
+    // silently dropped a vendor from the breakdown whenever that field
+    // was falsy — even if the vendor had real per-service prices that
+    // computeVendorTotal() would happily turn into a non-zero total (e.g.
+    // a vendor who set specific service prices but never got a
+    // price_per_day average filled in during onboarding). price_per_day
+    // is meant to be *derived* from those same prices, so gating on it
+    // separately was a fragile, indirect proxy for "does this vendor cost
+    // anything" instead of just asking computeVendorTotal() directly —
+    // the same function Review already trusts unconditionally. Now the
+    // row is included whenever a vendor is selected and its actual
+    // computed total is greater than zero, matching what Review shows.
     for (const cfg of VENDOR_SERVICE_CONFIGS) {
       const sel = vendorSelections[cfg.id];
-      if (!sel?.enabled || !sel?.vendor?.price_per_day) continue;
+      if (!sel?.enabled || !sel?.vendor) continue;
       const { pricingModel } = getServiceFields(cfg);
       const amt = computeVendorTotal(pricingModel, sel);
+      if (amt <= 0) continue;
       const days = Number(sel.days) || 1;
       rows.push({
         label: cfg.title || cfg.singular,
