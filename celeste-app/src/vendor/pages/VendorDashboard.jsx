@@ -3,9 +3,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { API_URL } from '../../config/api';
+import { vendorFetch } from '../../lib/vendorApi';
 
 const API = API_URL;
-const token = () => localStorage.getItem('vendor_token');
 
 const C = {
   heading: { fontFamily: "'Cormorant Garamond', serif", fontSize: 36, fontWeight: 300, color: '#e8eef8', marginBottom: 4 },
@@ -42,11 +42,20 @@ export default function VendorDashboard() {
   const [enquiries, setEnquiries] = useState([]);
   const [profile, setProfile] = useState(null);
 
+  // FIXED: was `fetch(url, { headers: { Authorization: \`Bearer
+  // ${localStorage.getItem('vendor_token')}\` } })`. VendorAuthContext.jsx
+  // no longer writes anything to localStorage — the access token lives in
+  // memory only (see lib/vendorApi.js) and is restored via the HttpOnly
+  // refresh cookie on mount. That key has been null since the
+  // refresh-token migration, so every request here silently sent
+  // "Authorization: Bearer null" and 401'd, leaving the stat cards stuck
+  // at 0/0/0 even with real data in the DB. vendorFetch() attaches the
+  // real in-memory token and retries once after a silent refresh on 401.
   useEffect(() => {
-    fetch(`${API}/vendor-auth/enquiries`, { headers: { Authorization: `Bearer ${token()}` } })
+    vendorFetch(`${API}/vendor-auth/enquiries`)
       .then(r => r.json()).then(d => setEnquiries(Array.isArray(d) ? d : [])).catch(() => {});
 
-    fetch(`${API}/vendor-auth/profile`, { headers: { Authorization: `Bearer ${token()}` } })
+    vendorFetch(`${API}/vendor-auth/profile`)
       .then(r => r.json()).then(d => setProfile(d)).catch(() => {});
   }, []);
 

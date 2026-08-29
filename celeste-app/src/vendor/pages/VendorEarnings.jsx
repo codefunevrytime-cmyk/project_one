@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 
 import { API_URL } from '../../config/api';
+import { vendorFetch } from '../../lib/vendorApi';
 
 const API = API_URL;
-const token = () => localStorage.getItem('vendor_token');
 
 const S = {
   heading: { fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 300, color: '#e8eef8', marginBottom: 4 },
@@ -65,8 +65,13 @@ export default function VendorEarnings() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
 
+  // FIXED: was reading the dead `localStorage.getItem('vendor_token')`
+  // key — never written to anymore since the refresh-token migration
+  // (see VendorAuthContext.jsx) — so this request always 401'd and every
+  // total on this page stayed frozen at ₹0 regardless of real payout
+  // data. vendorFetch() attaches the real in-memory access token.
   useEffect(() => {
-    fetch(`${API}/vendor-payouts/vendor`, { headers: { Authorization: `Bearer ${token()}` } })
+    vendorFetch(`${API}/vendor-payouts/vendor`)
       .then(r => r.json())
       .then(d => setData(d && d.payouts ? d : { payouts: [], pending_total: 0, paid_total: 0, commission_total: 0 }))
       .catch(() => {})

@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 
 import { API_URL } from '../../config/api';
+import { vendorFetch } from '../../lib/vendorApi';
 
 const API = API_URL;
-const token = () => localStorage.getItem('vendor_token');
 
 const S = {
   heading: { fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 300, color: '#e8eef8', marginBottom: 4 },
@@ -30,7 +30,7 @@ export default function VendorPortfolio() {
   const [activeTab, setActiveTab] = useState('portfolio');
 
   const fetchPortfolio = () => {
-    fetch(`${API}/vendor-auth/profile`, { headers: { Authorization: `Bearer ${token()}` } })
+    vendorFetch(`${API}/vendor-auth/profile`)
       .then(r => r.json())
       .then(data => {
         setPortfolio(data.portfolio || []);
@@ -47,8 +47,8 @@ export default function VendorPortfolio() {
     fd.append('image', file);
     fd.append('caption', caption);
     fd.append('tags', tags);
-    await fetch(`${API}/vendors/${vendorId}/portfolio`, {
-      method: 'POST', headers: { Authorization: `Bearer ${token()}` }, body: fd,
+    await vendorFetch(`${API}/vendors/${vendorId}/portfolio`, {
+      method: 'POST', body: fd,
     });
     setFile(null); setPreview(null); setCaption(''); setTags('');
     setSuccess('Photo uploaded!'); setTimeout(() => setSuccess(''), 3000);
@@ -58,7 +58,7 @@ export default function VendorPortfolio() {
 
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this photo?')) return;
-    await fetch(`${API}/vendors/portfolio/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token()}` } });
+    await vendorFetch(`${API}/vendors/portfolio/${id}`, { method: 'DELETE' });
     fetchPortfolio();
   };
 

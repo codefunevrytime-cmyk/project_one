@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import './VendorEventRequests.css';
 
 import { API_URL } from '../../config/api';
+import { vendorFetch } from '../../lib/vendorApi';
 
 const API = API_URL;
 
@@ -73,10 +74,7 @@ export default function VendorEventRequests() {
 
   async function fetchRequests() {
     try {
-      const token = localStorage.getItem('vendor_token');
-      const res = await fetch(`${API}/events/vendor/requests`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await vendorFetch(`${API}/events/vendor/requests`);
       const data = await res.json();
       setRequests(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -89,10 +87,9 @@ export default function VendorEventRequests() {
   async function respond(slotId, status) {
     setResponding(r => ({ ...r, [slotId]: true }));
     try {
-      const token = localStorage.getItem('vendor_token');
-      await fetch(`${API}/events/vendor/respond/${slotId}`, {
+      await vendorFetch(`${API}/events/vendor/respond/${slotId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, vendor_notes: notes[slotId] || '' })
       });
       setRequests(prev => prev.map(r => r.id === slotId ? { ...r, status, vendor_notes: notes[slotId] || '' } : r));

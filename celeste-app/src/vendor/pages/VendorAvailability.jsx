@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 
 import { API_URL } from '../../config/api';
+import { vendorFetch } from '../../lib/vendorApi';
 
 const API = API_URL;
-const token = () => localStorage.getItem('vendor_token');
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const DAY_NAMES = ['Su','Mo','Tu','We','Th','Fr','Sa'];
 
@@ -31,13 +31,13 @@ export default function VendorAvailability() {
   // vendor's dates.
   const fetchAvail = (vid) => {
     if (!vid) return;
-    fetch(`${API}/availability?vendor_id=${vid}`, { headers: { Authorization: `Bearer ${token()}` } })
+    vendorFetch(`${API}/availability?vendor_id=${vid}`)
       .then(r => r.json())
       .then(d => setAvailability(Array.isArray(d) ? d : [])).catch(() => {});
   };
 
   useEffect(() => {
-    fetch(`${API}/vendor-auth/profile`, { headers: { Authorization: `Bearer ${token()}` } })
+    vendorFetch(`${API}/vendor-auth/profile`)
       .then(r => r.json())
       .then(data => {
         const vid = data.vendor?.id || null;
@@ -64,8 +64,8 @@ export default function VendorAvailability() {
   const nextMonth = () => { if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y+1); } else setViewMonth(m => m+1); };
 
   const setDateStatus = async (dateKey, status) => {
-    await fetch(`${API}/availability`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+    await vendorFetch(`${API}/availability`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ date: dateKey, status, note }),
     });
     setSuccess(`Marked as ${status}`); setTimeout(() => setSuccess(''), 2000);

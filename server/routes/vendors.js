@@ -38,12 +38,18 @@ const upload = multer({ storage, limits: { fileSize: 8 * 1024 * 1024 }, fileFilt
 //      `is_active` client-side, but that's cosmetic only: anyone hitting
 //      this endpoint directly (curl/Postman) saw the full unfiltered set.
 //      Now filtered server-side with `WHERE is_active = true`.
-//   2. `SELECT *` was returning every column, including `prices` — the
-//      vendor's per-service internal pricing map. Per the comment in
-//      vendorAuth.js's PUT /profile handler, `prices` is explicitly meant
-//      to stay internal to the vendor's own edit form and is never shown
-//      publicly; only the computed `price_per_day` is public-facing. Now
-//      excluded via an explicit column list instead of `SELECT *`.
+//   2. `SELECT *` was returning every column with no explicit list, which
+//      is fragile (a future ALTER TABLE silently changes the public shape).
+//      Now selected explicitly.
+//
+// UPDATED: `prices` (the per-service price map from PUT /vendor-auth/profile's
+// "Pricing per Service" section) is now included here. VendorProfilePage.jsx's
+// per-service pricing menu is a public feature by design — clients are meant
+// to pick a service based on its own rate, not just the blended average — so
+// this data has to reach the public route for that menu to show real numbers
+// instead of "Price on request" for every vendor. (Previously excluded
+// deliberately; revisit this only if per-service rates should become a
+// client-only / opt-in field instead of a public one.)
 //
 // NOTE: I did NOT strip payment_terms / travel_info / delivery_time / bio
 // / contact here, even though some of those read as "internal" at first
@@ -58,7 +64,7 @@ router.get('/', async (req, res) => {
     const result = await pool.query(
       `SELECT id, name, specialty, photo_url, contact, location, bio,
               travel_info, delivery_time, payment_terms, service_id,
-              price_per_day, pricing_packages, services, event_types,
+              price_per_day, prices, pricing_packages, services, event_types,
               is_online, is_active, created_at
        FROM vendors
        WHERE is_active = true

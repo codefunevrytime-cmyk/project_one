@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import { useVendorAuth } from '../context/VendorAuthContext';
 
 import { API_URL } from '../../config/api';
+import { vendorFetch } from '../../lib/vendorApi';
 
 const API = API_URL;
-const token = () => localStorage.getItem('vendor_token');
 
 function loadRazorpay() {
   return new Promise(resolve => {
@@ -96,11 +96,19 @@ export default function VendorDeposit() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  // FIXED: was reading the dead `localStorage.getItem('vendor_token')`
+  // key (never written to anymore — see VendorAuthContext.jsx), so this
+  // request always 401'd. The response body for a 401 still parses as
+  // JSON (`{ error: "..." }`), so `data` was truthy and the render below
+  // crashed on `data.ledger.length` — `ledger` doesn't exist on an error
+  // payload. vendorFetch() attaches the real in-memory token; the
+  // `d && d.ledger` guard below also makes this resilient to any future
+  // malformed/error response instead of crashing the whole page.
   const fetchDeposit = () => {
     if (!vendorId) return;
-    fetch(`${API}/payments/deposit/${vendorId}`, { headers: { Authorization: `Bearer ${token()}` } })
+    vendorFetch(`${API}/payments/deposit/${vendorId}`)
       .then(r => r.json())
-      .then(d => { setData(d); setLoading(false); })
+      .then(d => { setData(d && Array.isArray(d.ledger) ? d : null); setLoading(false); })
       .catch(() => setLoading(false));
   };
 
@@ -116,9 +124,9 @@ export default function VendorDeposit() {
       const loaded = await loadRazorpay();
       if (!loaded) { setError('Could not load payment gateway. Check your connection.'); setPaying(false); return; }
 
-      const orderRes = await fetch(`${API}/payments/deposit/${vendorId}/topup/create-order`, {
+      const orderRes = await vendorFetch(`${API}/payments/deposit/${vendorId}/topup/create-order`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount: amt }),
       });
       const orderData = await orderRes.json();
@@ -134,9 +142,9 @@ export default function VendorDeposit() {
         prefill: { name: vendorUser?.name || '', email: vendorUser?.email || '' },
         theme: { color: '#4c8aff' },
         handler: async (response) => {
-          const verifyRes = await fetch(`${API}/payments/deposit/${vendorId}/topup/verify`, {
+          const verifyRes = await vendorFetch(`${API}/payments/deposit/${vendorId}/topup/verify`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,

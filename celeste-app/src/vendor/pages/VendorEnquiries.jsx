@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 
 import { API_URL } from '../../config/api';
+import { vendorFetch } from '../../lib/vendorApi';
 
 const API = API_URL;
-const token = () => localStorage.getItem('vendor_token');
 
 const S = {
   heading: { fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 300, color: '#e8eef8', marginBottom: 4 },
@@ -25,13 +25,17 @@ export default function VendorEnquiries() {
   const [requesting, setRequesting] = useState(false);
   const [reqSuccess, setReqSuccess] = useState(false);
 
+  // FIXED: replaced dead `localStorage.getItem('vendor_token')` reads with
+  // vendorFetch() throughout this file — that key is never written to
+  // anymore (see VendorAuthContext.jsx), so every one of these requests
+  // was silently sending "Authorization: Bearer null" and 401'ing.
   const fetchEnquiries = () => {
-    fetch(`${API}/vendor-auth/enquiries`, { headers: { Authorization: `Bearer ${token()}` } })
+    vendorFetch(`${API}/vendor-auth/enquiries`)
       .then(r => r.json()).then(d => setEnquiries(Array.isArray(d) ? d : [])).catch(() => {});
   };
 
   const fetchMessages = (id) => {
-    fetch(`${API}/vendor-auth/enquiries/${id}/messages`, { headers: { Authorization: `Bearer ${token()}` } })
+    vendorFetch(`${API}/vendor-auth/enquiries/${id}/messages`)
       .then(r => r.json()).then(d => setMessages(Array.isArray(d) ? d : [])).catch(() => {});
   };
 
@@ -41,8 +45,8 @@ export default function VendorEnquiries() {
   const handleSend = async () => {
     if (!reply.trim() || !selected) return;
     setSending(true);
-    await fetch(`${API}/vendor-auth/enquiries/${selected.id}/reply`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+    await vendorFetch(`${API}/vendor-auth/enquiries/${selected.id}/reply`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: reply }),
     });
     setReply('');
@@ -53,8 +57,8 @@ export default function VendorEnquiries() {
   const handleRequestContact = async () => {
     if (!selected) return;
     setRequesting(true);
-    await fetch(`${API}/vendor-auth/enquiries/${selected.id}/request-contact`, {
-      method: 'POST', headers: { Authorization: `Bearer ${token()}` },
+    await vendorFetch(`${API}/vendor-auth/enquiries/${selected.id}/request-contact`, {
+      method: 'POST',
     });
     setReqSuccess(true);
     setRequesting(false);

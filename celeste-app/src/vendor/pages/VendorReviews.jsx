@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { API_URL } from '../../config/api';
+import { vendorFetch } from '../../lib/vendorApi';
 
 const API = API_URL;
-const token = () => localStorage.getItem('vendor_token');
 
 const S = {
   heading: { fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 300, color: '#e8eef8', marginBottom: 4 },
@@ -23,8 +23,15 @@ export default function VendorReviews() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // all | approved | pending
 
+  // FIXED: was reading a dead `localStorage.getItem('vendor_token')` key
+  // (nothing writes it since the refresh-token migration — see
+  // VendorAuthContext.jsx), so this request always sent "Authorization:
+  // Bearer null" and 401'd, leaving this page permanently stuck showing
+  // "0 approved reviews" even with real approved reviews in the DB.
+  // vendorFetch() attaches the real in-memory access token and retries
+  // once after a silent refresh if the first attempt 401s.
   useEffect(() => {
-    fetch(`${API}/vendor-auth/reviews`, { headers: { Authorization: `Bearer ${token()}` } })
+    vendorFetch(`${API}/vendor-auth/reviews`)
       .then(r => r.json())
       .then(d => setReviews(Array.isArray(d) ? d : []))
       .catch(() => {})

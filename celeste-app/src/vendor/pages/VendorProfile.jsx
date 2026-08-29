@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 
 import { API_URL } from '../../config/api';
+import { vendorFetch } from '../../lib/vendorApi';
 
 const API = API_URL;
-const token = () => localStorage.getItem('vendor_token');
 
 // ─── Service category definitions ───────────────────────────────────────────
 const SERVICE_CONFIGS = {
@@ -160,6 +160,7 @@ export default function VendorProfile() {
   const [success, setSuccess] = useState('');
   const [serviceCategory, setServiceCategory] = useState(null); // null = not yet loaded
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [form, setForm] = useState({
     name: '', specialty: '', contact: '', location: '',
     bio: '', travel_info: '', delivery_time: '', payment_terms: '',
@@ -168,9 +169,24 @@ export default function VendorProfile() {
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
 
+  // FIXED: was `fetch(url, { headers: { Authorization: \`Bearer ${localStorage.getItem('vendor_token')}\` } })`.
+  // VendorAuthContext.jsx no longer writes anything to localStorage — the
+  // access token lives in memory only (see lib/vendorApi.js) and is
+  // restored via the HttpOnly refresh cookie on mount. That localStorage
+  // key has been null since the refresh-token migration, so every request
+  // here was silently sending "Authorization: Bearer null" and getting a
+  // 401 back — which fetchProfile then swallowed via .catch(() => {}),
+  // leaving the page looking like it just never loaded any data even
+  // though the vendor row in the DB was fully populated.
+  //
+  // vendorFetch() attaches the real in-memory token automatically and
+  // retries once after a silent refresh if the first attempt 401s.
   const fetchProfile = () => {
-    fetch(`${API}/vendor-auth/profile`, { headers: { Authorization: `Bearer ${token()}` } })
-      .then(r => r.json())
+    vendorFetch(`${API}/vendor-auth/profile`)
+      .then(r => {
+        if (!r.ok) throw new Error(`Profile request failed (${r.status})`);
+        return r.json();
+      })
       .then(data => {
         const v = data.vendor;
         if (v) {
@@ -200,7 +216,12 @@ export default function VendorProfile() {
           if (v.photo_url) setPhotoPreview(v.photo_url);
         }
         setLoaded(true);
-      }).catch(() => setLoaded(true));
+      })
+      .catch(err => {
+        console.error('[VendorProfile] failed to load profile:', err);
+        setLoadError('Could not load your profile. Please refresh the page or sign in again.');
+        setLoaded(true);
+      });
   };
 
   useEffect(() => { fetchProfile(); }, []);
@@ -256,15 +277,43 @@ export default function VendorProfile() {
       // public profile page and listing cards actually display.
       fd.append('price_per_day', avgPrice);
       if (photoFile) fd.append('photo', photoFile);
-      await fetch(`${API}/vendor-auth/profile`, {
-        method: 'PUT', headers: { Authorization: `Bearer ${token()}` }, body: fd,
+
+      // FIXED: same localStorage → vendorFetch swap as fetchProfile above.
+      const res = await vendorFetch(`${API}/vendor-auth/profile`, {
+        method: 'PUT', body: fd,
       });
+      if (!res.ok) throw new Error(`Save failed (${res.status})`);
+
       setSuccess('Profile saved successfully!');
       setTimeout(() => setSuccess(''), 3000);
       fetchProfile();
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error('[VendorProfile] save failed:', err);
+      setLoadError('Could not save your profile — please try again.');
+    }
     setSaving(false);
   };
+
+  if (!loaded) {
+    return (
+      <div>
+        <div style={S.heading}>My Profile</div>
+        <div style={{ fontSize: 13, color: 'rgba(160,180,220,0.4)' }}>Loading…</div>
+      </div>
+    );
+  }
+
+  if (loadError && !cfg) {
+    return (
+      <div>
+        <div style={S.heading}>My Profile</div>
+        <div style={S.sub}>This information appears on your public profile page</div>
+        <div style={S.warning}>
+          <strong>⚠️ {loadError}</strong>
+        </div>
+      </div>
+    );
+  }
 
   // ── Category missing — block the form instead of guessing ─────────────
   if (loaded && !cfg) {
@@ -278,15 +327,6 @@ export default function VendorProfile() {
           an admin assigns your account a service category. Please contact support —
           in the meantime nothing here will be saved incorrectly.
         </div>
-      </div>
-    );
-  }
-
-  if (!loaded) {
-    return (
-      <div>
-        <div style={S.heading}>My Profile</div>
-        <div style={{ fontSize: 13, color: 'rgba(160,180,220,0.4)' }}>Loading…</div>
       </div>
     );
   }
@@ -308,6 +348,7 @@ export default function VendorProfile() {
       </div>
       <div style={S.sub}>This information appears on your public profile page</div>
       {success && <div style={S.success}>{success}</div>}
+      {loadError && <div style={{ ...S.warning, marginTop: -8 }}>{loadError}</div>}
 
       {/* Basic Info */}
       <div style={S.card}>

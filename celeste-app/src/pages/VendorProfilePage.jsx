@@ -100,6 +100,15 @@ function mapDbVendorToProfile(vendor, tags, serviceConfig) {
     cover: vendor.photo_url || '',
     contact: vendor.contact || '',
     specialty: vendor.specialty || '',
+    // ── Vendor-entered profile text ─────────────────────────────────────
+    // These come straight from PUT /vendor-auth/profile (VendorProfile.jsx
+    // form) via vendors.bio / travel_info / payment_terms / delivery_time.
+    // Previously dropped here, so the public page always fell back to
+    // hardcoded placeholder copy no matter what a vendor actually entered.
+    bio: vendor.bio || '',
+    travelInfo: vendor.travel_info || '',
+    paymentTerms: vendor.payment_terms || '',
+    deliveryTime: vendor.delivery_time || '',
     isDbItem: true,
   };
 }
@@ -487,7 +496,7 @@ export default function VendorProfilePage({ bookmarks, onBookmarkToggle, service
   const [messageError,   setMessageError]   = useState('');
 
   // Booking form state
-  const [bookingForm, setBookingForm] = useState({ name: '', phone: '', email: '', date: '', eventType: '' });
+  const [bookingForm, setBookingForm] = useState({ name: '', phone: '', email: '', date: '', eventType: '', service: '' });
   const [bookingSending, setBookingSending] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [bookingError, setBookingError] = useState('');
@@ -677,12 +686,17 @@ const photographer = dbVendor
   // Clicking "Book Now" while logged out shows the same login prompt used
   // for messaging/bookmarking, and the form is pre-filled with the
   // logged-in user's name/email once they are signed in.
-  const openBookingModal = () => {
+  //
+  // UPDATED: now accepts an optional `serviceName` — clicking a row in the
+  // "Pricing per Service" menu opens this same modal with that service
+  // pre-selected, so the price the client saw is exactly what carries
+  // through into the request the vendor receives.
+  const openBookingModal = (serviceName = '') => {
     if (!user) {
       openLoginPrompt('message');
       return;
     }
-    setBookingForm(f => ({ ...f, name: user.name || f.name, email: user.email || f.email }));
+    setBookingForm(f => ({ ...f, name: user.name || f.name, email: user.email || f.email, service: serviceName || f.service }));
     setBookingError('');
     setShowBookingModal(true);
   };
@@ -699,6 +713,7 @@ const photographer = dbVendor
     }
     setBookingSending(true);
     setBookingError('');
+    const servicePrice = bookingForm.service ? Number(photographer.prices?.[bookingForm.service]) || 0 : 0;
     const payload = {
       client_name: bookingForm.name,
       email: bookingForm.email || '',
@@ -710,7 +725,7 @@ const photographer = dbVendor
       // Message" enquiry) so the vendor's Enquiries tab can badge it
       // clearly instead of showing it as an identical generic message.
       is_booking: true,
-      message: `[${serviceConfig.singular}: ${photographer.name}] - Direct Booking Request\nEvent Type: ${bookingForm.eventType || 'Event'}\nDate: ${bookingForm.date || 'Not specified'}`,
+      message: `[${serviceConfig.singular}: ${photographer.name}] - Direct Booking Request\nEvent Type: ${bookingForm.eventType || 'Event'}\nDate: ${bookingForm.date || 'Not specified'}${bookingForm.service ? `\nService requested: ${bookingForm.service}${servicePrice > 0 ? ` (₹${servicePrice.toLocaleString('en-IN')}/day)` : ''}` : ''}`,
     };
     try {
       const res = await fetch(`${API}/queries`, {
@@ -721,7 +736,7 @@ const photographer = dbVendor
       const data = await res.json();
       if (data.success) {
         setBookingSuccess(true);
-        setBookingForm({ name: '', phone: '', email: '', date: '', eventType: '' });
+        setBookingForm({ name: '', phone: '', email: '', date: '', eventType: '', service: '' });
         setTimeout(() => { setBookingSuccess(false); setShowBookingModal(false); }, 4000);
       } else {
         setBookingError(data.error || 'Something went wrong. Please try again.');
@@ -870,9 +885,13 @@ const photographer = dbVendor
           <section id="about" ref={aboutRef} className="pp-section">
             <h2 className="pp-section-title"><b><b>About {photographer.name}</b> </b></h2>
             <p className="pp-about-text">
-              {photographer.name} is a Lucknow-based {serviceConfig.defaultSpecialty.toLowerCase()} vendor
-              specialising in {photographer.type.join(', ')}. Their portfolio, pricing, and service details
-              are listed below.
+              {photographer.bio ? photographer.bio : (
+                <>
+                  {photographer.name} is a Lucknow-based {serviceConfig.defaultSpecialty.toLowerCase()} vendor
+                  specialising in {photographer.type.join(', ')}. Their portfolio, pricing, and service details
+                  are listed below.
+                </>
+              )}
             </p>
             {photographer.contact && (
               <p className="pp-about-text">
@@ -894,10 +913,10 @@ const photographer = dbVendor
 
             <div className="pp-info-grid">
               {[
-                ['Travels to Venue',  'Yes, pan-India travel available'],
-                ['Payment Terms',     'Upto 25% Advance'],
+                ['Travels to Venue',  photographer.travelInfo   || 'Yes, pan-India travel available'],
+                ['Payment Terms',     photographer.paymentTerms || 'Upto 25% Advance'],
                 ['Travel Cost',       'Outstation travel & stay borne by client'],
-                ['Delivery Time',     '2 weeks after event'],
+                ['Delivery Time',     photographer.deliveryTime || '2 weeks after event'],
               ].map(([label, val]) => (
                 <div key={label} className="pp-info-card">
                   <div className="pp-info-label">{label}</div>
@@ -1052,10 +1071,19 @@ const photographer = dbVendor
                 return (
                   <div
                     key={service}
+                    onClick={() => openBookingModal(service)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openBookingModal(service); } }}
                     style={{
                       display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      padding: '10px 0', borderBottom: '1px solid var(--pp-border)',
+                      padding: '10px 6px', margin: '0 -6px', borderRadius: 8,
+                      borderBottom: '1px solid var(--pp-border)', cursor: 'pointer',
+                      transition: 'background 0.15s',
                     }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(200,175,120,0.06)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                    title={`Book ${service}`}
                   >
                     <span style={{ fontSize: 13.5, color: 'var(--pp-text-2)' }}>{service}</span>
                     {svcPrice > 0 ? (
@@ -1070,6 +1098,9 @@ const photographer = dbVendor
                   </div>
                 );
               })}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--pp-text-3)', marginTop: 8 }}>
+              Tap a service to request a booking at that rate
             </div>
             {photographer.tags.length > 0 && (
               <div className="pp-award-tags" style={{ marginTop: 14 }}>
@@ -1181,6 +1212,26 @@ const photographer = dbVendor
                     value={bookingForm.email}
                     onChange={e => setBookingForm({ ...bookingForm, email: e.target.value })}
                   />
+                </div>
+
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: 'block', fontSize: 11, color: 'rgba(200,175,120,0.6)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Service</label>
+                  <select
+                    className="pp-form-input"
+                    value={bookingForm.service}
+                    onChange={e => setBookingForm({ ...bookingForm, service: e.target.value })}
+                    style={{ marginBottom: 0 }}
+                  >
+                    <option value="">Select a service (optional)</option>
+                    {(photographer.services?.length ? photographer.services : photographer.type).map(s => {
+                      const p = Number(photographer.prices?.[s]) || 0;
+                      return (
+                        <option key={s} value={s}>
+                          {s}{p > 0 ? ` — ₹${p.toLocaleString('en-IN')}/day` : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
                 </div>
 
                 <div style={{ marginBottom: 16 }}>

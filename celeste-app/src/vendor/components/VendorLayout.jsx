@@ -4,6 +4,7 @@ import { useVendorAuth } from '../context/VendorAuthContext';
 import VendorNotificationBell from './VendorNotificationBell';
 
 import { API_URL } from '../../config/api';
+import { vendorFetch } from '../../lib/vendorApi';
 
 const API = API_URL;
 
@@ -39,15 +40,23 @@ export default function VendorLayout({ children }) {
   const [isOnline, setIsOnline] = useState(true);
   const [statusLoading, setStatusLoading] = useState(false);
 
+  // FIXED: was `fetch(url, { headers: { Authorization: \`Bearer
+  // ${localStorage.getItem('vendor_token')}\` } })`. VendorAuthContext.jsx
+  // never writes to localStorage anymore — the access token is kept in
+  // memory only (see lib/vendorApi.js) and restored via the HttpOnly
+  // refresh cookie. That key has been null since the refresh-token
+  // migration, so this request was silently sending "Authorization:
+  // Bearer null" and 401'ing every time, meaning `isOnline` (and, more
+  // visibly, the service-category badge in the sidebar) never reflected
+  // real vendor data. vendorFetch() attaches the real in-memory token and
+  // retries once after a silent refresh on 401.
   useEffect(() => {
-    fetch(`${API}/vendor-auth/profile`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('vendor_token')}` },
-    })
-      .then(r => r.json())
+    vendorFetch(`${API}/vendor-auth/profile`)
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error(`profile fetch failed (${r.status})`))))
       .then(d => {
         if (d.vendor && typeof d.vendor.is_online === 'boolean') setIsOnline(d.vendor.is_online);
       })
-      .catch(() => {});
+      .catch(err => console.error('[VendorLayout] failed to load profile:', err));
   }, []);
 
   const toggleOnline = async () => {

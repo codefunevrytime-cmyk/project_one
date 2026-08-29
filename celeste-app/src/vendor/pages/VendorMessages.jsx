@@ -4,9 +4,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
 import { API_URL } from '../../config/api';
+import { vendorFetch } from '../../lib/vendorApi';
 
 const API = API_URL;
-const token = () => localStorage.getItem('vendor_token');
 
 function Bubble({ msg }) {
   const isVendor = msg.sender_type === 'vendor';
@@ -60,9 +60,7 @@ export default function VendorMessages() {
   // Fetch conversation list
   const fetchConvs = async () => {
     try {
-      const res  = await fetch(`${API}/messages/vendor`, {
-        headers: { Authorization: `Bearer ${token()}` },
-      });
+      const res  = await vendorFetch(`${API}/messages/vendor`);
       const data = await res.json();
       setConvs(Array.isArray(data) ? data : []);
     } catch { /* silent */ }
@@ -73,9 +71,7 @@ export default function VendorMessages() {
   const fetchMessages = useCallback(async (id) => {
     if (!id) return;
     try {
-      const res  = await fetch(`${API}/messages/vendor/${id}`, {
-        headers: { Authorization: `Bearer ${token()}` },
-      });
+      const res  = await vendorFetch(`${API}/messages/vendor/${id}`);
       const data = await res.json();
       if (data.messages) setMessages(data.messages);
     } catch { /* silent */ }
@@ -102,9 +98,9 @@ export default function VendorMessages() {
     if (!reply.trim() || !selected) return;
     setSending(true);
     try {
-      await fetch(`${API}/messages/vendor/${selected.id}`, {
+      await vendorFetch(`${API}/messages/vendor/${selected.id}`, {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+        headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ message: reply }),
       });
       setReply('');
