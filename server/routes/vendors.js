@@ -13,8 +13,8 @@ const rateLimit = require('../middleware/rateLimit');
 // router was previously unthrottled — portfolio image uploads in
 // particular (multipart, disk writes) were callable at unlimited rate
 // per IP.
-router.use(rateLimit({ max: 30 }));
-
+// vendors.js
+router.use(rateLimit({ max: process.env.NODE_ENV === 'production' ? 30 : 1000 }));
 const uploadDir = path.join(__dirname, '..', 'uploads');
 fs.mkdirSync(uploadDir, { recursive: true });
 // FIXED: filename no longer derives its extension from file.originalname

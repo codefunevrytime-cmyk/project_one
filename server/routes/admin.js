@@ -6,8 +6,7 @@ const jwt = require('jsonwebtoken');
 const rateLimit = require('../middleware/rateLimit');
 const { isEmail } = require('../lib/validation');
 const { getCookie, clearSession } = require('../lib/session');
-router.use(rateLimit({ max: 10 }));
-
+router.use(rateLimit({ max: process.env.NODE_ENV === 'production' ? 20 : 1000 }));
 // Access token: short-lived, sent in JSON, kept in memory on the frontend.
 const ACCESS_TOKEN_TTL = '15m';
 // Refresh token: long-lived, NEVER sent in JSON, only ever set as an HttpOnly cookie.

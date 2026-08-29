@@ -23,6 +23,13 @@ const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug',
 // fell back to zero DB vendors (only hardcoded/static ones showed).
 const VENDOR_FETCH_BATCH_SIZE = 3;
 
+// ── DEBUG: toggle this off once you've found the bug. When true, logs
+// exactly which vendors got dropped by the is_active check or the
+// service-matching check, and why — so a vendor that's genuinely present
+// in the DB but missing from the UI can be diagnosed from the browser
+// console alone, without running a SQL query. ──────────────────────────
+const DEBUG_VENDOR_FILTERING = true;
+
 function mapVendorToCard(vendor, portfolio, tags, serviceConfig, reviews = []) {
   const coverImg = portfolio[0]?.image_url || vendor.photo_url || '';
   const allTags  = tags.map(t => t.tag);
@@ -686,6 +693,28 @@ export default function VendorListingPage({ bookmarks, onBookmarkToggle, service
       try {
         const res     = await fetch(`${API}/vendors`);
         const vendors = await res.json();
+
+        // ── DEBUG: log every vendor that gets dropped here, and why,
+        // before it ever reaches mapVendorToCard. This is the #1 place a
+        // vendor silently "disappears" from the UI while its row is still
+        // perfectly intact in the DB. Remove/flip DEBUG_VENDOR_FILTERING
+        // to false once you've found the culprit. ───────────────────────
+        if (DEBUG_VENDOR_FILTERING) {
+          console.group(`[vendors] raw fetch: ${vendors.length} total rows for service "${serviceConfig.serviceId}"`);
+          vendors.forEach(v => {
+            const failsActive = !v.is_active;
+            const failsService = !isVendorForService(v, serviceConfig);
+            if (failsActive || failsService) {
+              console.warn(
+                `[vendors] DROPPED "${v.name}" (id=${v.id}) —`,
+                failsActive ? `is_active=${v.is_active}` : '',
+                failsService ? `service_id=${v.service_id} (expected ${serviceConfig.serviceId}, includeUnassigned=${!!serviceConfig.includeUnassigned})` : '',
+              );
+            }
+          });
+          console.groupEnd();
+        }
+
         const active  = vendors.filter(v => v.is_active && isVendorForService(v, serviceConfig));
 
         // ── Batched fetch instead of one giant Promise.all() ─────────────
@@ -727,6 +756,11 @@ export default function VendorListingPage({ bookmarks, onBookmarkToggle, service
           }));
           enriched.push(...results);
         }
+
+        if (DEBUG_VENDOR_FILTERING) {
+          console.log(`[vendors] ${enriched.length} vendor(s) made it into the UI:`, enriched.map(v => v.name));
+        }
+
         setDbVendors(enriched);
       } catch (err) {
         // Was previously a silent no-op — that's exactly why the "only 9

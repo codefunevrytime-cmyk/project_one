@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { API_URL } from '../../config/api';
-import { setVendorAccessToken, getVendorAccessToken, vendorFetch } from '../lib/vendorApi'; // adjust path to wherever vendorApi.js actually lives
+import { setVendorAccessToken, getVendorAccessToken, vendorFetch } from '../../lib/vendorApi'; // adjust path to wherever vendorApi.js actually lives
 
 const VendorAuthContext = createContext(null);
 
