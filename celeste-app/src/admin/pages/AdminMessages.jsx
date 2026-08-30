@@ -10,6 +10,13 @@ function Bubble({ msg }) {
   const isAdmin  = msg.sender_type === 'admin';
   const isVendor = msg.sender_type === 'vendor';
   const time = new Date(msg.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  const hasLocation = msg.latitude != null && msg.longitude != null;
+  const mapUrl = hasLocation
+    ? `https://www.openstreetmap.org/?mlat=${msg.latitude}&mlon=${msg.longitude}#map=16/${msg.latitude}/${msg.longitude}`
+    : null;
+  const mapPreviewUrl = hasLocation
+    ? `https://staticmap.openstreetmap.de/staticmap.php?center=${msg.latitude},${msg.longitude}&zoom=15&size=260x140&markers=${msg.latitude},${msg.longitude},red-pushpin`
+    : null;
 
   const bg = isAdmin
     ? 'linear-gradient(135deg, #4f46e5, #6366f1)'
@@ -22,17 +29,30 @@ function Bubble({ msg }) {
   return (
     <div style={{ display: 'flex', justifyContent: align }}>
       <div style={{
-        maxWidth: '70%', padding: '9px 13px',
+        maxWidth: '70%', padding: msg.image_url || hasLocation ? 6 : '9px 13px',
         borderRadius: isAdmin ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
         background: bg, border: isVendor ? '1px solid rgba(76,138,255,0.2)' : 'none',
         color: '#f0e6c8', fontSize: 13, lineHeight: 1.55,
       }}>
-        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4,
+        <div style={{
+          fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4,
+          padding: msg.image_url || hasLocation ? '7px 7px 0' : 0,
           color: isAdmin ? 'rgba(199,210,254,0.8)' : isVendor ? 'rgba(138,180,248,0.75)' : 'rgba(212,168,67,0.75)' }}>
           {isAdmin ? '🛡 Admin' : isVendor ? `⚡ ${msg.sender_name}` : `👤 ${msg.sender_name || 'Client'}`}
         </div>
-        <div>{msg.message}</div>
-        <div style={{ fontSize: 10, color: 'rgba(240,230,200,0.35)', marginTop: 4, textAlign: isAdmin ? 'right' : 'left' }}>
+        {msg.image_url && (
+          <a href={msg.image_url} target="_blank" rel="noopener noreferrer" style={{ padding: '0 7px', display: 'block' }}>
+            <img src={msg.image_url} alt="Shared reference" style={{ width: '100%', maxWidth: 240, borderRadius: 8, display: 'block', marginTop: 2, marginBottom: msg.message ? 6 : 4 }} />
+          </a>
+        )}
+        {hasLocation && (
+          <a href={mapUrl} target="_blank" rel="noopener noreferrer" style={{ padding: '0 7px', display: 'block' }}>
+            <img src={mapPreviewUrl} alt="Shared location" style={{ width: '100%', maxWidth: 240, borderRadius: 8, display: 'block', marginTop: 2 }} />
+            <div style={{ fontSize: 11, padding: '4px 0', color: 'rgba(199,210,254,0.85)' }}>📍 {msg.location_label || 'View location'}</div>
+          </a>
+        )}
+        {msg.message && <div style={{ padding: msg.image_url || hasLocation ? '0 7px' : 0 }}>{msg.message}</div>}
+        <div style={{ fontSize: 10, color: 'rgba(240,230,200,0.35)', marginTop: 4, padding: msg.image_url || hasLocation ? '0 7px 4px' : 0, textAlign: isAdmin ? 'right' : 'left' }}>
           {time}
         </div>
       </div>

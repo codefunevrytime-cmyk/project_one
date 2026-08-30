@@ -128,10 +128,32 @@ function StarIcon({ filled }) {
   );
 }
 
+// FIXED: was matching on vendor.service_id (numeric) against
+// serviceConfig.serviceId, a hardcoded number in vendorServiceConfig.js
+// (e.g. photography assumed to always be services.id = 1). That ID isn't
+// stable — vendorAuth.js's /signup route creates a `services` row
+// on-demand (SERIAL id) the first time a category is used, so the real id
+// depends on insertion order and can differ per environment/reseed. When
+// it drifted, a vendor whose row was perfectly fine in the DB would just
+// silently disappear from this page (this is the exact case
+// DEBUG_VENDOR_FILTERING below was built to catch).
+//
+// Now matches on vendor.service_category (added to GET /api/vendors via a
+// join in vendors.js) against serviceConfig.id — serviceConfig.id is the
+// same slug string ('photography', 'custom-invitations', ...) that
+// vendorAuth.js's signup flow writes into services.category, so this
+// match no longer depends on row-insertion order at all.
+//
+// ASSUMPTION: this relies on the vendor signup form sending a
+// service_category value that exactly equals the matching config's `id`
+// (case-insensitive) — e.g. 'photography'. I haven't seen that signup
+// form; if it sends a different label (e.g. a display name like
+// "Photography" mapped elsewhere, or free text), either normalize it
+// there before it hits vendorAuth.js, or adjust this match accordingly.
 function isVendorForService(vendor, serviceConfig) {
-  const serviceId = String(vendor.service_id || '').trim();
-  if (serviceId === String(serviceConfig.serviceId)) return true;
-  return serviceConfig.includeUnassigned && !serviceId;
+  const category = String(vendor.service_category || '').trim().toLowerCase();
+  if (category === String(serviceConfig.id).toLowerCase()) return true;
+  return serviceConfig.includeUnassigned && !category;
 }
 
 function RatingStars({ rating }) {
@@ -172,6 +194,44 @@ function StatusBadge({ isOnline, variant = 'card' }) {
     }}>
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: isOnline ? '#2e9e56' : '#999' }} />
       {isOnline ? 'Active' : 'Inactive'}
+    </span>
+  );
+}
+
+// ── NEW: shown instead of / alongside StatusBadge only while picking a
+// vendor for a specific event date (pickContext.eventDate present) and
+// this vendor is busy that day. Distinct from StatusBadge's Active/
+// Inactive (vendor-controlled online status) — this is date-specific
+// availability, sourced from the /availability table for the one date
+// the client picked in CreateEventPage's Step 1.
+function BusyBadge({ dateLabel, variant = 'overlay' }) {
+  if (variant === 'overlay') {
+    return (
+      <div style={{
+        position: 'absolute', inset: 0, zIndex: 3,
+        background: 'rgba(20,16,14,0.55)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <span style={{
+          fontSize: 15, fontWeight: 800, letterSpacing: '0.02em',
+          color: '#f2b8b8', background: 'rgba(235,87,87,0.18)',
+          border: '1px solid rgba(235,87,87,0.4)', borderRadius: 20,
+          padding: '5px 11px', whiteSpace: 'nowrap',
+        }}>
+          Busy on {dateLabel}
+        </span>
+      </div>
+    );
+  }
+  return (
+    <span style={{
+      fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 20,
+      display: 'inline-flex', alignItems: 'center', gap: 5,
+      background: 'rgba(235,87,87,0.14)', color: '#c96565',
+      border: '1px solid rgba(235,87,87,0.35)',
+    }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#c96565' }} />
+      Busy on {dateLabel}
     </span>
   );
 }
@@ -299,7 +359,7 @@ const EP_STYLES = `
 `;
 
 // ── ExpandPanel with image carousel ──────────────────────────────────────────
-function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked, onBookmark, navigate, serviceConfig, pickContext, onAddToEvent }) {
+function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked, onBookmark, navigate, serviceConfig, pickContext, onAddToEvent, isBusy }) {
   const related = getRelated(vendor, allVendors);
   const [activeIdx, setActiveIdx] = useState(0);
   const [sliding, setSliding] = useState(false);
@@ -325,6 +385,9 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
 
   const currentImg = images[activeIdx];
   const isPicking = pickContext?.type === 'vendor';
+  const busyDateLabel = pickContext?.eventDate
+    ? new Date(pickContext.eventDate + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+    : '';
 
   return (
     <div className="ep-wrap">
@@ -395,6 +458,7 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
                   <span className="ep-specialty-badge">{display.badgeLabel}</span>
                   {/* NEW: active/inactive status, mirrored from the card badge */}
                   <StatusBadge isOnline={vendor.isOnline} variant="inline" />
+                  {isPicking && isBusy && <BusyBadge dateLabel={busyDateLabel} variant="inline" />}
                 </>
               ) : (
                 <>
@@ -449,7 +513,13 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
                 <div style={{ fontSize:12, color:'#9e8e7a' }}>{total} portfolio image{total !== 1 ? 's' : ''}</div>
                 <button className="ep-cta ep-cta-amber" onClick={() => navigate(`${serviceConfig.path}/${vendor._dbId}`)}>View Profile</button>
                 {isPicking && (
-                  <button className="ep-cta" onClick={() => onAddToEvent(vendor)}>+ Add to Event</button>
+                  <button
+                    className="ep-cta"
+                    onClick={() => onAddToEvent(vendor)}
+                    style={isBusy ? { background: 'rgba(200,175,120,0.12)', color: 'rgba(200,175,120,0.4)', cursor: 'not-allowed' } : undefined}
+                  >
+                    {isBusy ? 'Unavailable on this date' : '+ Add to Event'}
+                  </button>
                 )}
               </>
             ) : (
@@ -489,12 +559,15 @@ function ExpandPanel({ vendor, allVendors, onClose, onRelatedClick, isBookmarked
 }
 
 // ── VendorCard ────────────────────────────────────────────────────────────────
-function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark, serviceConfig, pickContext, onAddToEvent }) {
+function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark, serviceConfig, pickContext, onAddToEvent, isBusy }) {
   const [hovered, setHovered] = useState(false);
   const navigate = useNavigate();
   const display = useMemo(() => getVendorDisplay(vendor, serviceConfig), [vendor, serviceConfig]);
   const handleBookmark = (e) => { e.stopPropagation(); onBookmark(vendor.id); };
   const isPicking = pickContext?.type === 'vendor';
+  const busyDateLabel = pickContext?.eventDate
+    ? new Date(pickContext.eventDate + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+    : '';
 
   return (
     <div
@@ -507,7 +580,10 @@ function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark,
         outlineOffset: 2,
         // NEW: visually deprioritize inactive vendors, on top of the
         // grid-sorting that already sinks them to the bottom.
-        opacity: vendor.isDbItem && !vendor.isOnline ? 0.72 : 1,
+        // Busy-on-selected-date vendors (while picking) get the same
+        // treatment — dimmed but still viewable, only the "add" action
+        // is blocked (see the CTA button below).
+        opacity: (vendor.isDbItem && !vendor.isOnline) || isBusy ? 0.6 : 1,
       }}
     >
       <div className="vendor-img-wrap common-card-media">
@@ -516,6 +592,12 @@ function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark,
         {/* NEW: active/inactive status badge — vendor-controlled, also
             visible on the admin side in AdminVendors.jsx. */}
         {vendor.isDbItem && <StatusBadge isOnline={vendor.isOnline} variant="card" />}
+
+        {/* NEW: date-specific busy overlay — only while picking a vendor
+            for a specific event date and this vendor has a busy row for
+            it (own row or studio-wide closure). See isVendorBusy() in the
+            parent component. */}
+        {isPicking && isBusy && <BusyBadge dateLabel={busyDateLabel} variant="overlay" />}
 
         <div className="vendor-media-badge">{display.badgeLabel}</div>
 
@@ -588,14 +670,23 @@ function VendorCard({ vendor, isOpen, onOpen, onClose, isBookmarked, onBookmark,
           </div>
           <button
             className="vendor-cta"
-            style={vendor.isDbItem ? { color: '#D4860A', borderColor: 'rgba(212,134,10,0.4)' } : undefined}
+            style={
+              isPicking && isBusy
+                ? { color: 'rgba(200,175,120,0.4)', borderColor: 'rgba(200,175,120,0.15)', cursor: 'not-allowed' }
+                : vendor.isDbItem ? { color: '#D4860A', borderColor: 'rgba(212,134,10,0.4)' } : undefined
+            }
             onClick={e => {
               e.stopPropagation();
+              // Still routed through onAddToEvent even when busy — that's
+              // the single place the block + "not available" note is
+              // decided (see handleAddToEvent), so this button never has
+              // to duplicate that logic or risk drifting out of sync with
+              // the expanded-panel button.
               if (isPicking) { onAddToEvent(vendor); return; }
               navigate(`${serviceConfig.path}/${vendor.isDbItem ? vendor._dbId : vendor.id}`);
             }}
           >
-            {isPicking ? '+ Add to Event' : 'View Profile'}
+            {isPicking ? (isBusy ? 'Unavailable' : '+ Add to Event') : 'View Profile'}
           </button>
         </div>
 
@@ -659,8 +750,79 @@ export default function VendorListingPage({ bookmarks, onBookmarkToggle, service
   // ── Pick mode: arrived here from Create Event to select a vendor ───────
   const pickContext = location.state?.celestePick?.type === 'vendor' ? location.state.celestePick : null;
 
+  // ── Availability-aware picking ──────────────────────────────────────────
+  // When pickContext carries an eventDate, we need to know which vendors
+  // are busy on THAT specific date so cards can grey out and the "Add to
+  // Event" action can be blocked. `busyVendorIds` holds vendor DB ids with
+  // their own busy row for this date; `studioClosedOnDate` covers the
+  // studio-wide row (vendor_id IS NULL) — if the whole studio is closed
+  // that day, every vendor is unavailable regardless of their own rows.
+  //
+  // Uses the unscoped GET /availability (no vendor_id / studio_only param)
+  // deliberately — unlike CreateEventPage's Step-1 calendar (which only
+  // ever needs studio-wide rows for many dates), this screen needs every
+  // vendor's status for exactly ONE date, so fetching everything once and
+  // filtering client-side by date is the right shape here, not a bug.
+  const [busyVendorIds, setBusyVendorIds] = useState(new Set());
+  const [studioClosedOnDate, setStudioClosedOnDate] = useState(false);
+
+  useEffect(() => {
+    if (!pickContext?.eventDate) {
+      if (DEBUG_VENDOR_FILTERING) console.log('[availability] skipped — no pickContext.eventDate', pickContext);
+      setBusyVendorIds(new Set());
+      setStudioClosedOnDate(false);
+      return;
+    }
+    let cancelled = false;
+    if (DEBUG_VENDOR_FILTERING) console.log('[availability] fetching for date:', pickContext.eventDate);
+    fetch(`${API}/availability`)
+      .then(r => r.json())
+      .then(rows => {
+        if (cancelled || !Array.isArray(rows)) return;
+        if (DEBUG_VENDOR_FILTERING) console.log('[availability] raw rows:', rows);
+        const onDate = rows.filter(row => row.date?.slice(0, 10) === pickContext.eventDate && row.status === 'busy');
+        if (DEBUG_VENDOR_FILTERING) console.log(`[availability] rows matching date "${pickContext.eventDate}" with status=busy:`, onDate);
+        setStudioClosedOnDate(onDate.some(row => row.vendor_id === null));
+        setBusyVendorIds(new Set(onDate.filter(row => row.vendor_id !== null).map(row => row.vendor_id)));
+      })
+      .catch(err => {
+        if (DEBUG_VENDOR_FILTERING) console.warn('[availability] fetch FAILED, failing open (nothing marked busy):', err);
+        // Fails open (nothing marked busy) rather than blocking every
+        // vendor if the availability fetch itself fails — a client
+        // shouldn't be unable to pick ANY vendor just because this one
+        // secondary fetch had a network hiccup.
+        if (!cancelled) { setBusyVendorIds(new Set()); setStudioClosedOnDate(false); }
+      });
+    return () => { cancelled = true; };
+  }, [pickContext?.eventDate]);
+
+  const isVendorBusy = (vendor) => {
+    if (!vendor.isDbItem || !pickContext?.eventDate) return false;
+    return studioClosedOnDate || busyVendorIds.has(vendor._dbId);
+  };
+
+  // ── Blocked-selection note (shown when a busy vendor's "Add to Event"
+  // is clicked). Auto-dismisses so it reads as a toast, not a modal. ─────
+  const [blockedNote, setBlockedNote] = useState(null);
+  useEffect(() => {
+    if (!blockedNote) return;
+    const t = setTimeout(() => setBlockedNote(null), 4000);
+    return () => clearTimeout(t);
+  }, [blockedNote]);
+
   const handleAddToEvent = (vendor) => {
     if (!pickContext) return;
+
+    // FIXED: previously nothing here checked availability at all — a
+    // client could add a vendor who's actually busy on their event date,
+    // find out only later (or never, until the vendor themselves flags
+    // it). Now checked centrally here so it can't be bypassed regardless
+    // of which UI (grid card or expanded panel) triggered the add.
+    if (isVendorBusy(vendor)) {
+      setBlockedNote(`${vendor.name} is not available on ${new Date(pickContext.eventDate + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} — try a different date or vendor.`);
+      return;
+    }
+
     navigate('/create-event', {
       state: {
         celestePickResult: {
@@ -700,7 +862,7 @@ export default function VendorListingPage({ bookmarks, onBookmarkToggle, service
         // perfectly intact in the DB. Remove/flip DEBUG_VENDOR_FILTERING
         // to false once you've found the culprit. ───────────────────────
         if (DEBUG_VENDOR_FILTERING) {
-          console.group(`[vendors] raw fetch: ${vendors.length} total rows for service "${serviceConfig.serviceId}"`);
+          console.group(`[vendors] raw fetch: ${vendors.length} total rows for service "${serviceConfig.id}"`);
           vendors.forEach(v => {
             const failsActive = !v.is_active;
             const failsService = !isVendorForService(v, serviceConfig);
@@ -708,7 +870,7 @@ export default function VendorListingPage({ bookmarks, onBookmarkToggle, service
               console.warn(
                 `[vendors] DROPPED "${v.name}" (id=${v.id}) —`,
                 failsActive ? `is_active=${v.is_active}` : '',
-                failsService ? `service_id=${v.service_id} (expected ${serviceConfig.serviceId}, includeUnassigned=${!!serviceConfig.includeUnassigned})` : '',
+                failsService ? `service_category=${v.service_category} (expected ${serviceConfig.id}, includeUnassigned=${!!serviceConfig.includeUnassigned})` : '',
               );
             }
           });
@@ -1024,6 +1186,7 @@ export default function VendorListingPage({ bookmarks, onBookmarkToggle, service
                 serviceConfig={serviceConfig}
                 pickContext={pickContext}
                 onAddToEvent={handleAddToEvent}
+                isBusy={isVendorBusy(openVendor)}
               />
             )}
           </div>
@@ -1043,12 +1206,35 @@ export default function VendorListingPage({ bookmarks, onBookmarkToggle, service
                   serviceConfig={serviceConfig}
                   pickContext={pickContext}
                   onAddToEvent={handleAddToEvent}
+                  isBusy={isVendorBusy(v)}
                 />
               ))}
             </div>
           )}
         </main>
       </div>
+
+      {/* NEW: blocked-selection toast — shown when the client tries to add
+          a vendor who's busy on their chosen event date. Auto-dismisses
+          (see the blockedNote useEffect above) so it reads as a toast,
+          not something that needs a manual close every time. */}
+      {blockedNote && (
+        <div
+          style={{
+            position: 'fixed', left: '50%', bottom: 28, transform: 'translateX(-50%)',
+            display: 'flex', alignItems: 'center', gap: 10, maxWidth: 420,
+            background: '#241715', border: '0.5px solid rgba(235,87,87,0.35)',
+            borderRadius: 12, padding: '12px 16px', boxShadow: '0 12px 32px rgba(0,0,0,0.45)', zIndex: 200,
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#eb9a9a" strokeWidth="1.5" style={{ flexShrink: 0 }}>
+            <path d="M8 1.5L1 14h14L8 1.5z" strokeLinejoin="round" />
+            <path d="M8 6v3.5M8 11.5v.01" strokeLinecap="round" />
+          </svg>
+          <span style={{ fontSize: 12.5, lineHeight: 1.4, color: '#f2d4d4' }}>{blockedNote}</span>
+          <button onClick={() => setBlockedNote(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, marginLeft: 2, color: 'rgba(242,212,212,0.5)', fontSize: 13 }}>✕</button>
+        </div>
+      )}
     </div>
   );
 }

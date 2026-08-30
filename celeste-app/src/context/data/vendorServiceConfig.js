@@ -188,4 +188,4 @@ export function getVendorServiceConfig(idOrServiceId) {
     VENDOR_SERVICE_CONFIGS.find(c => String(c.serviceId) === String(idOrServiceId)) ||
     DEFAULT_VENDOR_SERVICE
   );
-} 
+}

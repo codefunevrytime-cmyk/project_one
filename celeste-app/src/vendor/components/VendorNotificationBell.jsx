@@ -4,9 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { useVendorAuth } from '../context/VendorAuthContext';
 
 import { API_URL } from '../../config/api';
+import { vendorFetch } from '../../lib/vendorApi';
 
 const API = API_URL;
-const token = () => localStorage.getItem('vendor_token');
 const POLL_MS = 12000;
 
 const TYPE_META = {
@@ -46,7 +46,7 @@ function timeAgo(dateStr) {
 
 async function safeJson(url, opts) {
   try {
-    const res = await fetch(url, opts);
+    const res = await vendorFetch(url, opts);
     const data = await res.json();
     return Array.isArray(data) ? data : [];
   } catch {
@@ -58,7 +58,7 @@ async function safeJson(url, opts) {
 // array — separate helper so a missing/failed fetch never throws.
 async function safeDepositLedger(url, opts) {
   try {
-    const res = await fetch(url, opts);
+    const res = await vendorFetch(url, opts);
     const data = await res.json();
     return Array.isArray(data?.ledger) ? data.ledger : [];
   } catch {
@@ -70,7 +70,7 @@ async function safeDepositLedger(url, opts) {
 // bare array — same reasoning as safeDepositLedger above.
 async function safePayouts(url, opts) {
   try {
-    const res = await fetch(url, opts);
+    const res = await vendorFetch(url, opts);
     const data = await res.json();
     return Array.isArray(data?.payouts) ? data.payouts : [];
   } catch {
@@ -126,18 +126,17 @@ export default function VendorNotificationBell() {
   };
 
   const fetchAll = useCallback(async () => {
-    const headers = { Authorization: `Bearer ${token()}` };
     const vendorId = vendorUser?.vendor_id;
 
     const [eventReqs, convos, reviews, payoutData, depositLedger] = await Promise.all([
-      safeJson(`${API}/events/vendor/requests`, { headers }),
-      safeJson(`${API}/messages/vendor`, { headers }),
+      safeJson(`${API}/events/vendor/requests`),
+      safeJson(`${API}/messages/vendor`),
       vendorId
-        ? safeJson(`${API}/reviews?all=true&vendor_id=${vendorId}`, { headers })
+        ? safeJson(`${API}/reviews?all=true&vendor_id=${vendorId}`)
         : Promise.resolve([]),
-      safePayouts(`${API}/vendor-payouts/vendor`, { headers }),
+      safePayouts(`${API}/vendor-payouts/vendor`),
       vendorId
-        ? safeDepositLedger(`${API}/payments/deposit/${vendorId}`, { headers })
+        ? safeDepositLedger(`${API}/payments/deposit/${vendorId}`)
         : Promise.resolve([]),
     ]);
 

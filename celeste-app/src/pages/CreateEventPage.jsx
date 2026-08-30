@@ -4,7 +4,11 @@ import { useAuth } from "../hooks/useAuth";
 import { EVENT_CATEGORIES } from "../context/data/events";
 import styles from "./CreateEventPage.module.css";
 import { VENDOR_SERVICE_CONFIGS } from "../context/data/vendorServiceConfig";
-import { VendorAvailabilityNote } from "../components/VendorAvailabilityNote";
+// DISABLED (kept for future use — see the commented-out usage in
+// VendorBlock below): only needed if the post-selection busy-warning
+// banner is re-enabled. Availability blocking now happens entirely at
+// pick-time in VendorListingPage.jsx instead.
+// import { VendorAvailabilityNote } from "../components/VendorAvailabilityNote";
 
 
 import { API_URL } from '../config/api';
@@ -160,9 +164,15 @@ function AvailabilityCalendar({ value, onChange, availability }) {
 
   const statusMap = {};
   availability.forEach(a => {
-    const d = new Date(a.date);
-    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-    statusMap[key] = a.status;
+    // FIXED: was `new Date(a.date)` + local .getFullYear()/.getMonth()/
+    // .getDate() to rebuild the key — those are LOCAL-timezone getters,
+    // so this only produced the right day for timezones AHEAD of UTC
+    // (like IST) and would silently roll back a day for timezones BEHIND
+    // UTC. Now that the backend (availability.js) returns `date` as a
+    // plain TO_CHAR'd "YYYY-MM-DD" string with no time/timezone component
+    // at all, there's nothing to parse — the string itself IS the key.
+    const key = a.date?.slice(0, 10);
+    if (key) statusMap[key] = a.status;
   });
 
   const firstDay = new Date(viewYear, viewMonth, 1).getDay();
@@ -988,10 +998,18 @@ function VendorBlock({ serviceType, serviceConfig, vendorData, onChange, onPickV
           {/* ── Vendor availability — THIS specific vendor's own calendar,
               independent from the studio-wide Step-1 date picker. Shows
               whether they're free/busy on the client's chosen event date
-              once both a vendor and a date are picked. ──────────────────── */}
-          {vendorData.vendor && (
+              once both a vendor and a date are picked. ────────────────────
+              DISABLED (kept for future use, not deleted): this duplicated
+              the availability check as a warning banner shown AFTER a
+              vendor is already added. The intended UX now lives entirely
+              at pick-time instead — VendorListingPage.jsx greys out busy
+              vendor cards and blocks "Add to Event" on them before they
+              can ever be added (see isVendorBusy() / handleAddToEvent()
+              there). Re-enable by uncommenting below if a post-selection
+              reminder is wanted again alongside that. */}
+          {/* {vendorData.vendor && (
             <VendorAvailabilityNote vendorId={vendorData.vendor.id} eventDate={eventDate} />
-          )}
+          )} */}
 
           {/* Service-specific fields */}
           {extraFields.map(field => {
@@ -1405,8 +1423,19 @@ export default function CreateEventPage() {
   }, []);
 
   // Fetch availability + vendors
+  // FIXED: was `${API}/availability` with no params, which the backend
+  // treats as "return everything" — every individual vendor's own busy
+  // dates got merged into this general Step-1 date picker, so a date
+  // could show as unavailable just because one unrelated vendor was busy
+  // that day, even though the studio and every other vendor were free.
+  // This calendar renders before any vendor is picked, so it should only
+  // ever reflect studio-wide closures (vendor_id IS NULL rows) —
+  // `studio_only=true` asks the backend for exactly that subset. A given
+  // vendor's OWN busy dates are shown later, once selected, via
+  // VendorAvailabilityNote (see its vendorId-scoped fetch elsewhere in
+  // this file).
   useEffect(() => {
-    fetch(`${API}/availability`).then(r=>r.json()).then(d=>setAvailability(Array.isArray(d)?d:[])).catch(()=>{});
+    fetch(`${API}/availability?studio_only=true`).then(r=>r.json()).then(d=>setAvailability(Array.isArray(d)?d:[])).catch(()=>{});
     fetch(`${API}/vendors`).then(r=>r.json()).then(async data=>{
       if(!Array.isArray(data)) return;
       const active = data.filter(v=>v.is_active);
@@ -1428,7 +1457,12 @@ export default function CreateEventPage() {
 
   const handlePickVendor = (serviceKey, serviceConfig) => {
     saveEventDraft(step, form, vendorSelections);
-    navigate(serviceConfig.path, { state: { celestePick: { type: "vendor", serviceKey } } });
+    // FIXED: eventDate is now included here so VendorListingPage.jsx (and
+    // VendorProfilePage.jsx) can check each vendor's /availability against
+    // the client's actual chosen date and grey out / block ones who are
+    // busy that day — previously this navigation carried no date at all,
+    // so neither page had any way to know which date to check against.
+    navigate(serviceConfig.path, { state: { celestePick: { type: "vendor", serviceKey, eventDate: form.event_date } } });
   };
 
   // ── Reference source picker (browse collection vs upload own image) ────

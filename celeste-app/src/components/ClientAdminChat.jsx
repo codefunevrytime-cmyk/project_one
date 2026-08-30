@@ -6,6 +6,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
 import { API_URL } from '../config/api';
+import LocationPicker from './LocationPicker';
 
 const API = API_URL;
 const STORAGE_KEY = 'lumiere_admin_conv';
@@ -20,6 +21,14 @@ const QUICK_QUESTIONS = [
 function Bubble({ msg }) {
   const isClient = msg.sender_type === 'client';
   const time = new Date(msg.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  const hasLocation = msg.latitude != null && msg.longitude != null;
+  const mapUrl = hasLocation
+    ? `https://www.openstreetmap.org/?mlat=${msg.latitude}&mlon=${msg.longitude}#map=16/${msg.latitude}/${msg.longitude}`
+    : null;
+  // Static preview tile, no API key needed (OSM's own static-map service).
+  const mapPreviewUrl = hasLocation
+    ? `https://staticmap.openstreetmap.de/staticmap.php?center=${msg.latitude},${msg.longitude}&zoom=15&size=260x140&markers=${msg.latitude},${msg.longitude},red-pushpin`
+    : null;
 
   return (
     <div style={{ display: 'flex', justifyContent: isClient ? 'flex-end' : 'flex-start', marginBottom: 10 }}>
@@ -35,7 +44,7 @@ function Bubble({ msg }) {
       )}
       <div style={{
         maxWidth: '75%',
-        padding: '9px 13px',
+        padding: msg.image_url || hasLocation ? 6 : '9px 13px',
         borderRadius: isClient ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
         background: isClient
           ? 'linear-gradient(135deg, #4B49AC, #7978E9)'
@@ -47,9 +56,34 @@ function Bubble({ msg }) {
           ? '0 4px 12px rgba(75,73,172,0.25)'
           : '0 2px 6px rgba(0,0,0,0.06)',
       }}>
-        <div>{msg.message}</div>
+        {msg.image_url && (
+          <a href={msg.image_url} target="_blank" rel="noopener noreferrer">
+            <img
+              src={msg.image_url}
+              alt="Shared reference"
+              style={{ width: '100%', maxWidth: 220, borderRadius: 10, display: 'block', marginBottom: msg.message ? 6 : 0 }}
+            />
+          </a>
+        )}
+        {hasLocation && (
+          <a href={mapUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginBottom: msg.message ? 6 : 0 }}>
+            <img
+              src={mapPreviewUrl}
+              alt="Shared location"
+              style={{ width: '100%', maxWidth: 220, borderRadius: 10, display: 'block' }}
+            />
+            <div style={{
+              fontSize: 11, padding: '5px 2px 0',
+              color: isClient ? 'rgba(255,255,255,0.85)' : '#4B49AC',
+            }}>
+              📍 {msg.location_label || 'View location'}
+            </div>
+          </a>
+        )}
+        {msg.message && <div style={{ padding: msg.image_url || hasLocation ? '0 7px' : 0 }}>{msg.message}</div>}
         <div style={{
           fontSize: 10, marginTop: 4,
+          padding: msg.image_url || hasLocation ? '0 7px 4px' : 0,
           color: isClient ? 'rgba(255,255,255,0.6)' : '#b0b0cc',
           textAlign: isClient ? 'right' : 'left',
         }}>{time}</div>
@@ -73,6 +107,12 @@ export default function ClientAdminChat({ user, pageContext = '' }) {
     message: pageContext ? `Hi! I'm interested in ${pageContext}.` : '',
   });
   const [reply, setReply] = useState('');
+  const [pendingImage, setPendingImage] = useState(null);     // File
+  const [pendingPreview, setPendingPreview] = useState(null); // object URL for preview
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [pendingLocation, setPendingLocation] = useState(null); // { lat, lng, label }
+  const fileInputRef = useRef(null);
   const bottomRef = useRef(null);
   const pollRef   = useRef(null);
   const openRef = useRef(open);
@@ -124,14 +164,52 @@ export default function ClientAdminChat({ user, pageContext = '' }) {
   }, [convId]);
   useEffect(() => { fetchMessagesRef.current = fetchMessages; }, [fetchMessages]);
 
+  // Uploads the pending image (if any) and returns its URL, or null if
+  // there's nothing to upload / the upload fails. Called right before
+  // sending a message that has an attachment.
+  const uploadPendingImage = useCallback(async () => {
+    if (!pendingImage) return null;
+    setUploadingImage(true);
+    try {
+      const fd = new FormData();
+      fd.append('image', pendingImage);
+      const res = await fetch(`${API}/messages/upload-image`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('celeste_token')}` },
+        body: fd,
+      });
+      const data = await res.json();
+      return data?.image_url || null;
+    } catch {
+      return null;
+    } finally {
+      setUploadingImage(false);
+    }
+  }, [pendingImage]);
+
+  const clearAttachments = () => {
+    setPendingImage(null);
+    setPendingPreview(null);
+    setPendingLocation(null);
+  };
+
+  const handlePickImage = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPendingImage(file);
+    setPendingPreview(URL.createObjectURL(file));
+    e.target.value = ''; // allow picking the same file again later
+  };
+
   const handleStart = async () => {
-    if (!form.name.trim() || !form.message.trim()) {
-      setError('Please enter your name and a message.');
+    if (!form.name.trim() || (!form.message.trim() && !pendingImage && !pendingLocation)) {
+      setError('Please enter your name, and a message, image, or location.');
       return;
     }
     setSending(true);
     setError('');
     try {
+      const image_url = await uploadPendingImage();
       const res  = await fetch(`${API}/messages/admin-chat/start`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('celeste_token')}` },
@@ -141,6 +219,10 @@ export default function ClientAdminChat({ user, pageContext = '' }) {
           client_phone: form.phone  || null,
           subject:      `Enquiry from ${form.name}${pageContext ? ` — ${pageContext}` : ''}`,
           message:      form.message,
+          image_url,
+          latitude:       pendingLocation?.lat ?? null,
+          longitude:      pendingLocation?.lng ?? null,
+          location_label: pendingLocation?.label ?? null,
         }),
       });
       const data = await res.json();
@@ -148,6 +230,7 @@ export default function ClientAdminChat({ user, pageContext = '' }) {
         setConvId(data.conversation_id);
         localStorage.setItem(STORAGE_KEY, JSON.stringify({ id: data.conversation_id, email: form.email }));
         setStep('chat');
+        clearAttachments();
         fetchMessages(data.conversation_id);
       } else {
         setError(data.error || 'Could not start chat.');
@@ -159,15 +242,25 @@ export default function ClientAdminChat({ user, pageContext = '' }) {
   };
 
   const handleReply = async () => {
-    if (!reply.trim() || !convId) return;
+    if (!reply.trim() && !pendingImage && !pendingLocation) return;
+    if (!convId) return;
     setSending(true);
     try {
+      const image_url = await uploadPendingImage();
       await fetch(`${API}/messages/admin-chat/${convId}`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('celeste_token')}` },
-        body:    JSON.stringify({ client_name: form.name || 'Client', message: reply }),
+        body:    JSON.stringify({
+          client_name: form.name || 'Client',
+          message: reply,
+          image_url,
+          latitude:       pendingLocation?.lat ?? null,
+          longitude:      pendingLocation?.lng ?? null,
+          location_label: pendingLocation?.label ?? null,
+        }),
       });
       setReply('');
+      clearAttachments();
       fetchMessages();
     } catch { /* silent */ }
     setSending(false);
@@ -184,6 +277,7 @@ export default function ClientAdminChat({ user, pageContext = '' }) {
     setMessages([]);
     setStep('form');
     setForm({ name: user?.name || '', email: user?.email || '', phone: '', message: '' });
+    clearAttachments();
   };
 
   return (
@@ -367,9 +461,58 @@ export default function ClientAdminChat({ user, pageContext = '' }) {
                 />
               </div>
 
+              {(pendingPreview || pendingLocation) && (
+                <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                  {pendingPreview && (
+                    <div style={{ position: 'relative' }}>
+                      <img src={pendingPreview} alt="attachment preview" style={{ width: 52, height: 52, objectFit: 'cover', borderRadius: 8, border: '1px solid #e8e8f0' }} />
+                      <button onClick={() => { setPendingImage(null); setPendingPreview(null); }} style={{
+                        position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%',
+                        background: '#333', color: '#fff', border: 'none', fontSize: 10, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+                      }}>✕</button>
+                    </div>
+                  )}
+                  {pendingLocation && (
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 6, background: '#f4f4f8',
+                      border: '1px solid #e8e8f0', borderRadius: 8, padding: '6px 10px', fontSize: 11, color: '#4B49AC', maxWidth: 220,
+                    }}>
+                      📍 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pendingLocation.label}</span>
+                      <button onClick={() => setPendingLocation(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#999', fontSize: 12, padding: 0 }}>✕</button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Attach a reference image"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px',
+                    border: '1px solid #e8e8f0', borderRadius: 20, background: '#fff',
+                    color: '#4B49AC', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >
+                  📎 Attach image
+                </button>
+                <button
+                  onClick={() => setShowLocationPicker(true)}
+                  title="Share your location"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px',
+                    border: '1px solid #e8e8f0', borderRadius: 20, background: '#fff',
+                    color: '#4B49AC', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >
+                  📍 Location
+                </button>
+              </div>
+
               <button
                 onClick={handleStart}
-                disabled={sending}
+                disabled={sending || uploadingImage}
                 style={{
                   width: '100%', padding: '11px',
                   background: 'linear-gradient(135deg, #4B49AC, #7978E9)',
@@ -377,11 +520,11 @@ export default function ClientAdminChat({ user, pageContext = '' }) {
                   color: '#fff', fontSize: 14, fontWeight: 600,
                   fontFamily: 'inherit', cursor: 'pointer',
                   boxShadow: '0 4px 15px rgba(75,73,172,0.35)',
-                  opacity: sending ? 0.7 : 1,
+                  opacity: sending || uploadingImage ? 0.7 : 1,
                   transition: 'opacity 0.15s',
                 }}
               >
-                {sending ? 'Starting chat…' : 'Send Message →'}
+                {uploadingImage ? 'Uploading image…' : sending ? 'Starting chat…' : 'Send Message →'}
               </button>
             </div>
           )}
@@ -405,6 +548,53 @@ export default function ClientAdminChat({ user, pageContext = '' }) {
               </div>
 
               <div style={{ padding: '12px 14px', borderTop: '1px solid #e8e8f0', background: '#fff' }}>
+                {(pendingPreview || pendingLocation) && (
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                    {pendingPreview && (
+                      <div style={{ position: 'relative' }}>
+                        <img src={pendingPreview} alt="attachment preview" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid #e8e8f0' }} />
+                        <button onClick={() => { setPendingImage(null); setPendingPreview(null); }} style={{
+                          position: 'absolute', top: -6, right: -6, width: 16, height: 16, borderRadius: '50%',
+                          background: '#333', color: '#fff', border: 'none', fontSize: 9, cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+                        }}>✕</button>
+                      </div>
+                    )}
+                    {pendingLocation && (
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 6, background: '#f4f4f8',
+                        border: '1px solid #e8e8f0', borderRadius: 8, padding: '5px 9px', fontSize: 11, color: '#4B49AC', maxWidth: 200,
+                      }}>
+                        📍 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pendingLocation.label}</span>
+                        <button onClick={() => setPendingLocation(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#999', fontSize: 11, padding: 0 }}>✕</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Attach a reference image"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px',
+                      border: '1px solid #e8e8f0', borderRadius: 20, background: '#fafafa',
+                      color: '#4B49AC', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
+                    }}
+                  >
+                    📎 Image
+                  </button>
+                  <button
+                    onClick={() => setShowLocationPicker(true)}
+                    title="Share your location"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px',
+                      border: '1px solid #e8e8f0', borderRadius: 20, background: '#fafafa',
+                      color: '#4B49AC', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
+                    }}
+                  >
+                    📍 Location
+                  </button>
+                </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
                   <textarea
                     value={reply}
@@ -425,13 +615,13 @@ export default function ClientAdminChat({ user, pageContext = '' }) {
                   />
                   <button
                     onClick={handleReply}
-                    disabled={!reply.trim() || sending}
+                    disabled={(!reply.trim() && !pendingImage && !pendingLocation) || sending || uploadingImage}
                     style={{
                       width: 40, height: 40, flexShrink: 0,
                       background: 'linear-gradient(135deg, #4B49AC, #7978E9)',
                       border: 'none', borderRadius: 8, cursor: 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      opacity: !reply.trim() || sending ? 0.45 : 1,
+                      opacity: (!reply.trim() && !pendingImage && !pendingLocation) || sending || uploadingImage ? 0.45 : 1,
                       boxShadow: '0 4px 12px rgba(75,73,172,0.3)',
                       alignSelf: 'flex-end',
                     }}
@@ -445,6 +635,27 @@ export default function ClientAdminChat({ user, pageContext = '' }) {
             </>
           )}
         </div>
+      )}
+
+      {/* Hidden file input — shared by both the form step and chat step
+          attach buttons above (steps are mutually exclusive, so one input
+          covers both). */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        onChange={handlePickImage}
+        style={{ display: 'none' }}
+      />
+
+      {showLocationPicker && (
+        <LocationPicker
+          onClose={() => setShowLocationPicker(false)}
+          onConfirm={({ lat, lng, label }) => {
+            setPendingLocation({ lat, lng, label });
+            setShowLocationPicker(false);
+          }}
+        />
       )}
     </>
   );
