@@ -179,8 +179,15 @@ router.post('/signup', async (req, res) => {
         serviceId = insSvc.rows[0].id;
       }
 
+      // FIXED: was `is_active: true` — every new signup went instantly
+      // public on GET /api/vendors (vendors.js only checks vendors.is_active,
+      // never vendor_users.status), with a near-empty profile (just name +
+      // service_id at this point). Approval was cosmetic: it gated the
+      // vendor's own dashboard access (VendorPending.jsx) but not public
+      // visibility at all. Now starts inactive; PATCH /:id/approve below
+      // is what flips this to true.
       const insVendor = await pool.query(
-        'INSERT INTO vendors (name, service_id, is_active) VALUES ($1, $2, true) RETURNING id',
+        'INSERT INTO vendors (name, service_id, is_active) VALUES ($1, $2, false) RETURNING id',
         [name, serviceId]
       );
       await pool.query('UPDATE vendor_users SET vendor_id = $1 WHERE id = $2', [insVendor.rows[0].id, user.id]);
@@ -357,20 +364,40 @@ router.get('/enquiries/:id/messages', vendorAuth, async (req, res) => {
 // POST /api/vendor-auth/enquiries/:id/reply
 // FIXED (IDOR): same missing ownership check as above — a vendor could
 // previously post a reply into another vendor's enquiry thread.
+//
+// FIXED (stale badge/count): this route used to only insert into
+// vendor_messages. queries.replied was never touched here — it was only
+// ever set by the admin-only PATCH /api/queries/:id/replied route
+// (queries.js). Since VendorEnquiries.jsx's "NEW" badge and
+// VendorDashboard.jsx's pending-enquiries count both key off
+// `!enquiry.replied`, a vendor replying never cleared either of them.
+// Now sets `replied = true` here too, in the same transaction as the
+// message insert, so both vendor and admin paths converge on the same
+// flag and a partial failure can't leave the message saved but the flag
+// unset (or vice versa).
 router.post('/enquiries/:id/reply', vendorAuth, async (req, res) => {
+  const client = await pool.connect();
   try {
     const { vendorId, enquiry } = await getOwnedEnquiry(req.vendorUserId, req.params.id);
     if (!vendorId) return res.status(403).json({ error: 'No vendor profile linked to this account' });
     if (!enquiry) return res.status(404).json({ error: 'Not found' });
 
     const { message } = req.body;
-    await pool.query(
+
+    await client.query('BEGIN');
+    await client.query(
       'INSERT INTO vendor_messages (enquiry_id, sender_type, sender_id, message) VALUES ($1, $2, $3, $4)',
       [req.params.id, 'vendor', req.vendorUserId, message]
     );
+    await client.query('UPDATE queries SET replied = true WHERE id = $1', [req.params.id]);
+    await client.query('COMMIT');
+
     res.json({ success: true });
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
     res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
 
@@ -547,9 +574,12 @@ router.put('/profile', vendorAuth, upload.single('photo'), async (req, res) => {
       // Fallback path: only runs if a vendor_user somehow has no vendor_id
       // yet (e.g. signed up before the service-category signup fix, or
       // without picking a service). Now also sets price_per_day.
+      // FIXED: same is_active bug as /signup above — was hardcoded `true`,
+      // instantly publishing this vendor regardless of vendor_users.status.
+      // Starts inactive; approval flips it.
       const ins = await pool.query(
         `INSERT INTO vendors (name, specialty, contact, location, bio, travel_info, delivery_time, payment_terms, services, prices, is_active, photo_url, price_per_day)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true,$11,$12) RETURNING id`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,false,$11,$12) RETURNING id`,
         [name, specialty, contact, location, bio, travel_info, delivery_time, payment_terms, JSON.stringify(services), JSON.stringify(prices), photo_url, priceVal]
       );
       vendorId = ins.rows[0].id;
@@ -592,9 +622,20 @@ router.get('/all', adminAuth, async (req, res) => {
 });
 
 // PATCH /api/vendor-auth/:id/approve — admin approves vendor
+// FIXED: previously only set vendor_users.status = 'approved' and never
+// touched vendors.is_active — meaningless, since vendors.is_active was
+// already `true` from the moment of signup (see the two INSERT fixes
+// above). Now this is the ONLY thing that makes a vendor row public:
+// it starts false at signup/profile-creation and this route flips it.
 router.patch('/:id/approve', adminAuth, async (req, res) => {
   try {
+    const userRes = await pool.query('SELECT vendor_id FROM vendor_users WHERE id = $1', [req.params.id]);
+    const vendorId = userRes.rows[0]?.vendor_id;
+
     await pool.query("UPDATE vendor_users SET status = 'approved' WHERE id = $1", [req.params.id]);
+    if (vendorId) {
+      await pool.query('UPDATE vendors SET is_active = true WHERE id = $1', [vendorId]);
+    }
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -602,9 +643,20 @@ router.patch('/:id/approve', adminAuth, async (req, res) => {
 });
 
 // PATCH /api/vendor-auth/:id/reject — admin rejects vendor
+// FIXED: previously only set vendor_users.status = 'rejected' — the
+// linked vendors row (if one existed, e.g. this vendor was approved
+// earlier and is now being un-approved, or signed up with a
+// service_category and is being rejected) stayed is_active = true and
+// remained fully visible on the public site regardless.
 router.patch('/:id/reject', adminAuth, async (req, res) => {
   try {
+    const userRes = await pool.query('SELECT vendor_id FROM vendor_users WHERE id = $1', [req.params.id]);
+    const vendorId = userRes.rows[0]?.vendor_id;
+
     await pool.query("UPDATE vendor_users SET status = 'rejected' WHERE id = $1", [req.params.id]);
+    if (vendorId) {
+      await pool.query('UPDATE vendors SET is_active = false WHERE id = $1', [vendorId]);
+    }
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

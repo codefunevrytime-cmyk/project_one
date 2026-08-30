@@ -6,10 +6,48 @@ const express = require('express');
 const router  = express.Router();
 const pool    = require('../db');
 const jwt     = require('jsonwebtoken');
+const multer  = require('multer');
+const path    = require('path');
+const fs      = require('fs');
 const adminAuth = require('../middleware/adminAuth');
 const clientAuth = require('../middleware/clientAuth');
 const rateLimit = require('../middleware/rateLimit');
+const { finalizeImageUpload } = require('../lib/imageUpload');
 router.use(rateLimit({ max: 120 }));
+
+// ── Chat image attachments ──────────────────────────────────────────────
+// Same pattern as vendors.js / gallery.js / decorationVenues.js: write a
+// neutral temp filename (never file.originalname — client-controlled,
+// see lib/imageUpload.js for the stored-XSS this avoids), then
+// finalizeImageUpload() verifies the real magic bytes and renames to an
+// extension it derives itself before the URL is ever handed back.
+const chatUploadDir = path.join(__dirname, '..', 'uploads');
+fs.mkdirSync(chatUploadDir, { recursive: true });
+const chatImageStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, chatUploadDir),
+  filename: (req, file, cb) => cb(null, Date.now() + '-' + Math.round(Math.random() * 1e9) + '.tmp'),
+});
+const chatImageUpload = multer({
+  storage: chatImageStorage,
+  limits: { fileSize: 8 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => cb(null, ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)),
+});
+
+// POST /api/messages/upload-image — client attaches a reference/decor
+// photo to a chat message. Returns a relative URL (same reasoning as
+// every other upload route in this codebase: a relative path resolves
+// against whatever host is currently serving the frontend, not whatever
+// host happened to receive this particular upload request).
+router.post('/upload-image', clientAuth, chatImageUpload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'A JPEG, PNG, or WebP image is required' });
+    const finalFilename = await finalizeImageUpload(req.file);
+    if (!finalFilename) return res.status(400).json({ error: 'Uploaded file is not a valid JPEG, PNG, or WebP image' });
+    res.json({ image_url: `/uploads/${finalFilename}` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ── Auto-migrate tables ───────────────────────────────────────────────────
 async function ensureTables() {
@@ -39,6 +77,15 @@ async function ensureTables() {
       created_at      TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+
+  // Chat attachments: an image (reference photo, decor inspiration, etc.)
+  // and/or a dropped map pin (event location). Both optional and
+  // independent — a message can carry either, both, or neither alongside
+  // its text. Added via ALTER so existing rows/tables aren't disturbed.
+  await pool.query(`ALTER TABLE conversation_messages ADD COLUMN IF NOT EXISTS image_url TEXT`);
+  await pool.query(`ALTER TABLE conversation_messages ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION`);
+  await pool.query(`ALTER TABLE conversation_messages ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION`);
+  await pool.query(`ALTER TABLE conversation_messages ADD COLUMN IF NOT EXISTS location_label TEXT`);
 }
 ensureTables().catch(console.error);
 
@@ -345,9 +392,9 @@ router.patch('/admin/:convId/status', adminAuth, async (req, res) => {
 // Body: { client_name, client_email, client_phone, subject, message }
 router.post('/admin-chat/start', clientAuth, async (req, res) => {
   try {
-    const { client_phone, subject, message } = req.body;
-    if (!message) {
-      return res.status(400).json({ error: 'message is required' });
+    const { client_phone, subject, message, image_url, latitude, longitude, location_label } = req.body;
+    if (!message && !image_url && latitude == null) {
+      return res.status(400).json({ error: 'message, image, or location is required' });
     }
     const clientName = req.body.client_name || req.clientEmail;
 
@@ -374,9 +421,9 @@ router.post('/admin-chat/start', clientAuth, async (req, res) => {
     }
 
     await pool.query(
-      `INSERT INTO conversation_messages (conversation_id, sender_type, sender_name, message)
-       VALUES ($1, 'client', $2, $3)`,
-      [conv.id, clientName, message]
+      `INSERT INTO conversation_messages (conversation_id, sender_type, sender_name, message, image_url, latitude, longitude, location_label)
+       VALUES ($1, 'client', $2, $3, $4, $5, $6, $7)`,
+      [conv.id, clientName, message || '', image_url || null, latitude ?? null, longitude ?? null, location_label || null]
     );
     await pool.query(`UPDATE conversations SET updated_at = NOW() WHERE id = $1`, [conv.id]);
 
@@ -414,15 +461,17 @@ router.get('/admin-chat/:convId', clientAuth, async (req, res) => {
 // Body: { client_name, message }
 router.post('/admin-chat/:convId', clientAuth, async (req, res) => {
   try {
-    const { message } = req.body;
-    if (!message) return res.status(400).json({ error: 'message required' });
+    const { message, image_url, latitude, longitude, location_label } = req.body;
+    if (!message && !image_url && latitude == null) {
+      return res.status(400).json({ error: 'message, image, or location is required' });
+    }
     const owner = await pool.query('SELECT id FROM conversations WHERE id = $1 AND vendor_id IS NULL AND client_email = $2', [req.params.convId, req.clientEmail]);
     if (!owner.rows[0]) return res.status(404).json({ error: 'Not found' });
 
     await pool.query(
-      `INSERT INTO conversation_messages (conversation_id, sender_type, sender_name, message)
-       VALUES ($1, 'client', $2, $3)`,
-      [req.params.convId, req.body.client_name || req.clientEmail, message]
+      `INSERT INTO conversation_messages (conversation_id, sender_type, sender_name, message, image_url, latitude, longitude, location_label)
+       VALUES ($1, 'client', $2, $3, $4, $5, $6, $7)`,
+      [req.params.convId, req.body.client_name || req.clientEmail, message || '', image_url || null, latitude ?? null, longitude ?? null, location_label || null]
     );
     await pool.query(`UPDATE conversations SET updated_at = NOW() WHERE id = $1`, [req.params.convId]);
 

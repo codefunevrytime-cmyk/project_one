@@ -659,11 +659,20 @@ router.patch('/admin/:id/reference-price', adminAuth, async (req, res) => {
 });
 
 // ── GET /api/events/vendor/requests — vendor sees their slots ────────────────
+// FIXED: was accepting any valid vendor JWT with no `type` check — a vendor
+// refresh token (30-day life, meant to live only in the HttpOnly cookie —
+// see issueVendorTokens() in vendorAuth.js) has the exact same
+// { vendorUserId, type } shape as an access token, differing only in
+// `type`. vendorAuth.js's own middleware and vendorOrAdminAuth.js both
+// already enforce `type === 'access'` for this reason; this route never
+// did, so a leaked refresh token would work here identically to a
+// legitimate 15-minute access token.
 router.get('/vendor/requests', async (req, res) => {
   try {
     const auth = req.headers.authorization;
     if (!auth) return res.status(401).json({ error: 'No token' });
     const payload = jwt.verify(auth.replace('Bearer ', ''), process.env.JWT_SECRET);
+    if (payload.type !== 'access') return res.status(401).json({ error: 'Invalid token' });
     const vendorUserId = payload.vendorUserId;
     if (!vendorUserId) return res.status(403).json({ error: 'Vendor access required' });
 
@@ -693,11 +702,16 @@ router.get('/vendor/requests', async (req, res) => {
 // a slotId could accept/decline any vendor's booking slot. Now requires a
 // valid vendor token, and the UPDATE is scoped so a vendor can only touch
 // their own slots (same ownership check as GET /vendor/requests above).
+//
+// FIXED (2): also now enforces `type === 'access'` — same reasoning as
+// GET /vendor/requests above. Without it, a leaked vendor refresh token
+// could be used to accept/decline booking slots directly.
 router.patch('/vendor/respond/:slotId', async (req, res) => {
   try {
     const auth = req.headers.authorization;
     if (!auth) return res.status(401).json({ error: 'No token' });
     const payload = jwt.verify(auth.replace('Bearer ', ''), process.env.JWT_SECRET);
+    if (payload.type !== 'access') return res.status(401).json({ error: 'Invalid token' });
     const vendorUserId = payload.vendorUserId;
     if (!vendorUserId) return res.status(401).json({ error: 'Invalid token' });
 

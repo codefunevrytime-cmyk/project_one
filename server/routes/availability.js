@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const { vendorOrAdminAuth } = require('../middleware/vendorOrAdminAuth');
+const adminAuth = require('../middleware/adminAuth');
 
 // ── Migration: scope availability to a vendor, with studio-wide rows ─────
 // FIXED: this table previously had no vendor_id column at all — the
@@ -61,20 +62,69 @@ async function ensureVendorScoping() {
 }
 ensureVendorScoping().catch(console.error);
 
-// GET availability — optionally scoped to one vendor via ?vendor_id=.
-// When vendor_id is given, returns that vendor's own rows PLUS any
-// studio-wide rows (vendor_id IS NULL), since a studio closure makes
-// every vendor unavailable too. Without vendor_id, returns everything
-// (kept for any other caller of this route we can't see from here).
+// GET availability — three modes via query params:
+//   ?vendor_id=<id>  → that vendor's own rows PLUS studio-wide rows
+//                       (vendor_id IS NULL), since a studio closure makes
+//                       every vendor unavailable too.
+//   ?studio_only=true → ONLY studio-wide rows (vendor_id IS NULL). For
+//                       callers that show a single shared calendar before
+//                       any vendor is picked (e.g. CreateEventPage.jsx's
+//                       Step-1 event-date picker) — they have no vendor_id
+//                       yet and should never see any individual vendor's
+//                       personal busy dates mixed in.
+//   (neither)         → everything, unscoped (kept for any other caller
+//                       of this route we can't see from here, e.g. an
+//                       admin availability-management screen that needs
+//                       to list/edit every row across every vendor).
+//
+// FIXED: CreateEventPage.jsx's Step-1 AvailabilityCalendar was calling
+// this route with no params at all, landing in the "everything" branch.
+// That merges every individual vendor's own busy dates into what's meant
+// to be a studio-wide "is this day even open" picker — so a date could
+// show as unavailable to the client purely because one specific vendor
+// (who may not even end up being booked) was busy that day, while the
+// studio itself and every other vendor were free. Row data was correct;
+// only the query scoping was wrong, so nothing errored — the date just
+// silently greyed out. `studio_only=true` gives that caller a route to
+// the subset it actually wants.
+// FIXED (timezone bug): every branch below now selects
+// `TO_CHAR(date, 'YYYY-MM-DD') AS date` instead of `SELECT *`. With
+// `SELECT *`, the pg driver parses the `date` column into a JS Date
+// object using the Node process's local timezone, which then serializes
+// to UTC when res.json() calls toISOString() — on a server running in
+// IST (UTC+5:30), a stored '2026-08-31' comes back as
+// '2026-08-30T18:30:00.000Z'. Any frontend code comparing that against
+// the plain date string the client picked (e.g. VendorListingPage.jsx's
+// `row.date.slice(0,10) === pickContext.eventDate`) silently fails —
+// no error, the date just never matches, so nothing ever showed as
+// busy even when a real, correctly-scoped row existed (this is exactly
+// what was happening: the row was there, `raw rows` had 11 entries, but
+// the date-matching filter still returned 0). TO_CHAR formats the date
+// as text inside Postgres itself, before the pg driver's type parser
+// (and its local-timezone assumption) ever touches it, so the value
+// leaving this route is always the literal stored date, unambiguous
+// regardless of what timezone the Node process happens to run in.
 router.get('/', async (req, res) => {
   try {
-    const { vendor_id } = req.query;
-    const result = vendor_id
-      ? await pool.query(
-          'SELECT * FROM availability WHERE vendor_id = $1 OR vendor_id IS NULL ORDER BY date ASC',
-          [vendor_id]
-        )
-      : await pool.query('SELECT * FROM availability ORDER BY date ASC');
+    const { vendor_id, studio_only } = req.query;
+    let result;
+    if (vendor_id) {
+      result = await pool.query(
+        `SELECT id, vendor_id, TO_CHAR(date, 'YYYY-MM-DD') AS date, status, note
+         FROM availability WHERE vendor_id = $1 OR vendor_id IS NULL ORDER BY date ASC`,
+        [vendor_id]
+      );
+    } else if (studio_only === 'true' || studio_only === '1') {
+      result = await pool.query(
+        `SELECT id, vendor_id, TO_CHAR(date, 'YYYY-MM-DD') AS date, status, note
+         FROM availability WHERE vendor_id IS NULL ORDER BY date ASC`
+      );
+    } else {
+      result = await pool.query(
+        `SELECT id, vendor_id, TO_CHAR(date, 'YYYY-MM-DD') AS date, status, note
+         FROM availability ORDER BY date ASC`
+      );
+    }
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -118,6 +168,23 @@ router.post('/', vendorOrAdminAuth, async (req, res) => {
       );
     }
     res.json({ success: true, vendor_id: vendorId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE an availability row — admin only.
+// NEW: this route didn't exist before. AdminAvailability.jsx's POST form
+// had no vendor_id field, so every row it ever created landed as
+// studio-wide (vendor_id NULL) regardless of what the admin meant — see
+// the comment on the POST route above. Without a way to delete those
+// mis-scoped rows, there was no way to correct that data short of a
+// direct DB query. Admin-only, matching every other admin-side mutation
+// on this router (vendors.js's /toggle, /:id/price, etc.).
+router.delete('/:id', adminAuth, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM availability WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

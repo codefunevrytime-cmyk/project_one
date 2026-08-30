@@ -51,6 +51,24 @@ const upload = multer({ storage, limits: { fileSize: 8 * 1024 * 1024 }, fileFilt
 // deliberately; revisit this only if per-service rates should become a
 // client-only / opt-in field instead of a public one.)
 //
+// FIXED (silent vendor-disappears bug): added a LEFT JOIN to `services` to
+// expose `service_category` alongside the existing numeric `service_id`.
+// VendorListingPage.jsx's isVendorForService() previously matched
+// vendor.service_id against a hardcoded serviceId in vendorServiceConfig.js
+// (e.g. photography assumed to always be services.id = 1). That numeric ID
+// is NOT stable — vendorAuth.js's /signup route creates a new `services`
+// row on demand (SERIAL id) the first time a given category signs up, so
+// the actual id depends on insertion order and will differ across a fresh
+// DB / reseed / different environment. A vendor whose real service_id no
+// longer matches the hardcoded number simply vanished from the listing
+// page with no error anywhere. `category` (services.category) is the one
+// value that's stable across environments, because vendorAuth.js always
+// writes it as exactly the `service_category` string the vendor signed up
+// with — so the frontend now matches on that string instead of the ID.
+// LEFT JOIN (not INNER) so vendors with a NULL service_id (pre-existing /
+// unassigned vendors) still come through, with service_category = null,
+// same as before this change.
+//
 // NOTE: I did NOT strip payment_terms / travel_info / delivery_time / bio
 // / contact here, even though some of those read as "internal" at first
 // glance — this file has no GET /:id route, so it's possible
@@ -62,13 +80,15 @@ const upload = multer({ storage, limits: { fileSize: 8 * 1024 * 1024 }, fileFilt
 router.get('/', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, name, specialty, photo_url, contact, location, bio,
-              travel_info, delivery_time, payment_terms, service_id,
-              price_per_day, prices, pricing_packages, services, event_types,
-              is_online, is_active, created_at
-       FROM vendors
-       WHERE is_active = true
-       ORDER BY created_at DESC`
+      `SELECT v.id, v.name, v.specialty, v.photo_url, v.contact, v.location, v.bio,
+              v.travel_info, v.delivery_time, v.payment_terms, v.service_id,
+              s.category AS service_category,
+              v.price_per_day, v.prices, v.pricing_packages, v.services, v.event_types,
+              v.is_online, v.is_active, v.created_at
+       FROM vendors v
+       LEFT JOIN services s ON s.id = v.service_id
+       WHERE v.is_active = true
+       ORDER BY v.created_at DESC`
     );
     res.json(result.rows);
   } catch (err) {
@@ -175,6 +195,17 @@ router.post('/:id/tags', vendorOrAdminAuth, async (req, res) => {
 // FIXED (stored XSS): same finalizeImageUpload() fix as the portfolio
 // upload above — the admin-add-vendor photo was the same trust-the-
 // original-extension pattern.
+//
+// FIXED (data integrity): service_id was previously trusted straight from
+// the request body with no check that it actually refers to a real,
+// active row in the `services` table. A stale, typo'd, or deleted
+// service_id silently attached to the new vendor — the insert would
+// succeed with no error, but that vendor would then never surface on any
+// client-facing listing page (VendorListingPage.jsx / VendorProfilePage.jsx
+// both match on service_id against a known VENDOR_SERVICE_CONFIGS entry),
+// with nothing in the UI to explain why the vendor "disappeared." Now
+// validated the same way queries.js and reviews.js already validate their
+// own vendor_id inputs before insert.
 router.post('/', adminAuth, upload.single('photo'), async (req, res) => {
   try {
     let photo_url = null;
@@ -185,9 +216,25 @@ router.post('/', adminAuth, upload.single('photo'), async (req, res) => {
       photo_url = `/uploads/${finalFilename}`;
     }
     const { name, specialty, contact, service_id, price_per_day } = req.body;
+
+    let serviceIdNum = null;
+    if (service_id) {
+      serviceIdNum = Number(service_id);
+      if (!Number.isInteger(serviceIdNum)) {
+        return res.status(400).json({ error: 'service_id must be a valid integer' });
+      }
+      const serviceCheck = await pool.query(
+        'SELECT id FROM services WHERE id = $1 AND is_active = true',
+        [serviceIdNum]
+      );
+      if (serviceCheck.rowCount === 0) {
+        return res.status(400).json({ error: 'service_id does not refer to an active service' });
+      }
+    }
+
     await pool.query(
       'INSERT INTO vendors (name, specialty, photo_url, contact, service_id, price_per_day) VALUES ($1, $2, $3, $4, $5, $6)',
-      [name, specialty, photo_url, contact, service_id || null, price_per_day ? Number(price_per_day) : null]
+      [name, specialty, photo_url, contact, serviceIdNum, price_per_day ? Number(price_per_day) : null]
     );
     res.json({ success: true });
   } catch (err) {
