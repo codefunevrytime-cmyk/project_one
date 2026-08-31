@@ -306,30 +306,30 @@ function CancelPopup({ ev, onConfirm, onClose, cancelling }) {
   else if ((now - new Date(ev.created_at)) / (1000*60*60) <= 48) refundPct = 50;
 
   return (
-    <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:24 }}>
-      <div className="me-cancel-popup" style={{ background:T.cardBg,border:`0.5px solid ${T.borderStrong}`,borderRadius:16,padding:32,maxWidth:420,width:"100%",boxShadow:"0 24px 64px rgba(0,0,0,0.3)" }}>
-        <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:20 }}>
-          <div style={{ width:40,height:40,borderRadius:"50%",background:T.dangerBg,border:`0.5px solid ${T.dangerBorder}`,display:"flex",alignItems:"center",justifyContent:"center" }}>
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+      <div className="me-cancel-popup" style={{ background:T.cardBg, border:`0.5px solid ${T.borderStrong}`, borderRadius:16, padding:32, maxWidth:420, width:"100%", boxShadow:"0 24px 64px rgba(0,0,0,0.3)" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
+          <div style={{ width:40, height:40, borderRadius:"50%", background:T.dangerBg, border:`0.5px solid ${T.dangerBorder}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
           </div>
           <div>
-            <div style={{ fontSize:16,fontWeight:500,color:T.textAlt }}>Cancel event</div>
-            <div style={{ fontSize:11,color:T.textFaint }}>{ev.event_name} · {fmtDate(ev.event_date)}</div>
+            <div style={{ fontSize:16, fontWeight:500, color:T.textAlt }}>Cancel event</div>
+            <div style={{ fontSize:11, color:T.textFaint }}>{ev.event_name} · {fmtDate(ev.event_date)}</div>
           </div>
         </div>
 
-        <div style={{ background:T.borderFaint,border:`0.5px solid ${T.border}`,borderRadius:10,padding:14,marginBottom:16 }}>
-          <div style={{ fontSize:10,letterSpacing:"0.1em",textTransform:"uppercase",color:T.textFaint,marginBottom:10 }}>Refund policy</div>
+        <div style={{ background:T.borderFaint, border:`0.5px solid ${T.border}`, borderRadius:10, padding:14, marginBottom:16 }}>
+          <div style={{ fontSize:10, letterSpacing:"0.1em", textTransform:"uppercase", color:T.textFaint, marginBottom:10 }}>Refund policy</div>
           {[
             { color:"#3aa860", bold:"100% refund", rest:"— cancelled more than 7 days before event", active: daysToEvent > 7 },
             { color:"#e0a020", bold:"50% refund",  rest:"— cancelled within 48 hours of booking",   active: (now-new Date(ev.created_at))/(1000*60*60)<=48 && daysToEvent<=7 },
             { color:"#e05252", bold:"No refund",   rest:"— after 48 hours and within 7 days",       active: daysToEvent<=7 && (now-new Date(ev.created_at))/(1000*60*60)>48 },
           ].map(({color,bold,rest,active})=>(
-            <div key={bold} style={{ display:"flex",alignItems:"flex-start",gap:10,padding:"7px 0",borderBottom:`0.5px solid ${T.borderFaint}`,opacity:active?1:0.4 }}>
-              <span style={{ width:8,height:8,borderRadius:"50%",background:color,flexShrink:0,marginTop:4 }}/>
-              <div style={{ fontSize:12,color:T.textSecondary,lineHeight:1.5 }}>
+            <div key={bold} style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"7px 0", borderBottom:`0.5px solid ${T.borderFaint}`, opacity:active?1:0.4 }}>
+              <span style={{ width:8, height:8, borderRadius:"50%", background:color, flexShrink:0, marginTop:4 }}/>
+              <div style={{ fontSize:12, color:T.textSecondary, lineHeight:1.5 }}>
                 <strong style={{ color:T.textAlt }}>{bold}</strong> {rest}
-                {active&&<span style={{ marginLeft:6,fontSize:10,background:T.goldSoft,color:T.goldStrong,padding:"2px 8px",borderRadius:10 }}>← applies</span>}
+                {active&&<span style={{ marginLeft:6, fontSize:10, background:T.goldSoft, color:T.goldStrong, padding:"2px 8px", borderRadius:10 }}>← applies</span>}
               </div>
             </div>
           ))}
@@ -343,11 +343,11 @@ function CancelPopup({ ev, onConfirm, onClose, cancelling }) {
           </div>
         )}
 
-        <div style={{ fontSize:12,color:T.textMuted,marginBottom:24,lineHeight:1.6 }}>This action is permanent and cannot be undone.</div>
+        <div style={{ fontSize:12, color:T.textMuted, marginBottom:24, lineHeight:1.6 }}>This action is permanent and cannot be undone.</div>
 
-        <div style={{ display:"flex",gap:10 }}>
-          <button onClick={onClose} disabled={cancelling} style={{ flex:1,padding:"11px 0",background:"none",border:`0.5px solid ${T.border}`,borderRadius:8,color:T.textSecondary,fontSize:13,cursor:"pointer",fontFamily:"inherit" }}>Keep event</button>
-          <button onClick={onConfirm} disabled={cancelling} style={{ flex:1,padding:"11px 0",background:T.dangerBg,border:`0.5px solid ${T.dangerBorder}`,borderRadius:8,color:"#f87171",fontSize:13,fontWeight:500,cursor:cancelling?"not-allowed":"pointer",fontFamily:"inherit",opacity:cancelling?0.6:1 }}>
+        <div style={{ display:"flex", gap:10 }}>
+          <button onClick={onClose} disabled={cancelling} style={{ flex:1, padding:"11px 0", background:"none", border:`0.5px solid ${T.border}`, borderRadius:8, color:T.textSecondary, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>Keep event</button>
+          <button onClick={onConfirm} disabled={cancelling} style={{ flex:1, padding:"11px 0", background:T.dangerBg, border:`0.5px solid ${T.dangerBorder}`, borderRadius:8, color:"#f87171", fontSize:13, fontWeight:500, cursor:cancelling?"not-allowed":"pointer", fontFamily:"inherit", opacity:cancelling?0.6:1 }}>
             {cancelling ? "Cancelling…" : "Yes, cancel"}
           </button>
         </div>
@@ -617,9 +617,32 @@ export default function MyEvents() {
     setCancelling(false);
   };
 
+  // FIXED — bug: an event scheduled for TODAY was disappearing from every
+  // single tab (not just Upcoming) once the current clock time passed
+  // midnight. Root cause: `now` was `new Date()` — the exact current
+  // instant, including today's time-of-day (e.g. 11:09 AM) — while
+  // `toDate(e.event_date)` always resolves to midnight (00:00:00) of that
+  // date. So for an event dated today, `toDate(e.event_date) >= now` was
+  // comparing "today at 00:00" against "today at 11:09 AM" — which is
+  // FALSE the moment any time at all has passed since midnight. That
+  // silently dropped the event from the `upcoming` filter. It also didn't
+  // fall into `past`, since `past` additionally requires status
+  // 'completed' or 'confirmed' — a fresh 'pending' event dated today
+  // qualified for neither list and vanished from the page entirely
+  // (Upcoming, Past, AND Cancelled), even though the event itself (e.g.
+  // 6 PM today) hadn't happened yet.
+  //
+  // Fix: compare against the START of today (midnight), not the exact
+  // current moment. That way ANY event dated today — regardless of what
+  // time it is right now, or what time later today the event itself is
+  // scheduled for — correctly counts as "upcoming" until the calendar
+  // day actually changes, not the instant the clock ticks past 00:00.
   const now = new Date();
-  const upcoming = events.filter(e => e.status !== "cancelled" && e.status !== "completed" && (!e.event_date || toDate(e.event_date) >= now));
-  const past     = events.filter(e => e.status === "completed" || (e.status === "confirmed" && e.event_date && toDate(e.event_date) < now));
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+
+  const upcoming = events.filter(e => e.status !== "cancelled" && e.status !== "completed" && (!e.event_date || toDate(e.event_date) >= startOfToday));
+  const past     = events.filter(e => e.status === "completed" || (e.status === "confirmed" && e.event_date && toDate(e.event_date) < startOfToday));
   const cancelled= events.filter(e => e.status === "cancelled");
 
   const TABS = [

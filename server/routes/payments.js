@@ -435,8 +435,17 @@ async function getVendorSlotsWithTerms(eventId, commissionPct) {
 // capped at that slice (a vendor with a very low advance % simply carries
 // any remaining commission over to be settled at balance time instead).
 async function computeAdvanceSplit(eventId, totalBudgetRupees, commissionPct) {
-  const eventOnlyPaise = await getEventOnlyCostPaise(eventId, totalBudgetRupees);
-  const eventAdvancePaise = Math.round(eventOnlyPaise * (EVENT_ADVANCE_PCT / 100));
+  // FIXED: advance used to be 20% of eventOnlyPaise (reference event price
+  // + contingency buffer combined). Contingency is a reserve for
+  // unplanned add-ons, not a guaranteed cost, so charging an advance
+  // against it upfront isn't right — the client would be paying toward
+  // something that may never be spent. Advance is now computed only
+  // against the reference event price. Contingency itself is untouched
+  // here; it's still tracked (getContingencyBreakdownPaise) and only ever
+  // becomes payable at balance/final-payment time, and only for whatever
+  // portion actually got consumed by add-ons (see GET /summary).
+  const { refPricePaise } = await getContingencyBreakdownPaise(eventId, totalBudgetRupees);
+  const eventAdvancePaise = Math.round(refPricePaise * (EVENT_ADVANCE_PCT / 100));
 
   const slots = await getVendorSlotsWithTerms(eventId, commissionPct);
 
@@ -1141,10 +1150,26 @@ router.get('/vendor-advance-terms/:eventId', clientAuth, async (req, res) => {
     const commissionPct = event.admin_commission_pct || DEFAULT_COMMISSION_PCT;
     const split = await computeAdvanceSplit(eventId, event.budget_estimate, commissionPct);
 
+    // Reference event price / contingency buffer, split out for display.
+    // computeAdvanceSplit() now charges the advance only against the
+    // reference event price (see its comment) — split.eventAdvancePaise
+    // is therefore already 100% attributable to the reference event, and
+    // contingency's advance share is always ₹0: contingency is never part
+    // of the upfront advance, only ever settled at balance/final-payment
+    // time for whatever portion (if any) actually got consumed by add-ons
+    // (see GET /summary).
+    const contingencyBreakdown = await getContingencyBreakdownPaise(eventId, event.budget_estimate);
+    const referenceAdvancePaise = split.eventAdvancePaise;
+    const contingencyAdvancePaise = 0;
+
     res.json({
       event_id: Number(eventId),
       event_advance_pct: EVENT_ADVANCE_PCT,
       event_only_advance_amount: split.eventAdvancePaise / 100,
+      reference_event_price: contingencyBreakdown.refPricePaise / 100,
+      reference_event_advance_amount: referenceAdvancePaise / 100,
+      contingency_amount: contingencyBreakdown.contingencyTotalPaise / 100,
+      contingency_advance_amount: contingencyAdvancePaise / 100,
       total_advance_amount: split.totalAmountPaise / 100,
       vendors: split.slots.map(s => ({
         vendor_id: s.vendor_id,
@@ -1188,16 +1213,53 @@ router.get('/summary/:eventId', clientAuth, async (req, res) => {
     );
 
     const totalBudgetPaise = Math.round(Number(event.budget_estimate || 0) * 100);
+
+    // ── NEW: waive unused contingency from the final (balance) bill ──────
+    // budget_estimate always includes the FULL 5% contingency buffer, but
+    // it exists to fund unplanned add-ons — it was never a guaranteed
+    // charge. getContingencyBreakdownPaise() already tracks exactly how
+    // much of it was actually drawn down (via event_addons.contingency_covered):
+    //   - No add-ons at all -> consumed = 0 -> the entire buffer is waived
+    //     here automatically, so the client never pays for a buffer they
+    //     never used.
+    //   - Add-ons used, but stayed within the buffer -> only the consumed
+    //     slice stays part of the bill (it funded something real); the
+    //     unused remainder is still waived.
+    //   - Add-ons exceeded the buffer -> consumed is capped at the full
+    //     buffer (contingency_covered is capped per-addon at whatever
+    //     remained when each add-on was created — see POST /addons), so
+    //     the whole buffer counts as consumed and nothing is waived. The
+    //     excess beyond the buffer was already billed as its own separate
+    //     'addon' payment at creation time (see billablePaise in
+    //     POST /addons), so it's already reflected in netPaidPaise below
+    //     and never double-charged here.
+    const contingencyBreakdown = await getContingencyBreakdownPaise(eventId, event.budget_estimate);
+    const billableTotalPaise = Math.max(0, totalBudgetPaise - contingencyBreakdown.remainingPaise);
+
     const paidPaise     = payments.filter(p => p.status === 'paid').reduce((s, p) => s + Number(p.amount), 0);
     const refundedPaise = payments.filter(p => p.status === 'refunded').reduce((s, p) => s + Number(p.refund_amount || 0), 0);
     const netPaidPaise  = paidPaise - refundedPaise;
-    const balanceDuePaise = Math.max(0, totalBudgetPaise - netPaidPaise);
+    const balanceDuePaise = Math.max(0, billableTotalPaise - netPaidPaise);
 
     const advancePaid = payments.some(p => p.payment_type === 'advance' && p.status === 'paid');
 
     res.json({
       event_id:       Number(eventId),
       total_budget:   Number(event.budget_estimate || 0),
+      // NEW: what's actually billable after waiving unused contingency —
+      // this (not total_budget) is what balance_due is computed against.
+      // Use this for any "total" the client is shown alongside balance_due,
+      // so the numbers stay consistent with what they're actually charged.
+      billable_total: billableTotalPaise / 100,
+      contingency: {
+        total:    contingencyBreakdown.contingencyTotalPaise / 100,
+        consumed: contingencyBreakdown.consumedPaise / 100,
+        waived:   contingencyBreakdown.remainingPaise / 100,
+        // true once any add-on has actually drawn on the buffer — lets the
+        // frontend decide whether to show a "Contingency" line or fold it
+        // into an "Add-ons (covered by contingency)" line instead.
+        used_by_addons: contingencyBreakdown.consumedPaise > 0,
+      },
       paid:           paidPaise / 100,
       refunded:       refundedPaise / 100,
       net_paid:       netPaidPaise / 100,

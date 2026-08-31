@@ -91,8 +91,11 @@ export default function PaymentCheckout() {
   if (!event || (isAddon && !addon)) return null;
 
   // `total` is the full event budget — used for the cost breakdown and to
-  // work out "pay later" once the real advance total is known.
-  const total = isAdvance ? (event.budgetTotal || 0) : (summary?.total_budget || 0);
+  // work out "pay later" once the real advance total is known. For balance
+  // payments, use billable_total (not the raw total_budget) — it's
+  // total_budget with any unused contingency already waived out, so this
+  // matches exactly what balance_due was computed against.
+  const total = isAdvance ? (event.budgetTotal || 0) : (summary?.billable_total ?? (summary?.total_budget || 0));
 
   // Real advance total from the backend (sum of each vendor's own advance +
   // the flat 20% event-only advance) — falls back to 0 while loading so we
@@ -265,13 +268,22 @@ export default function PaymentCheckout() {
                       <div className="co-row-amt">₹{row.amount.toLocaleString("en-IN")}</div>
                     </div>
                   ))}
-                  {advanceTerms?.event_only_advance_amount > 0 && (
-                    <div className="co-row gst-row">
+                  {advanceTerms?.reference_event_price > 0 && (
+                    <div className="co-row">
                       <div>
-                        <div className="co-row-label">Event costs</div>
-                        <div className="co-row-sub">Reference event, contingency buffer — 20% advance applies</div>
+                        <div className="co-row-label">Reference event</div>
+                        <div className="co-row-sub">Style/theme reference — 20% advance applies</div>
                       </div>
-                      <div className="co-row-amt">₹{Math.round((advanceTerms.event_only_advance_amount / 0.20)).toLocaleString("en-IN")}</div>
+                      <div className="co-row-amt">₹{advanceTerms.reference_event_price.toLocaleString("en-IN")}</div>
+                    </div>
+                  )}
+                  {advanceTerms?.contingency_amount > 0 && (
+                    <div className="co-row">
+                      <div>
+                        <div className="co-row-label">Contingency buffer</div>
+                        <div className="co-row-sub">5% buffer for unplanned event costs — 20% advance applies</div>
+                      </div>
+                      <div className="co-row-amt">₹{advanceTerms.contingency_amount.toLocaleString("en-IN")}</div>
                     </div>
                   )}
                 </div>
@@ -281,27 +293,37 @@ export default function PaymentCheckout() {
                 </div>
               </div>
 
-              {/* ── Per-vendor advance terms ─────────────────────────────
-                  Each vendor sets their own advance % on their profile —
-                  shown here per vendor rather than one blanket figure, so
-                  the client sees exactly why the total advance is what it
-                  is. */}
-              {advanceTerms?.vendors?.length > 0 && (
-                <div className="co-section">
-                  <div className="co-section-label">Vendor advance terms</div>
-                  <div className="co-breakdown">
-                    {advanceTerms.vendors.map((v, i) => (
-                      <div className="co-row" key={i}>
-                        <div>
-                          <div className="co-row-label">{v.vendor_name}</div>
-                          <div className="co-row-sub">{v.service_type} · {v.advance_pct}% advance of ₹{v.quoted_price.toLocaleString("en-IN")}</div>
-                        </div>
-                        <div className="co-row-amt">₹{Math.round(v.advance_amount).toLocaleString("en-IN")}</div>
+              {/* ── Advance payment terms ────────────────────────────────
+                  Both the event's own 20% advance (reference event +
+                  contingency) AND each vendor's own advance % are listed
+                  here together, so the client sees exactly what makes up
+                  the total advance in one place — not split across two
+                  sections with the event's share looking like an
+                  afterthought. */}
+              <div className="co-section">
+                <div className="co-section-label">Advance payment terms</div>
+                <div className="co-breakdown">
+                  {advanceTerms?.reference_event_price > 0 && (
+                    <div className="co-row">
+                      <div>
+                        <div className="co-row-label"> Event</div>
+                        <div className="co-row-sub">Event · {advanceTerms.event_advance_pct}% advance of ₹{advanceTerms.reference_event_price.toLocaleString("en-IN")}</div>
                       </div>
-                    ))}
-                  </div>
+                      <div className="co-row-amt">₹{Math.round(advanceTerms.reference_event_advance_amount).toLocaleString("en-IN")}</div>
+                    </div>
+                  )}
+                  
+                  {advanceTerms?.vendors?.map((v, i) => (
+                    <div className="co-row" key={i}>
+                      <div>
+                        <div className="co-row-label">{v.vendor_name}</div>
+                        <div className="co-row-sub">{v.service_type} · {v.advance_pct}% advance of ₹{v.quoted_price.toLocaleString("en-IN")}</div>
+                      </div>
+                      <div className="co-row-amt">₹{Math.round(v.advance_amount).toLocaleString("en-IN")}</div>
+                    </div>
+                  ))}
                 </div>
-              )}
+              </div>
 
               <div className="co-section">
                 <div className="co-section-label">Cancellation & refund policy</div>
@@ -323,26 +345,68 @@ export default function PaymentCheckout() {
           )}
 
           {isBalance && (
-            <div className="co-section">
-              <div className="co-section-label">Payment ledger so far</div>
-              <div className="co-breakdown">
-                {summary?.payments.filter(p => p.status === 'paid').map((p) => (
-                  <div className="co-row" key={p.id}>
-                    <div>
-                      <div className="co-row-label" style={{ textTransform: 'capitalize' }}>{p.payment_type}</div>
-                      <div className="co-row-sub">
-                        {new Date(p.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+            <>
+              <div className="co-section">
+                <div className="co-section-label">Payment ledger so far</div>
+                <div className="co-breakdown">
+                  {summary?.payments.filter(p => p.status === 'paid').map((p) => (
+                    <div className="co-row" key={p.id}>
+                      <div>
+                        <div className="co-row-label" style={{ textTransform: 'capitalize' }}>{p.payment_type}</div>
+                        <div className="co-row-sub">
+                          {new Date(p.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </div>
                       </div>
+                      <div className="co-row-amt">₹{(Number(p.amount) / 100).toLocaleString("en-IN")}</div>
                     </div>
-                    <div className="co-row-amt">₹{(Number(p.amount) / 100).toLocaleString("en-IN")}</div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Contingency buffer status ──────────────────────────────
+                  The 5% contingency buffer was part of the original budget
+                  estimate, but it's only ever a charge if it was actually
+                  used. Two states:
+                    - Never touched (no add-ons) -> shown here at ₹0,
+                      struck through, so the client can see it was reserved
+                      but automatically waived rather than silently dropped.
+                    - Drawn on by add-ons -> relabelled "Add-ons" (it's no
+                      longer a generic buffer line, it's what actually paid
+                      for those add-ons) and shown at the consumed amount;
+                      any unused remainder is still called out as waived. */}
+              {summary?.contingency && summary.contingency.total > 0 && (
+                <div className="co-section">
+                  <div className="co-section-label">Contingency buffer</div>
+                  <div className="co-breakdown">
+                    {summary.contingency.used_by_addons ? (
+                      <div className="co-row">
+                        <div>
+                          <div className="co-row-label">Add-ons (covered by contingency)</div>
+                          <div className="co-row-sub">
+                            ₹{summary.contingency.consumed.toLocaleString("en-IN")} of your ₹{summary.contingency.total.toLocaleString("en-IN")} contingency buffer was used to cover add-ons raised during the event
+                            {summary.contingency.waived > 0 && ` — the unused ₹${summary.contingency.waived.toLocaleString("en-IN")} has been waived`}
+                          </div>
+                        </div>
+                        <div className="co-row-amt">₹{summary.contingency.consumed.toLocaleString("en-IN")}</div>
+                      </div>
+                    ) : (
+                      <div className="co-row">
+                        <div>
+                          <div className="co-row-label">Contingency buffer — unused</div>
+                          <div className="co-row-sub">No add-ons were raised for this event, so the full ₹{summary.contingency.total.toLocaleString("en-IN")} buffer has been waived from your final bill</div>
+                        </div>
+                        <div className="co-row-amt" style={{ textDecoration: 'line-through', color: '#5a4830' }}>₹0</div>
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
+
               <div className="co-total-bar">
-                <span className="co-total-label">Total event budget</span>
-                <span className="co-total-amt">₹{(summary?.total_budget || 0).toLocaleString("en-IN")}</span>
+                <span className="co-total-label">Total billable amount</span>
+                <span className="co-total-amt">₹{total.toLocaleString("en-IN")}</span>
               </div>
-            </div>
+            </>
           )}
 
           {isAddon && (
@@ -383,12 +447,13 @@ export default function PaymentCheckout() {
                     20% + each vendor's own %, so the total isn't a mystery
                     figure. */}
                 <div className="co-adv-mini">
-                  {advanceTerms?.event_only_advance_amount > 0 && (
+                  {advanceTerms?.reference_event_price > 0 && (
                     <div className="co-adv-mini-row">
-                      <span>Event costs · 20%</span>
-                      <span>₹{Math.round(advanceTerms.event_only_advance_amount).toLocaleString("en-IN")}</span>
+                      <span>Reference event · {advanceTerms.event_advance_pct}%</span>
+                      <span>₹{Math.round(advanceTerms.reference_event_advance_amount).toLocaleString("en-IN")}</span>
                     </div>
                   )}
+                  
                   {advanceTerms?.vendors?.map((v, i) => (
                     <div className="co-adv-mini-row" key={i}>
                       <span>{v.vendor_name} · {v.advance_pct}%</span>
@@ -479,7 +544,6 @@ export default function PaymentCheckout() {
         .co-section { margin-bottom: 40px; }
         .co-section-label { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: #6a5540; margin-bottom: 20px; font-weight: 500; padding-bottom: 10px; border-bottom: 1px solid #2e2210; }
         .co-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 16px 0; border-bottom: 1px solid #261c0e; }
-        .co-row.gst-row { opacity: 0.65; }
         .co-row-label { font-size: 16px; color: #e0cfa8; margin-bottom: 4px; }
         .co-row-sub { font-size: 13px; color: #6a5540; font-weight: 300; }
         .co-row-amt { font-size: 17px; color: #e0cfa8; font-weight: 500; flex-shrink: 0; margin-left: 32px; }

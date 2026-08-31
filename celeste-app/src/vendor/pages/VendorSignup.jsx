@@ -4,16 +4,25 @@ import { useVendorAuth } from '../context/VendorAuthContext';
 
 // ── Service categories a vendor can register under ──────────────────────────
 // These values MUST match the keys used in SERVICE_CONFIGS inside
-// VendorProfile.jsx (photography, invitation, decor, catering, music,
+// VendorProfile.jsx (photography, custom-invitations, decor, catering, music,
 // makeup, venue) — that's how the profile page picks the right form.
+//
+// FIXED: 'invitation' → 'custom-invitations'. VendorListingPage.jsx matches
+// vendor.service_category against vendorServiceConfig.js's `id` field for
+// that service, which is 'custom-invitations' (matches the URL slug
+// /services/custom-invitations). The old value 'invitation' never matched
+// that id, so every invitation vendor signed up under this dropdown was
+// silently invisible on the public listing page — same DB row, same
+// is_active=true, just never matched by isVendorForService(). See
+// SERVICE_CONFIGS in VendorProfile.jsx — its key was renamed to match.
 const SERVICE_OPTIONS = [
-  { value: 'photography', label: 'Photography & Videography' },
-  { value: 'invitation',  label: 'Custom Invitations' },
-  { value: 'decor',       label: 'Event Decoration' },
-  { value: 'catering',    label: 'Catering & Food' },
-  { value: 'music',       label: 'Music & Entertainment' },
-  { value: 'makeup',      label: 'Makeup & Beauty' },
-  { value: 'venue',       label: 'Venue & Banquet' },
+  { value: 'photography',        label: 'Photography & Videography' },
+  { value: 'custom-invitations', label: 'Custom Invitations' },
+  { value: 'decor',               label: 'Event Decoration' },
+  { value: 'catering',            label: 'Catering & Food' },
+  { value: 'music',               label: 'Music & Entertainment' },
+  { value: 'makeup',              label: 'Makeup & Beauty' },
+  { value: 'venue',                label: 'Venue & Banquet' },
 ];
 
 const S = {
@@ -159,10 +168,14 @@ export default function VendorSignup() {
           <input style={S.input} type="email" placeholder="you@studio.com" value={form.email} onChange={set('email')} onFocus={focusIn} onBlur={focusOut} />
         </div>
 
-        {/* ── NEW: Service category selection ──────────────────────────────
-            This is the field that was missing. It drives vendors.service_id
-            on the backend, which is what VendorProfile.jsx reads (via
-            service_category) to decide which form fields to render. */}
+        {/* ── Service category selection ──────────────────────────────
+            Drives vendors.service_id → services.category on the backend
+            (via vendorAuth.js's /signup route), which is what
+            VendorProfile.jsx (frontend, service_category) and
+            VendorListingPage.jsx (isVendorForService, against
+            vendorServiceConfig.js's `id`) both key off of. Values here
+            MUST exactly match a config `id` in vendorServiceConfig.js for
+            that vendor to ever show up on the matching listing page. */}
         <div style={S.field}>
           <label style={S.label}>Service you provide</label>
           <select style={S.input} value={form.service} onChange={set('service')} onFocus={focusIn} onBlur={focusOut}>

@@ -22,14 +22,26 @@ const NAV = [
 ];
 
 // Service category → accent color + badge label, mirrors VendorProfile config
+//
+// FIXED: key renamed 'invitation' → 'custom-invitations' to match
+// VendorProfile.jsx's SERVICE_CONFIGS and vendorServiceConfig.js's `id`.
+// This was the SECOND place the old 'invitation' string was hardcoded —
+// VendorSignup.jsx and VendorProfile.jsx were fixed earlier, but this
+// sidebar badge lookup was missed. Once vendors.category was corrected
+// in the DB to 'custom-invitations' (via the SQL migration), THIS file
+// started failing instead: rawCategory came back as 'custom-invitations',
+// but CATEGORY_META still only had an 'invitation' key, so the lookup
+// returned undefined and the sidebar showed the "Category not set —
+// contact admin" fallback warning even though the vendor's category was
+// now actually correct everywhere else.
 const CATEGORY_META = {
-  photography: { label: 'Photography',  color: '#4c8aff', icon: '📷' },
-  invitation:  { label: 'Invitations',  color: '#d4a843', icon: '✉️' },
-  decor:       { label: 'Decoration',   color: '#e879a0', icon: '🌸' },
-  catering:    { label: 'Catering',     color: '#f97316', icon: '🍽️' },
-  music:       { label: 'Music',        color: '#a855f7', icon: '🎵' },
-  makeup:      { label: 'Makeup',       color: '#ec4899', icon: '💄' },
-  venue:       { label: 'Venue',        color: '#14b8a6', icon: '🏛️' },
+  photography:          { label: 'Photography',  color: '#4c8aff', icon: '📷' },
+  'custom-invitations':  { label: 'Invitations',  color: '#d4a843', icon: '✉️' },
+  decor:                 { label: 'Decoration',   color: '#e879a0', icon: '🌸' },
+  catering:              { label: 'Catering',     color: '#f97316', icon: '🍽️' },
+  music:                 { label: 'Music',        color: '#a855f7', icon: '🎵' },
+  makeup:                { label: 'Makeup',       color: '#ec4899', icon: '💄' },
+  venue:                 { label: 'Venue',        color: '#14b8a6', icon: '🏛️' },
 };
 
 export default function VendorLayout({ children }) {

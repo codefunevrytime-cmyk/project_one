@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 
 import { API_URL } from '../../config/api';
+import { adminFetch } from '../../lib/adminApi';
 
 const API = API_URL;
-const token = () => localStorage.getItem('adminToken');
 
 export default function AdminAvailability() {
   const [availability, setAvailability] = useState([]);
@@ -39,11 +39,23 @@ export default function AdminAvailability() {
   // unfiltered) rather than the public /vendors — an admin setting
   // availability should be able to pick ANY vendor, including ones
   // currently inactive, not just the ones a client would see.
+  //
+  // FIXED: was reading `localStorage.getItem('adminToken')` and building
+  // its own Authorization header — a leftover from before this app moved
+  // to the access/refresh-token split in lib/adminApi.js. AdminApp.jsx
+  // never writes to that localStorage key at all (it only calls
+  // setAdminAccessToken(), which sets an in-memory token inside
+  // adminApi.js), so this was either sending no token, or — if a stale
+  // pre-migration value was still sitting in localStorage from before —
+  // sending a validly-signed but outdated token missing `type: 'access'`,
+  // which server/middleware/adminAuth.js now explicitly requires. Either
+  // way this endpoint 403'd regardless of whether the admin was actually
+  // logged in. adminFetch() attaches the real, current in-memory token
+  // and transparently refreshes it on 401, same as every other admin
+  // call in this app.
   const fetchVendors = async () => {
     try {
-      const res = await fetch(`${API}/vendors/all`, {
-        headers: { Authorization: `Bearer ${token()}` },
-      });
+      const res = await adminFetch('/vendors/all');
       const data = await res.json();
       setVendors(Array.isArray(data) ? data : []);
     } catch {
@@ -55,9 +67,9 @@ export default function AdminAvailability() {
   useEffect(() => { fetchAvailability(); fetchVendors(); }, []);
 
   const handleSave = async () => {
-    await fetch(`${API}/availability`, {
+    await adminFetch('/availability', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+      headers: { 'Content-Type': 'application/json' },
       // FIXED: now sends vendor_id — empty string when "Studio-wide" is
       // selected, which the backend's `req.body.vendor_id || null`
       // correctly reads as null (studio-wide), same as before this fix,
@@ -78,9 +90,8 @@ export default function AdminAvailability() {
   // and re-added with the correct scope. Admin-only, matches the auth
   // pattern already used by every other admin action on this page.
   const handleDelete = async (id) => {
-    await fetch(`${API}/availability/${id}`, {
+    await adminFetch(`/availability/${id}`, {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${token()}` },
     });
     fetchAvailability();
   };

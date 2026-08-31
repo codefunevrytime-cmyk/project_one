@@ -7,18 +7,45 @@ const rateLimit = require('../middleware/rateLimit');
 const { text } = require('../lib/validation');
 router.use(rateLimit({ max: 60 }));
 
-// GET /?all=true also returns unapproved reviews (pending moderation) —
-// that's admin-only data, so this route can't just take the adminAuth
-// middleware wholesale (it's also the public "approved reviews" endpoint).
-// Instead, only require+verify the admin token when ?all=true is used.
-function requireAdminIfAll(req, res, next) {
+// GET /?all=true also returns unapproved reviews (pending moderation).
+// Two callers legitimately need this:
+//   - an admin, for any vendor_id (or none, i.e. every vendor's queue)
+//   - a vendor, but ONLY for their own vendor_id (so they can see their
+//     own pending reviews, e.g. VendorNotificationBell.jsx) — never for
+//     someone else's.
+// FIXED: this previously required payload.role === 'admin' unconditionally,
+// so a vendor's own valid token was always rejected with 403, even when
+// requesting ?all=true&vendor_id=<their own id>. Vendor access tokens
+// (see vendorAuth.js) carry `vendorUserId`, not `role`, by design — they
+// were never going to satisfy that check.
+async function requireAdminIfAll(req, res, next) {
   if (req.query.all !== 'true') return next();
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No token' });
   try {
     const payload = jwt.verify(auth.replace('Bearer ', ''), process.env.JWT_SECRET);
-    if (payload.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
-    next();
+
+    if (payload.role === 'admin') return next();
+
+    if (payload.vendorUserId) {
+      const requestedVendorId = req.query.vendor_id ? Number(req.query.vendor_id) : null;
+      if (!requestedVendorId) {
+        // A vendor token with no vendor_id would mean "all reviews for
+        // every vendor" — that's admin-only data, not this vendor's own.
+        return res.status(403).json({ error: 'vendor_id is required for vendor access' });
+      }
+      const userRes = await pool.query(
+        'SELECT vendor_id FROM vendor_users WHERE id = $1',
+        [payload.vendorUserId]
+      );
+      const ownVendorId = userRes.rows[0]?.vendor_id;
+      if (!ownVendorId || ownVendorId !== requestedVendorId) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+      return next();
+    }
+
+    return res.status(403).json({ error: 'Admin access required' });
   } catch {
     res.status(401).json({ error: 'Invalid token' });
   }

@@ -17,6 +17,7 @@ import { useState, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import { API_URL } from '../config/api';
 
 // Leaflet's default marker icon references image files via a bundler-specific
 // path that breaks under most modern bundlers (Vite/webpack5) unless fixed
@@ -42,17 +43,24 @@ function ClickToDrop({ onPick }) {
   return null;
 }
 
+// FIXED: was calling nominatim.openstreetmap.org directly from the
+// browser. Nominatim's usage policy restricts raw client-side requests
+// (no real User-Agent, easy to burst past their ~1 req/sec limit), and it
+// was rejecting those calls without CORS headers — the browser then shows
+// a generic CORS error that has nothing to do with our own code. Now
+// routed through our own backend (server/routes/geocode.js), which is
+// same-origin (no CORS issue) and sets a proper, policy-compliant
+// User-Agent that browsers won't let client-side JS set itself.
 async function reverseGeocode(lat, lng) {
   try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16`,
-      { headers: { 'Accept-Language': 'en' } }
-    );
+    const res = await fetch(`${API_URL}/geocode/reverse?lat=${lat}&lng=${lng}`);
+    if (!res.ok) return null;
     const data = await res.json();
     return data?.display_name || null;
   } catch {
     return null;
   }
+
 }
 
 // onConfirm({ lat, lng, label }) — called when the user confirms a pin.

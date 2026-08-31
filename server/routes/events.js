@@ -56,7 +56,7 @@
 // is fixed at submission time and left untouched here, since a client may
 // already have paid an advance against that original total.
 //
-// ── VENDOR SLOT VALIDATION (NEW) ─────────────────────────────────────────
+// ── VENDOR SLOT VALIDATION ────────────────────────────────────────────────
 // Previously, POST / trusted req.body.vendors wholesale: any vendor_id and
 // quoted_price the client sent was inserted directly into
 // event_vendor_slots, with no check that the vendor_id existed, was
@@ -71,16 +71,28 @@
 // validateVendorSlot() below re-fetches each vendor server-side and
 // rejects the whole submission (400) if a slot references a vendor that
 // doesn't exist, isn't active, whose service category doesn't match
-// v.service_type, or that requests a sub-service (coverage_type) the
-// vendor never priced on their own profile. The price actually persisted
-// mirrors CreateEventPage.jsx's computeVendorTotal() exactly: sum of the
-// vendor's own per-sub-service prices for whichever coverage_types were
-// picked (falling back to price_per_day if none were), × days. This is
-// what keeps the price the client sees at Review/Checkout in sync with
-// what's actually stored in event_vendor_slots and fed into payout math
-// in payments.js — previously the server ignored coverage_types entirely
-// and always charged a flat price_per_day × days, which could diverge
-// significantly from what the client was shown and agreed to.
+// the vendor's actual category, or that requests a sub-service
+// (coverage_type) the vendor never priced on their own profile. The price
+// actually persisted mirrors CreateEventPage.jsx's computeVendorTotal()
+// exactly: sum of the vendor's own per-sub-service prices for whichever
+// coverage_types were picked (falling back to price_per_day if none
+// were), × days.
+//
+// FIXED — category comparison used the wrong field entirely: it compared
+// `v.service_type` (a human-readable display LABEL sent from the frontend,
+// e.g. "Custom Invitations") against `vendor.service_category` (the DB
+// SLUG, e.g. "custom-invitations"). A label with a space can never equal
+// a slug with a hyphen, so this check failed for every single vendor slot
+// on every single event submission, regardless of vendor or category —
+// "Vendor N does not offer <service>" fired unconditionally. The frontend
+// (CreateEventPage.jsx) now sends BOTH: `service_type` (label, kept as-is
+// for display/storage) and a new `service_category` field carrying the
+// same canonical slug (`VENDOR_SERVICE_CONFIGS[...].id`) that
+// vendors.service_category actually stores. Validation below now compares
+// slug-to-slug. If an older/cached frontend build sends no
+// service_category at all, this check is skipped entirely rather than
+// falling back to the broken label comparison — better to skip a
+// secondary safety check than to hard-block 100% of submissions again.
 // ─────────────────────────────────────────────────────────────────────────────
 //
 // ── SOCKET.IO LIVE UPDATES ────────────────────────────────────────────────
@@ -218,7 +230,7 @@ function getClientFromToken(req) {
 // ── NEW: server-side vendor slot validation ───────────────────────────────────
 // Re-fetches the vendor from the DB (never trusts the client's payload) and
 // checks it exists, is active, and — if the client specified a
-// service_type — that it matches the vendor's actual service category.
+// service_category — that it matches the vendor's actual service category.
 //
 // ALSO computes the authoritative price here, mirroring
 // CreateEventPage.jsx's computeVendorTotal() exactly:
@@ -268,9 +280,22 @@ async function validateVendorSlot(v) {
   if (!vendor.is_active) {
     return { ok: false, error: `Vendor ${v.vendor_id} is not currently active` };
   }
-  if (v.service_type && vendor.service_category &&
-      String(v.service_type).toLowerCase() !== String(vendor.service_category).toLowerCase()) {
-    return { ok: false, error: `Vendor ${v.vendor_id} does not offer ${v.service_type}` };
+
+  // FIXED: was comparing v.service_type (display LABEL, e.g. "Custom
+  // Invitations") against vendor.service_category (DB SLUG, e.g.
+  // "custom-invitations") — a label can never equal a slug, so this check
+  // rejected every single vendor slot on every submission unconditionally.
+  // Now compares v.service_category (the canonical slug the frontend now
+  // sends alongside service_type — see CreateEventPage.jsx's
+  // vendorsPayload construction) against vendor.service_category, i.e.
+  // slug-to-slug. If the client payload doesn't include service_category
+  // at all (e.g. a stale cached frontend bundle), this check is skipped
+  // rather than falling back to the old broken comparison — a missing
+  // secondary safety check is far better than hard-blocking every
+  // submission again.
+  if (v.service_category && vendor.service_category &&
+      String(v.service_category).toLowerCase() !== String(vendor.service_category).toLowerCase()) {
+    return { ok: false, error: `Vendor ${v.vendor_id} does not offer ${v.service_type || v.service_category}` };
   }
 
   const vendorPrices = vendor.prices || {};
@@ -377,7 +402,16 @@ router.post('/', async (req, res) => {
       if (!result.ok) {
         return res.status(400).json({ error: result.error });
       }
-      validated.push({ input: v, vendor: result.vendor });
+      // FIXED: validateVendorSlot() computes the authoritative price and
+      // returns it as result.price, but it was never carried into this
+      // array — only input/vendor were kept. The insert loop below
+      // destructures `price` back out of `validated`, so it was always
+      // `undefined` (-> stored as NULL in quoted_price) regardless of
+      // whether vendor_id was set or the price calc succeeded. This is
+      // what caused vendors to see ₹0 while the client's budget screen
+      // (which computes its own total client-side) showed the correct
+      // amount.
+      validated.push({ input: v, vendor: result.vendor, price: result.price });
     }
 
 const eventResult = await pool.query(

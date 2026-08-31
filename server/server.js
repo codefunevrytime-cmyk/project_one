@@ -83,6 +83,7 @@ app.use('/api/vendor-payouts', require('./routes/vendorPayouts'));
 app.use('/api/auth',           require('./routes/auth'));
 app.use('/api/auth',           require('./routes/googleAuth'));
 app.use('/api/messages',       require('./routes/messages'));
+app.use('/api/geocode',        require('./routes/geocode'));
 // NEW — real venue photos for the Create Event "decoration location"
 // secondary-screen picker (replaces the emoji-only dropdown). See
 // routes/decorationVenues.js for the table + admin upload endpoints.

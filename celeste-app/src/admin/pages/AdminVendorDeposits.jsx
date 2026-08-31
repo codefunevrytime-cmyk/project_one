@@ -1,9 +1,6 @@
 import { useState, useEffect } from 'react';
 
-import { API_URL } from '../../config/api';
-
-const API = API_URL;
-const token = () => localStorage.getItem('adminToken');
+import { adminFetch } from '../../lib/adminApi';
 
 const STATUS_META = {
   trial:    { label: 'Trial',    color: '#4B49AC', bg: '#eeeefa' },
@@ -27,10 +24,24 @@ export default function AdminVendorDeposits() {
   const [refunding, setRefunding] = useState(null);
   const [settleMonth, setSettleMonth] = useState('');
 
+  // FIXED: every call in this file was reading
+  // `localStorage.getItem('adminToken')` and building its own Authorization
+  // header by hand — a leftover from before this app moved to the
+  // access/refresh-token split in lib/adminApi.js. AdminApp.jsx never
+  // writes to that localStorage key (it only calls setAdminAccessToken(),
+  // which sets an in-memory token inside adminApi.js), so this was either
+  // sending no token, or a stale pre-migration token missing
+  // `type: 'access'` — which server/middleware/adminAuth.js now requires
+  // and rejects with 403 either way. Switched every call to adminFetch(),
+  // which attaches the real, current in-memory token and transparently
+  // refreshes it on 401 — same as the rest of the admin panel. Paths are
+  // now relative ('/payments/...') rather than `${API}/...`, since
+  // adminFetch already prepends API_URL itself for any path starting
+  // with '/' — passing an already-prefixed path would double it up.
   const fetchDeposits = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/payments/deposit/admin/all`, { headers: { Authorization: `Bearer ${token()}` } });
+      const res = await adminFetch('/payments/deposit/admin/all');
       const data = await res.json();
       setDeposits(Array.isArray(data) ? data : []);
     } catch { /* silent */ }
@@ -44,7 +55,7 @@ export default function AdminVendorDeposits() {
   const viewLedger = async (vendorId) => {
     setLedgerFor(vendorId);
     try {
-      const res = await fetch(`${API}/payments/deposit/${vendorId}`, { headers: { Authorization: `Bearer ${token()}` } });
+      const res = await adminFetch(`/payments/deposit/${vendorId}`);
       const data = await res.json();
       setLedger(Array.isArray(data.ledger) ? data.ledger : []);
     } catch { setLedger([]); }
@@ -53,9 +64,9 @@ export default function AdminVendorDeposits() {
   const runMonthlySettlement = async () => {
     setSettling(true);
     try {
-      const res = await fetch(`${API}/payments/deposit/settle-month`, {
+      const res = await adminFetch('/payments/deposit/settle-month', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ month: settleMonth || undefined }),
       });
       const data = await res.json();
@@ -76,9 +87,9 @@ export default function AdminVendorDeposits() {
     if (!window.confirm(`Refund ₹${fmt(balance)} to ${vendorName} and mark them as exited? This settles their deposit to zero — you'll still need to send the actual bank transfer outside the app.`)) return;
     setRefunding(vendorId);
     try {
-      const res = await fetch(`${API}/payments/deposit/${vendorId}/exit-refund`, {
+      const res = await adminFetch(`/payments/deposit/${vendorId}/exit-refund`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       });
       const data = await res.json();
@@ -93,9 +104,9 @@ export default function AdminVendorDeposits() {
   const collectInitial = async (vendorId, vendorName) => {
     if (!window.confirm(`Collect the initial ₹1,000 deposit for ${vendorName}? Only do this once their trial has actually ended and payment was received.`)) return;
     try {
-      const res = await fetch(`${API}/payments/deposit/${vendorId}/initial`, {
+      const res = await adminFetch(`/payments/deposit/${vendorId}/initial`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       });
       const data = await res.json();
@@ -137,8 +148,6 @@ export default function AdminVendorDeposits() {
         </div>
       )}
 
-      {/* ── Trial-expired alert banner — impossible-to-miss placement,
-          shown above everything else whenever any vendor needs action. ── */}
       {trialExpiredCount > 0 && (
         <div style={{
           background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12,
@@ -168,7 +177,6 @@ export default function AdminVendorDeposits() {
         </div>
       )}
 
-      {/* Monthly settlement runner */}
       <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8e0d5', padding: 22, marginBottom: 24, display: 'flex', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap' }}>
         <div style={{ flex: '1 1 240px' }}>
           <div style={{ fontSize: 15, fontWeight: 500, color: '#1a1008', marginBottom: 4 }}>Run monthly settlement</div>
@@ -192,7 +200,6 @@ export default function AdminVendorDeposits() {
         </button>
       </div>
 
-      {/* Status filter pills */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
         <button
           onClick={() => setStatusFilter('all')}
@@ -219,7 +226,6 @@ export default function AdminVendorDeposits() {
         ))}
       </div>
 
-      {/* Table */}
       {loading ? (
         <p style={{ color: '#9e8e7a', fontSize: 13 }}>Loading…</p>
       ) : filtered.length === 0 ? (
@@ -306,7 +312,6 @@ export default function AdminVendorDeposits() {
         </div>
       )}
 
-      {/* Ledger modal */}
       {ledgerFor && (
         <div
           onClick={() => setLedgerFor(null)}

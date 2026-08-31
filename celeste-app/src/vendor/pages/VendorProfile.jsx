@@ -6,6 +6,13 @@ import { vendorFetch } from '../../lib/vendorApi';
 const API = API_URL;
 
 // ─── Service category definitions ───────────────────────────────────────────
+// FIXED: key renamed 'invitation' → 'custom-invitations' to match the `id`
+// used in vendorServiceConfig.js (which drives VendorListingPage.jsx's
+// vendor-matching) and VendorSignup.jsx's dropdown value. Previously this
+// object's key ('invitation') never matched what VendorListingPage.jsx
+// expected ('custom-invitations'), so even once a vendor's category was
+// correctly read here, the SAME string mismatch meant they were invisible
+// on the public listing page. See VendorSignup.jsx's SERVICE_OPTIONS.
 const SERVICE_CONFIGS = {
   photography: {
     label: 'Photography & Videography',
@@ -20,7 +27,7 @@ const SERVICE_CONFIGS = {
       { key: 'travel_info',   label: 'Travel info',    placeholder: 'Pan-India travel, outstation stay by client' },
     ],
   },
-  invitation: {
+  'custom-invitations': {
     label: 'Custom Invitations',
     icon: '✉️',
     accentColor: '#d4a843',

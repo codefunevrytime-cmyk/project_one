@@ -4,6 +4,7 @@ import { useAuth } from "../hooks/useAuth";
 import { EVENT_CATEGORIES } from "../context/data/events";
 import styles from "./CreateEventPage.module.css";
 import { VENDOR_SERVICE_CONFIGS } from "../context/data/vendorServiceConfig";
+import LocationPicker from "../components/LocationPicker";
 // DISABLED (kept for future use — see the commented-out usage in
 // VendorBlock below): only needed if the post-selection busy-warning
 // banner is re-enabled. Availability blocking now happens entirely at
@@ -111,6 +112,19 @@ function getServiceFields(serviceConfig) {
       || FALLBACK_SERVICE_FIELDS[serviceConfig?.id]?.extraFields
       || [],
   };
+}
+
+// ── NEW: require at least one selection on every multiselect field a
+// service declares (e.g. "Coverage types" for Photography, "Invitation
+// types" for Custom Invitations) before that service counts as configured.
+// A service with no multiselect fields at all trivially passes (nothing to
+// require). Used both by VendorBlock (inline warning) and StepVendors
+// (gates the "Next — View budget" button) so the two stay in sync.
+function hasRequiredCoverage(serviceConfig, vendorData) {
+  const { extraFields } = getServiceFields(serviceConfig);
+  const multiFields = extraFields.filter(f => f.type === "multiselect");
+  if (multiFields.length === 0) return true;
+  return multiFields.every(f => Array.isArray(vendorData?.[f.key]) && vendorData[f.key].length > 0);
 }
 
 function computeVendorTotal(pricingModel, vendorData) {
@@ -256,6 +270,61 @@ function Field({ label, hint, children, required }) {
       {children}
       {hint&&<p className={styles.hint}>{hint}</p>}
     </div>
+  );
+}
+
+/* ─── Location field: type manually, or share an exact pin via the map ────────
+   Two ways in one field, same as WhatsApp/Maps-style pickers:
+     1. Type it out (existing free-text behaviour, unchanged) — good for a
+        landmark description like "Lucknow, The Taj Hotel (Near Hazratganj)".
+     2. Tap "Share location" to drop a pin on LocationPicker's map. On
+        confirm, LocationPicker reverse-geocodes the pin and returns a
+        human-readable address label, which we drop straight into the same
+        text field — so downstream code (budget calc, review step, admin
+        panel, event submission) never has to know which path was used, it
+        just reads `form.location` as a plain string either way. ─────────── */
+function LocationField({ value, onChange }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const handleConfirm = ({ label }) => {
+    onChange(label);
+    setPickerOpen(false);
+  };
+
+  return (
+    <>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input
+          className={styles.input}
+          placeholder="City, Venue (Landmark)"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          style={{ flex: 1 }}
+        />
+        <button
+          type="button"
+          onClick={() => setPickerOpen(true)}
+          title="Share exact location on map"
+          style={{
+            display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
+            padding: "0 14px", fontSize: 12, fontWeight: 600, color: "#c8af78",
+            background: "rgba(200,175,120,0.08)",
+            border: "0.5px solid rgba(200,175,120,0.25)",
+            borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
+            whiteSpace: "nowrap",
+          }}
+        >
+          📍 Share location
+        </button>
+      </div>
+
+      {pickerOpen && (
+        <LocationPicker
+          onConfirm={handleConfirm}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
+    </>
   );
 }
 
@@ -588,7 +657,7 @@ function StepBasics({ form, setForm, availability, onNext, onSkipToVendors, onBr
           </div>
 
           <Field label="Location" required hint='e.g. "Lucknow, The Taj Hotel (Near Hazratganj)"'>
-            <input className={styles.input} placeholder="City, Venue (Landmark)" value={form.location} onChange={setE("location")}/>
+            <LocationField value={form.location} onChange={setF("location")} />
           </Field>
 
           <Field label="Decoration location">
@@ -858,7 +927,7 @@ function CompactEventInfo({ form, setForm, availability }) {
           </div>
 
           <Field label="Location" required hint='e.g. "Lucknow, The Taj Hotel (Near Hazratganj)"'>
-            <input className={styles.input} placeholder="City, Venue (Landmark)" value={form.location} onChange={setE("location")} />
+            <LocationField value={form.location} onChange={setF("location")} />
           </Field>
         </div>
       )}
@@ -919,9 +988,18 @@ function ExtraField({ field, vendorData, onChange }) {
             );
           })}
         </div>
-        {selected.length > 0 && (
+        {selected.length > 0 ? (
           <div style={{ marginTop:10,fontSize:12,color:"#c8af78" }}>
             Selected sub-services total: <strong>₹{selectedTotal.toLocaleString("en-IN")}</strong>
+          </div>
+        ) : (
+          // ── NEW: inline warning when nothing's picked yet for this
+          // multiselect field. Mirrors the "Selected sub-services total"
+          // line's position so the block doesn't jump around, and makes
+          // the requirement visible right where the client needs to act,
+          // instead of only surfacing as a disabled Next button later.
+          <div style={{ marginTop:10,fontSize:11.5,color:"#eb5757" }}>
+            Select at least one {field.label.toLowerCase()} to continue.
           </div>
         )}
       </div>
@@ -950,6 +1028,11 @@ function VendorBlock({ serviceType, serviceConfig, vendorData, onChange, onPickV
   const { pricingModel, extraFields } = getServiceFields(serviceConfig);
   const pricePerUnit = vendorData.vendor?.price_per_day ? Number(vendorData.vendor.price_per_day) : 0;
   const totalCost = computeVendorTotal(pricingModel, vendorData);
+  // ── NEW: whether this service still needs a coverage-type (or other
+  // multiselect) selection before it counts as fully configured. Only
+  // relevant once the service is enabled AND a vendor has been picked —
+  // no point nagging about coverage types before there's even a vendor.
+  const coverageOk = hasRequiredCoverage(serviceConfig, vendorData);
 
   return (
     <div style={{ background:"rgba(200,175,120,0.03)",border:"0.5px solid rgba(200,175,120,0.15)",borderRadius:14,padding:"20px 22px",height:"100%",boxSizing:"border-box" }}>
@@ -1031,6 +1114,20 @@ function VendorBlock({ serviceType, serviceConfig, vendorData, onChange, onPickV
             </p>
           )}
 
+          {/* ── NEW: block-level nudge once a vendor is picked but coverage
+              is still missing — reinforces the per-field warning above with
+              a slightly more prominent banner, since this is also what
+              blocks the "Next — View budget" button in StepVendors. */}
+          {vendorData.vendor && !coverageOk && (
+            <div style={{
+              marginTop: -4, marginBottom: 14, fontSize: 11.5, color: "#eb5757",
+              background: "rgba(235,87,87,0.08)", border: "0.5px solid rgba(235,87,87,0.22)",
+              borderRadius: 8, padding: "8px 12px",
+            }}>
+              ⚠ Please select at least one option above to continue with {serviceType}.
+            </div>
+          )}
+
           {/* Notes */}
           <div style={{ marginBottom:14 }}>
             <div style={{ fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em",color:"rgba(200,175,120,0.45)",marginBottom:8 }}>Additional notes to vendor</div>
@@ -1061,7 +1158,23 @@ function StepVendors({ vendors, vendorSelections, setVendorSelections, onNext, o
   // proceed to Budget/Review with them missing.
   const requiredFilled = !!(form.event_name && form.event_type && form.event_date && form.location);
   const anyEnabled = serviceBlocks.some(({ key }) => vendorSelections[key]?.enabled);
-  const allOk = serviceBlocks.every(({ key }) => !vendorSelections[key]?.enabled || vendorSelections[key]?.vendor);
+  // ── UPDATED: an enabled service is only "ok" once it also has a vendor
+  // AND (if the service declares any multiselect fields, e.g. coverage
+  // types) at least one option selected in each of them — see
+  // hasRequiredCoverage(). A service left off entirely still passes
+  // trivially (nothing was required of it).
+  const allOk = serviceBlocks.every(({ key, config }) => {
+    const sel = vendorSelections[key];
+    if (!sel?.enabled) return true;
+    return !!sel?.vendor && hasRequiredCoverage(config, sel);
+  });
+  // ── NEW: used only for the helper message below, to tell apart "missing
+  // a vendor" from "have a vendor but still need a coverage-type pick".
+  const missingCoverageOnly = anyEnabled && !allOk && serviceBlocks.every(({ key, config }) => {
+    const sel = vendorSelections[key];
+    if (!sel?.enabled) return true;
+    return !!sel?.vendor;
+  });
   const canNext = anyEnabled && allOk && requiredFilled;
   const canSkip = requiredFilled;
 
@@ -1129,7 +1242,10 @@ function StepVendors({ vendors, vendorSelections, setVendorSelections, onNext, o
       {!requiredFilled && (
         <p style={{ fontSize:11,color:"#eb5757",marginTop:8 }}>Please fill in event name, type, date, and location above before continuing.</p>
       )}
-      {requiredFilled && !canNext && anyEnabled && (
+      {requiredFilled && !canNext && anyEnabled && missingCoverageOnly && (
+        <p style={{ fontSize:11,color:"#eb5757",marginTop:8 }}>Please select at least one coverage/service option for each vendor you've added above.</p>
+      )}
+      {requiredFilled && !canNext && anyEnabled && !missingCoverageOnly && (
         <p style={{ fontSize:11,color:"rgba(200,175,120,0.35)",marginTop:8 }}>Please select a vendor for each enabled service, or use “Skip Vendors” above to continue without them.</p>
       )}
       {requiredFilled && !anyEnabled && (
@@ -1569,6 +1685,18 @@ export default function CreateEventPage() {
       const entry = {
         vendor_id: sel.vendor.id,
         service_type: cfg.title || cfg.singular,
+        // NEW: cfg.id is the canonical slug ('custom-invitations',
+        // 'photography', ...) that matches vendors.service_category in
+        // the DB exactly. service_type above is a human-readable LABEL
+        // ("Custom Invitations") meant for display/storage only — the
+        // backend's validateVendorSlot() was previously comparing
+        // service_type directly against the DB slug, which can never
+        // match ("custom invitations" vs "custom-invitations"), so every
+        // event submission with any vendor attached failed with "does
+        // not offer" regardless of vendor or category. service_category
+        // is what the backend now actually validates against — see
+        // server/routes/events.js's validateVendorSlot().
+        service_category: cfg.id,
         quoted_price,
         vendor_notes: sel.notes || "",
       };
@@ -1606,6 +1734,29 @@ export default function CreateEventPage() {
   vendors: vendorsPayload,
 };
 
+    // Turn a raw backend error into something a client can actually read.
+    // Backend errors reference the vendor by numeric ID (e.g. "Vendor 7
+    // does not offer Custom Invitations"), which means nothing to the
+    // client — they only know the vendor by name. Since we already have
+    // every selected vendor's full object right here in vendorSelections,
+    // swap any bare vendor ID in the message for the matching vendor's
+    // actual name before showing it. Falls back to leaving the original
+    // text untouched if no selected vendor's id matches (e.g. the error
+    // isn't about a vendor at all).
+    const humanizeVendorError = (msg) => {
+      if (!msg) return msg;
+      const selectedVendors = Object.values(vendorSelections)
+        .map(sel => sel?.vendor)
+        .filter(Boolean);
+
+      // Matches "Vendor 7", "vendor id 7", "Vendor: 7" etc. — anchors on
+      // the word "vendor" (case-insensitive) followed by a number.
+      return msg.replace(/vendor\s*(?:id)?\s*[:#]?\s*(\d+)/gi, (full, idStr) => {
+        const match = selectedVendors.find(v => String(v.id) === idStr);
+        return match ? `Vendor "${match.name}"` : full;
+      });
+    };
+
     try {
       const res = await fetch(`${API}/events`, {
         method: "POST",
@@ -1616,7 +1767,7 @@ export default function CreateEventPage() {
       if (data.success || data.id || res.ok) {
         navigate("/my-events", { state: { eventSuccess: true } });
       } else {
-        setSubmitError(data.error || "Something went wrong. Please try again.");
+        setSubmitError(humanizeVendorError(data.error) || "Something went wrong. Please try again.");
       }
     } catch {
       setSubmitError("Could not connect to server. Please try again.");
