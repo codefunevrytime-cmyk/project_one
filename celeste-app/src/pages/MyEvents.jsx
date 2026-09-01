@@ -4,6 +4,8 @@ import { API_URL } from '../config/api';
 import { useTheme } from "../hooks/useTheme";
 import { getTokens } from "../styles/themeTokens";
 import { getSocket } from "../lib/socket";
+import OnboardingTour from '../components/onboarding/OnboardingTour';
+import { myEventsTourSteps } from './myEventsTourSteps';
 
 const API = API_URL;
 
@@ -652,6 +654,7 @@ export default function MyEvents() {
   ];
 
   return (
+    <>
     <div style={{ minHeight:"100vh", background:T.pageBg, fontFamily:"'DM Sans',sans-serif", color:T.text, paddingTop:"70px" }}>
       <style>{`
         @keyframes pulseSlow{0%,100%{opacity:1}50%{opacity:0.55}}
@@ -741,5 +744,7 @@ export default function MyEvents() {
         })()}
       </main>
     </div>
+    <OnboardingTour tourId="myEvents" steps={myEventsTourSteps} />
+    </>
   );
 }

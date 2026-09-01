@@ -5,6 +5,8 @@ import { EVENT_CATEGORIES } from "../context/data/events";
 import styles from "./CreateEventPage.module.css";
 import { VENDOR_SERVICE_CONFIGS } from "../context/data/vendorServiceConfig";
 import LocationPicker from "../components/LocationPicker";
+import OnboardingTour from '../components/onboarding/OnboardingTour';
+import { createEventTourSteps } from './createEventTourSteps';
 // DISABLED (kept for future use — see the commented-out usage in
 // VendorBlock below): only needed if the post-selection busy-warning
 // banner is re-enabled. Availability blocking now happens entirely at
@@ -630,14 +632,14 @@ function StepBasics({ form, setForm, availability, onNext, onSkipToVendors, onBr
   const decorationLabel = DECORATION_LOCATIONS.find(l => l.value === form.decoration_type)?.label;
 
   return (
-    <div className={styles.stepWrap}>
+    <div className={styles.stepWrap} data-tour="stepDesc">
       <p className={styles.stepDesc}>Tell us the basics — all fields marked * are required</p>
 
-      <div className={styles.basicsLayout}>
+      <div className={styles.basicsLayout} data-tour="basicsLayout">
         <div className={styles.basicsLeft}>
           <div className={styles.fieldRow}>
             <Field label="Event name" required>
-              <input className={styles.input} placeholder="e.g. Rohan & Priya's Wedding" value={form.event_name} onChange={setE("event_name")}/>
+              <input className={styles.input} placeholder="e.g. Rohan & Priya's Wedding" value={form.event_name} onChange={setE("event_name")} data-tour="input"/>
             </Field>
             <Field label="Type of event" required>
               <select className={styles.input} value={form.event_type} onChange={setE("event_type")}>
@@ -1776,6 +1778,7 @@ export default function CreateEventPage() {
   }, [form, vendorSelections, budget, user, navigate]);
 
   return (
+    <>
     <div className={styles.root}>
       <header className={styles.header}>
         <button className={styles.backBtn} onClick={()=>step>0?setStep(s=>s-1):navigate(-1)}>
@@ -1787,7 +1790,7 @@ export default function CreateEventPage() {
         </div>
       </header>
 
-      <nav className={styles.stepNav}>
+      <nav className={styles.stepNav} data-tour="stepNav">
         {STEPS.map((label, i) => (
           <button
             key={label}
@@ -1862,5 +1865,7 @@ export default function CreateEventPage() {
         onSelect={handleDecorationVenueSelect}
       />
     </div>
+    <OnboardingTour tourId="createEvent" steps={createEventTourSteps} />
+    </>
   );
 }

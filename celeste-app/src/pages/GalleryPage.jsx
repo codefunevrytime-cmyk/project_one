@@ -7,6 +7,8 @@ import { eventsData, featuredEventTypes } from '../context/data/eventsData';
 import { useAuth } from '../hooks/useAuth';
 import { useModal } from '../hooks/useModal';
 import ClientAdminChat from '../components/ClientAdminChat';
+import OnboardingTour from '../components/onboarding/OnboardingTour';
+import { galleryTourSteps } from './galleryTourSteps';
 
 
 const SORT_OPTIONS = [
@@ -136,6 +138,7 @@ export default function GalleryPage() {
     || sortBy !== 'latest';
 
   return (
+    <>
     <div className="events-page">
       <section className="events-hero">
         <div>
@@ -300,5 +303,7 @@ export default function GalleryPage() {
 
       <Footer />
     </div>
+    <OnboardingTour tourId="gallery" steps={galleryTourSteps} />
+    </>
   );
 }

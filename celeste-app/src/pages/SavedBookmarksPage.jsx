@@ -6,6 +6,8 @@ import { PHOTOGRAPHERS } from '../context/data/photographyData';
 import { VENDOR_SERVICE_CONFIGS } from '../context/data/vendorServiceConfig';
 import { useTheme } from '../hooks/useTheme';
 import { getTokens } from '../styles/themeTokens';
+import OnboardingTour from '../components/onboarding/OnboardingTour';
+import { bookmarksTourSteps } from './bookmarksTourSteps';
 
 import { API_URL } from '../config/api';
 
@@ -401,6 +403,7 @@ export default function SavedBookmarksPage({ bookmarkList = [], onRemove }) {
   const totalCount = bookmarkList.length;
 
   return (
+    <>
     <div style={{ minHeight: '100vh', background: T.pageBg, fontFamily: "'DM Sans', sans-serif" }}>
       <header style={{
         padding: '56px 6% 40px',
@@ -473,5 +476,7 @@ export default function SavedBookmarksPage({ bookmarkList = [], onRemove }) {
       <Footer />
       <style>{`@media (max-width: 640px) { main { padding: 32px 5% 60px !important; } }`}</style>
     </div>
+    <OnboardingTour tourId="bookmarks" steps={bookmarksTourSteps} />
+    </>
   );
 }

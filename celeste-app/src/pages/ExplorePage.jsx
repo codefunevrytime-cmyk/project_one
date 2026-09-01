@@ -6,6 +6,8 @@ import { Sidebar } from "../components/Sidebar";
 import styles from "./ExplorePage.module.css";
 import ClientAdminChat from '../components/ClientAdminChat';
 import { useAuth } from '../hooks/useAuth';
+import OnboardingTour from '../components/onboarding/OnboardingTour';
+import { exploreTourSteps } from './exploreTourSteps';
 
 
 import { API_URL } from '../config/api';
@@ -312,6 +314,7 @@ export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClear
   );
 
   return (
+    <>
     <div className={styles.layout}>
       <Sidebar
         filters={filters}
@@ -351,7 +354,7 @@ export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClear
         <div className={styles.topBar}>
           {/* Mobile-only "Filters" button — opens the Sidebar drawer.
               Hidden on desktop via CSS (the sidebar sits inline there). */}
-         <div className={styles.searchBox}>
+         <div className={styles.searchBox} data-tour="searchBox">
             <span className={styles.searchIcon}>⌕</span>
             <input
               type="text"
@@ -369,6 +372,7 @@ export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClear
             className={styles.filterToggleBtn}
             onClick={() => setMobileFiltersOpen(true)}
             aria-label="Open filters"
+            data-tour="filterToggleBtn"
           >
             <span className={styles.filterToggleIcon} aria-hidden="true">⎘</span>
             Filters
@@ -378,7 +382,7 @@ export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClear
           </button>
 
          
-          <select className={styles.sortSelect} value={sort} onChange={(e) => setSort(e.target.value)}>
+          <select className={styles.sortSelect} value={sort} onChange={(e) => setSort(e.target.value)} data-tour="sortSelect">
             <option value="latest">Newest first</option>
             <option value="oldest">Oldest first</option>
           </select>
@@ -386,7 +390,7 @@ export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClear
 
         {/* filter chips */}
         {activeChips.length > 0 && (
-          <div className={styles.chips}>
+          <div className={styles.chips} data-tour="chips">
             {activeChips.map((c) => (
               <button key={`${c.key}:${c.val}`} className={styles.chip} onClick={() => removeChip(c.key, c.val)}>
                 {c.label} <span className={styles.chipX}>✕</span>
@@ -434,7 +438,7 @@ export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClear
                 )}
 
                 {/* ── Card grid ── */}
-                <div className={styles.grid}>
+                <div className={styles.grid} data-tour="grid">
                   {filtered.map((event) => (
                     <EventCard
                       key={event.id}
@@ -458,5 +462,7 @@ export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClear
       <ClientAdminChat user={user} pageContext="Event Planning" />
 
     </div>
+    <OnboardingTour tourId="explore" steps={exploreTourSteps} />
+  </>
   );
 }

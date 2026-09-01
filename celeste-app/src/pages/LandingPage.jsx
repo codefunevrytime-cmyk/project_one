@@ -4,6 +4,8 @@ import { useSlider } from '../hooks/useSlider';
 import { useModal } from '../hooks/useModal';
 import Footer from '../components/Footer';
 import { testimonialData } from '../context/data/testimonialData';
+import OnboardingTour from '../components/onboarding/OnboardingTour';
+import { landingTourSteps } from './landingTourSteps';
 
 import { API_URL } from '../config/api';
 
@@ -177,7 +179,6 @@ function ContinuousTestimonials() {
    uncomment this one, and rename it back to `TestimonialCarousel`.
    Uses the old `.testimonial-slide` CSS class (still in global.css,
    untouched) instead of the new `.testimonial-grid` class.
-────────────────────────────────────────────────────────────────
 
 function TestimonialCarousel() {
   const cardsPerSlide = 3;
@@ -430,6 +431,9 @@ export default function LandingPage() {
 
       {/* Footer */}
       <Footer />
+
+      {/* Guided tour — first-time auto-play, "Take the tour" pill after that */}
+      <OnboardingTour tourId="landing" steps={landingTourSteps} />
     </>
   );
 }
