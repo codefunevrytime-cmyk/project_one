@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
-const jwt = require('jsonwebtoken');
+const { safeVerify } = require('../lib/jwt');
 const adminAuth = require('../middleware/adminAuth');
 const rateLimit = require('../middleware/rateLimit');
 const { text } = require('../lib/validation');
@@ -23,7 +23,7 @@ async function requireAdminIfAll(req, res, next) {
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No token' });
   try {
-    const payload = jwt.verify(auth.replace('Bearer ', ''), process.env.JWT_SECRET);
+    const payload = safeVerify(auth.replace('Bearer ', ''));
 
     if (payload.role === 'admin') return next();
 
@@ -46,7 +46,10 @@ async function requireAdminIfAll(req, res, next) {
     }
 
     return res.status(403).json({ error: 'Admin access required' });
-  } catch {
+  } catch (err) {
+    if (err.message.includes('Server configuration error')) {
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
     res.status(401).json({ error: 'Invalid token' });
   }
 }
@@ -58,7 +61,7 @@ function getAdminIfPresent(req) {
   const auth = req.headers.authorization;
   if (!auth) return false;
   try {
-    const payload = jwt.verify(auth.replace('Bearer ', ''), process.env.JWT_SECRET);
+    const payload = safeVerify(auth.replace('Bearer ', ''));
     return payload.role === 'admin';
   } catch {
     return false;

@@ -28,7 +28,7 @@ function loadRazorpay() {
 export default function PaymentCheckout() {
   const navigate  = useNavigate();
   const location  = useLocation();
-  const { user }  = useAuth();
+  const { user, authFetch }  = useAuth();
   const event     = location.state?.event;
 
   // 'advance' | 'balance' | 'addon'
@@ -64,29 +64,36 @@ export default function PaymentCheckout() {
   // For balance payments, fetch the real "what's owed" figure from the
   // backend instead of guessing on the frontend — it accounts for any
   // add-ons/adjustments that happened after the advance was paid.
+  // FIXED: was reading the token from localStorage ("celeste_token"),
+  // which AuthProvider never writes to (the access token is kept in
+  // memory only). That always sent "Bearer null" -> 401 -> the .catch
+  // silently set a generic error and the summary never loaded.
+  // authFetch() attaches the real in-memory token and retries once via
+  // the refresh-cookie flow if it had expired.
   useEffect(() => {
     if (isBalance && event?.bookingId) {
-      fetch(`${API}/payments/summary/${event.bookingId}`, { headers: { Authorization: `Bearer ${localStorage.getItem('celeste_token')}` } })
+      authFetch(`${API}/payments/summary/${event.bookingId}`)
         .then(r => r.json())
         .then(d => setSummary(d))
         .catch(() => setError('Could not load payment details.'))
         .finally(() => setLoadingSummary(false));
     }
 
-  }, [isBalance, event?.bookingId]);
+  }, [isBalance, event?.bookingId, authFetch]);
 
   // For advance payments, fetch each vendor's own advance % and the flat
   // 20% event-only advance from the backend.
+  // FIXED: same dead-localStorage-token bug as above.
   useEffect(() => {
     if (isAdvance && event?.bookingId) {
-      fetch(`${API}/payments/vendor-advance-terms/${event.bookingId}`, { headers: { Authorization: `Bearer ${localStorage.getItem('celeste_token')}` } })
+      authFetch(`${API}/payments/vendor-advance-terms/${event.bookingId}`)
         .then(r => r.json())
         .then(d => setAdvanceTerms(d))
         .catch(() => setError('Could not load advance payment terms.'))
         .finally(() => setLoadingAdvanceTerms(false));
     }
 
-  }, [isAdvance, event?.bookingId]);
+  }, [isAdvance, event?.bookingId, authFetch]);
 
   if (!event || (isAddon && !addon)) return null;
 
@@ -117,9 +124,10 @@ export default function PaymentCheckout() {
       // 2. Create order on backend — amount for advance/balance/addon is
       //    always computed server-side, we only tell it which type + which
       //    addon (if any) this payment is for.
-      const orderRes = await fetch(`${API}/payments/create-order`, {
+      // FIXED: same dead-localStorage-token bug — now uses authFetch().
+      const orderRes = await authFetch(`${API}/payments/create-order`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('celeste_token')}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           booking_id:   event.bookingId,
           payment_type: paymentType,
@@ -151,9 +159,10 @@ export default function PaymentCheckout() {
         method:  method === 'upi' ? { upi: true } : method === 'card' ? { card: true } : method === 'netbanking' ? { netbanking: true } : { emi: true },
         handler: async (response) => {
           // 4. Verify payment on backend
-          const verifyRes = await fetch(`${API}/payments/verify`, {
+          // FIXED: same dead-localStorage-token bug — now uses authFetch().
+          const verifyRes = await authFetch(`${API}/payments/verify`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('celeste_token')}` },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               razorpay_order_id:   response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
@@ -271,7 +280,12 @@ export default function PaymentCheckout() {
                   {advanceTerms?.reference_event_price > 0 && (
                     <div className="co-row">
                       <div>
-                        <div className="co-row-label">Reference event</div>
+                        <div className="co-row-label">
+                          {event.referenceEventName || 'Reference event'}
+                          {event.referenceEventName && (
+                            <span style={{ fontSize: '0.72em', color: 'inherit', opacity: 0.62, marginLeft: 6 }}>(Reference event)</span>
+                          )}
+                        </div>
                         <div className="co-row-sub">Style/theme reference — 20% advance applies</div>
                       </div>
                       <div className="co-row-amt">₹{advanceTerms.reference_event_price.toLocaleString("en-IN")}</div>

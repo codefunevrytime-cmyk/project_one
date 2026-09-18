@@ -1,6 +1,6 @@
-const jwt = require('jsonwebtoken');
 const pool = require('../db');
 const { getToken } = require('../lib/session');
+const { safeVerify } = require('../lib/jwt');
 
 // Authenticate an administrator, or a real client account. Routes still
 // perform resource-specific ownership checks after this middleware.
@@ -8,7 +8,7 @@ async function clientOrAdminAuth(req, res, next) {
   const token = getToken(req);
   if (!token) return res.status(401).json({ error: 'No token' });
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const payload = safeVerify(token);
     if (payload.role === 'admin') {
       req.isAdmin = true;
       req.adminId = payload.id;
@@ -23,7 +23,10 @@ async function clientOrAdminAuth(req, res, next) {
     req.clientEmail = result.rows[0].email;
     req.isAdmin = false;
     next();
-  } catch {
+  } catch (err) {
+    if (err.message.includes('Server configuration error')) {
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
     res.status(401).json({ error: 'Invalid token' });
   }
 }

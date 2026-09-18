@@ -1,6 +1,6 @@
-const jwt  = require('jsonwebtoken');
 const pool = require('../db');
 const { getToken } = require('../lib/session');
+const { safeVerify } = require('../lib/jwt');
 
 // Authenticates EITHER an admin token OR a vendor token, exposing a
 // uniform shape on req so downstream route handlers can allow both:
@@ -20,8 +20,11 @@ async function vendorOrAdminAuth(req, res, next) {
 
   let payload;
   try {
-    payload = jwt.verify(token, process.env.JWT_SECRET);
-  } catch {
+    payload = safeVerify(token);
+  } catch (err) {
+    if (err.message.includes('Server configuration error')) {
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
     return res.status(401).json({ error: 'Invalid token' });
   }
 

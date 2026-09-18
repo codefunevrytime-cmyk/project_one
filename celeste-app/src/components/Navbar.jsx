@@ -138,11 +138,19 @@ export default function Navbar({ bookmarkCount }) {
         setMobileServicesOpen(false);
       }
     };
+    // Tour integration — ArcTour dispatches these to drive the mobile menu
+    const handleTourOpen  = () => setMobileOpen(true);
+    const handleTourClose = () => { setMobileOpen(false); setMobileExploreOpen(false); setMobileServicesOpen(false); };
+
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('arc-tour-open-mobile-menu',  handleTourOpen);
+    window.addEventListener('arc-tour-close-mobile-menu', handleTourClose);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('arc-tour-open-mobile-menu',  handleTourOpen);
+      window.removeEventListener('arc-tour-close-mobile-menu', handleTourClose);
       clearTimeout(exploreTimeoutRef.current);
       clearTimeout(servicesTimeoutRef.current);
     };
@@ -371,7 +379,7 @@ export default function Navbar({ bookmarkCount }) {
       </Link>
 
       <div className="mm-accordion">
-        <button type="button" className={`mm-accordion-trigger${mobileExploreOpen ? ' active' : ''}${isExploreRoute ? ' route-active' : ''}`} onClick={() => setMobileExploreOpen((v) => !v)}>
+        <button type="button" data-tour="mobile-explore-trigger" className={`mm-accordion-trigger${mobileExploreOpen ? ' active' : ''}${isExploreRoute ? ' route-active' : ''}`} onClick={() => setMobileExploreOpen((v) => !v)}>
           <span className="mm-link-icon">
             <svg viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="2" stroke="currentColor" strokeWidth="1.3"/><path d="M5 2v2M11 2v2M2 7h12" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
           </span>
@@ -389,7 +397,7 @@ export default function Navbar({ bookmarkCount }) {
       </div>
 
       <div className="mm-accordion">
-        <button type="button" className={`mm-accordion-trigger${mobileServicesOpen ? ' active' : ''}${isServicesRoute ? ' route-active' : ''}`} onClick={() => setMobileServicesOpen((v) => !v)}>
+        <button type="button" data-tour="mobile-services-trigger" className={`mm-accordion-trigger${mobileServicesOpen ? ' active' : ''}${isServicesRoute ? ' route-active' : ''}`} onClick={() => setMobileServicesOpen((v) => !v)}>
           <span className="mm-link-icon">
             <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.3"/><path d="M8 5v6M5 8h6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
           </span>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AuthContext } from './auth-context';
 import { clearUserSession } from './authStorage';
+import { setSocketToken, disconnectSocket } from '../lib/socket';
 
 import { API_BASE } from '../config/api';
 const BOOKMARKS_KEY = 'celeste_bookmarks';
@@ -37,6 +38,13 @@ export function AuthProvider({ children }) {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     refreshTimerRef.current = setTimeout(refreshFn, ACCESS_TOKEN_LIFETIME_MS - REFRESH_MARGIN_MS);
   }, []);
+
+  // Keep socket.js's copy of the token in sync with this state — that
+  // module can't read React state directly, so this is the only place
+  // it learns about login, silent refresh, or logout.
+  useEffect(() => {
+    setSocketToken(token);
+  }, [token]);
 
   // Mint a fresh access token from the HttpOnly refresh cookie
   // (POST /api/auth/refresh — see routes/auth.js). Used both on initial
@@ -154,6 +162,7 @@ export function AuthProvider({ children }) {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     fetch(`${API_BASE}/api/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {});
     clearUserSession();
+    disconnectSocket();
     setToken(null);
     setUser(null);
   }, []);

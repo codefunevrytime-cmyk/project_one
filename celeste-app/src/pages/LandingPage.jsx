@@ -4,7 +4,7 @@ import { useSlider } from '../hooks/useSlider';
 import { useModal } from '../hooks/useModal';
 import Footer from '../components/Footer';
 import { testimonialData } from '../context/data/testimonialData';
-import OnboardingTour from '../components/onboarding/OnboardingTour';
+import ArcTour from '../components/ArcTour';
 import { landingTourSteps } from './landingTourSteps';
 
 import { API_URL } from '../config/api';
@@ -433,7 +433,7 @@ export default function LandingPage() {
       <Footer />
 
       {/* Guided tour — first-time auto-play, "Take the tour" pill after that */}
-      <OnboardingTour tourId="landing" steps={landingTourSteps} />
+      <ArcTour tourId="landing" steps={landingTourSteps} />
     </>
   );
 }

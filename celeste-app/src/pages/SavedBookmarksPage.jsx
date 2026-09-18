@@ -6,7 +6,7 @@ import { PHOTOGRAPHERS } from '../context/data/photographyData';
 import { VENDOR_SERVICE_CONFIGS } from '../context/data/vendorServiceConfig';
 import { useTheme } from '../hooks/useTheme';
 import { getTokens } from '../styles/themeTokens';
-import OnboardingTour from '../components/onboarding/OnboardingTour';
+import ArcTour from '../components/ArcTour';
 import { bookmarksTourSteps } from './bookmarksTourSteps';
 
 import { API_URL } from '../config/api';
@@ -74,6 +74,7 @@ function SavedCard({ image, eyebrow, title, meta, tags = [], to, onRemove, fallb
 
   return (
     <div
+      className="SavedCard"
       style={{
         background: T.cardBgAlt,
         border: `1px solid ${hovered ? T.borderHover : T.border}`,
@@ -476,7 +477,7 @@ export default function SavedBookmarksPage({ bookmarkList = [], onRemove }) {
       <Footer />
       <style>{`@media (max-width: 640px) { main { padding: 32px 5% 60px !important; } }`}</style>
     </div>
-    <OnboardingTour tourId="bookmarks" steps={bookmarksTourSteps} />
+    <ArcTour tourId="bookmarks" steps={bookmarksTourSteps} />
     </>
   );
 }

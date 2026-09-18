@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { DEFAULT_VENDOR_SERVICE, VENDOR_SERVICE_CONFIGS, getVendorServiceConfig } from '../../context/data/vendorServiceConfig';
 
 import { API_URL } from '../../config/api';
+import './AdminVendors.css';
 
 const API = API_URL;
 const token = () => localStorage.getItem('adminToken');
@@ -188,14 +189,13 @@ export default function AdminVendors() {
       )}
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+      <div className="admin-vendors-tabs">
         {['vendors', 'add', ...(selectedVendor ? ['portfolio', 'tags'] : [])].map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)} style={{
-            padding: '8px 16px', borderRadius: 8, border: 'none', fontSize: 13,
-            fontFamily: 'inherit', cursor: 'pointer', textTransform: 'capitalize',
-            background: activeTab === tab ? '#1a1008' : '#f7f5f2',
-            color: activeTab === tab ? '#ffa01e' : '#5a4a36',
-          }}>
+          <button 
+            key={tab} 
+            onClick={() => setActiveTab(tab)} 
+            className={`admin-vendors-tab ${activeTab === tab ? 'active' : ''}`}
+          >
             {tab === 'portfolio' ? `${selectedVendor?.name} - Portfolio` : 
              tab === 'tags' ? `${selectedVendor?.name} - Tags` : tab}
           </button>
@@ -206,15 +206,10 @@ export default function AdminVendors() {
       {activeTab === 'vendors' && (
         <div>
           {/* Service filter buttons — sourced from services table */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+          <div className="admin-vendors-filters">
             <button
               onClick={() => setServiceFilter('all')}
-              style={{
-                padding: '7px 16px', borderRadius: 20, border: `1px solid ${serviceFilter === 'all' ? '#1a1008' : '#e8e0d5'}`,
-                fontSize: 12, fontFamily: 'inherit', cursor: 'pointer', fontWeight: 500,
-                background: serviceFilter === 'all' ? '#1a1008' : '#fff',
-                color: serviceFilter === 'all' ? '#ffa01e' : '#5a4a36',
-              }}
+              className={`admin-vendors-filter-btn ${serviceFilter === 'all' ? 'active' : ''}`}
             >
               All Services ({vendors.length})
             </button>
@@ -225,12 +220,7 @@ export default function AdminVendors() {
                 <button
                   key={s.id}
                   onClick={() => setServiceFilter(s.id)}
-                  style={{
-                    padding: '7px 16px', borderRadius: 20, border: `1px solid ${isActive ? '#1a1008' : '#e8e0d5'}`,
-                    fontSize: 12, fontFamily: 'inherit', cursor: 'pointer', fontWeight: 500,
-                    background: isActive ? '#1a1008' : '#fff',
-                    color: isActive ? '#ffa01e' : '#5a4a36',
-                  }}
+                  className={`admin-vendors-filter-btn ${isActive ? 'active' : ''}`}
                 >
                   {s.name} ({count})
                 </button>
@@ -240,45 +230,39 @@ export default function AdminVendors() {
 
           {loading ? <p style={{ color: '#9e8e7a', fontSize: 13 }}>Loading...</p> :
             filteredVendors.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '60px', background: '#fff', borderRadius: 12, border: '1px solid #e8e0d5' }}>
-                <p style={{ color: '#9e8e7a', fontSize: 13 }}>
+              <div className="admin-vendors-empty">
+                <p className="admin-vendors-empty-text">
                   {vendors.length === 0 ? 'No vendors yet. Add one first.' : 'No vendors found for this service.'}
                 </p>
               </div>
             ) : (
-              <div className="admin-grid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+              <div className="admin-vendors-grid">
                 {filteredVendors.map(v => (
-                  <div key={v.id} style={{ background: '#fff', borderRadius: 12, border: `1px solid ${v.is_active ? '#e8e0d5' : '#fecaca'}`, overflow: 'hidden' }}>
+                  <div key={v.id} className={`admin-vendor-card ${!v.is_active ? 'inactive' : ''}`}>
                     <div style={{ position: 'relative' }}>
-  {v.photo_url && <img src={v.photo_url} alt={v.name} style={{ width: '100%', height: 140, objectFit: 'cover', display: 'block' }} />}
-  {!v.photo_url && <div style={{ width: '100%', height: 140, background: '#f7f5f2', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>📷</div>}
+  {v.photo_url && <img src={v.photo_url} alt={v.name} className="admin-vendor-image" />}
+  {!v.photo_url && <div className="admin-vendor-image-placeholder">📷</div>}
 
   {/* NEW: vendor-controlled active/inactive (online) status badge —
       distinct from the is_active toggle button below, which is the
       admin's own account activation control. */}
-  <span style={{
-    position: 'absolute', top: 8, left: 8,
-    display: 'flex', alignItems: 'center', gap: 5,
-    padding: '3px 9px', borderRadius: 20, fontSize: 10, fontWeight: 700,
-    background: v.is_online === false ? 'rgba(120,120,120,0.85)' : 'rgba(34,197,94,0.9)',
-    color: '#fff',
-  }}>
-    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />
+  <span className={`admin-vendor-status-badge ${v.is_online === false ? 'inactive' : ''}`}>
+    <span className="admin-vendor-status-dot" />
     {v.is_online === false ? 'Inactive' : 'Active'}
   </span>
 </div>
-                    <div style={{ padding: 14 }}>
-                      <div style={{ fontSize: 14, fontWeight: 500, color: '#1a1008', marginBottom: 4 }}>{v.name}</div>
-                      <div style={{ fontSize: 11, color: '#c9a84c', fontWeight: 600, marginBottom: 4 }}>{vendorServiceLabel(v.service_id)}</div>
-                      <div style={{ fontSize: 12, color: '#9e8e7a', marginBottom: 4 }}>{v.specialty} · {v.contact}</div>
-                      <div style={{ fontSize: 12, color: '#c9a84c', fontWeight: 600, marginBottom: 12 }}>
+                    <div className="admin-vendor-content">
+                      <div className="admin-vendor-name">{v.name}</div>
+                      <div className="admin-vendor-service">{vendorServiceLabel(v.service_id)}</div>
+                      <div className="admin-vendor-specialty">{v.specialty} · {v.contact}</div>
+                      <div className="admin-vendor-price">
                         {v.price_per_day ? `₹${Number(v.price_per_day).toLocaleString('en-IN')} / day` : 'No price set'}
                       </div>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button onClick={() => selectVendor(v)} style={{ flex: 1, padding: '6px 10px', background: '#f7f5f2', border: '1px solid #e8e0d5', borderRadius: 6, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#1a1008' }}>
+                      <div className="admin-vendor-actions">
+                        <button onClick={() => selectVendor(v)} className="admin-vendor-btn">
                           Manage
                         </button>
-                        <button onClick={() => handleToggle(v.id)} style={{ flex: 1, padding: '6px 10px', background: v.is_active ? '#fef2f2' : '#f0fdf4', border: `1px solid ${v.is_active ? '#fecaca' : '#bbf7d0'}`, borderRadius: 6, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: v.is_active ? '#b91c1c' : '#15803d' }}>
+                        <button onClick={() => handleToggle(v.id)} className={`admin-vendor-btn ${v.is_active ? 'deactivate' : 'activate'}`}>
                           {v.is_active ? 'Deactivate' : 'Activate'}
                         </button>
                       </div>
@@ -294,42 +278,46 @@ export default function AdminVendors() {
       {activeTab === 'add' && (
         <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8e0d5', padding: 24 }}>
           <h3 style={{ fontSize: 15, fontWeight: 500, color: '#1a1008', marginBottom: 20 }}>Add New Vendor</h3>
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: '#9e8e7a', display: 'block', marginBottom: 6 }}>Vendor Service</label>
+          <div className="admin-vendor-form-group">
+            <label className="admin-vendor-label">Vendor Service</label>
             <select
               value={vendorForm.service_id}
               onChange={e => setVendorForm({ ...vendorForm, service_id: e.target.value, specialty: '' })}
-              style={{ width: '100%', padding: '9px 12px', border: '1px solid #e8e0d5', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: '#fff' }}
+              className="admin-vendor-select"
             >
               {VENDOR_SERVICE_CONFIGS.map(service => (
                 <option key={service.id} value={service.serviceId}>{service.title}</option>
               ))}
             </select>
           </div>
-          <div className="admin-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+          <div className="admin-vendor-form-grid">
             {[
               ['Name', 'name', selectedServiceConfig.id === 'custom-invitations' ? 'e.g. Ivory Paper Co.' : 'e.g. Golden Hour Studios', 'text'],
               [selectedServiceConfig.admin.specialtyLabel, 'specialty', selectedServiceConfig.admin.specialtyPlaceholder, 'text'],
               ['Contact', 'contact', 'Phone or email', 'text'],
               [selectedServiceConfig.admin.priceLabel, 'price_per_day', selectedServiceConfig.admin.pricePlaceholder, 'number'],
             ].map(([label, key, placeholder, type]) => (
-              <div key={key}>
-                <label style={{ fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: '#9e8e7a', display: 'block', marginBottom: 6 }}>{label}</label>
-                <input type={type} value={vendorForm[key]} onChange={e => setVendorForm({ ...vendorForm, [key]: e.target.value })} placeholder={placeholder}
-                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #e8e0d5', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
+              <div key={key} className="admin-vendor-form-group">
+                <label className="admin-vendor-label">{label}</label>
+                <input 
+                  type={type} 
+                  value={vendorForm[key]} 
+                  onChange={e => setVendorForm({ ...vendorForm, [key]: e.target.value })} 
+                  placeholder={placeholder}
+                  className="admin-vendor-input"
+                />
               </div>
             ))}
           </div>
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: '#9e8e7a', display: 'block', marginBottom: 6 }}>Photo</label>
-            <label style={{ padding: '9px 18px', background: '#f7f5f2', border: '1px solid #e8e0d5', borderRadius: 8, fontSize: 13, cursor: 'pointer', color: '#5a4a36', display: 'inline-block' }}>
+          <div className="admin-vendor-form-group">
+            <label className="admin-vendor-label">Photo</label>
+            <label className="admin-vendor-file-label">
               Choose Photo
               <input type="file" accept="image/*" onChange={e => setVendorPhoto(e.target.files[0])} style={{ display: 'none' }} />
             </label>
             {vendorPhoto && <span style={{ fontSize: 12, color: '#9e8e7a', marginLeft: 12 }}>{vendorPhoto.name}</span>}
           </div>
-          <button onClick={handleAddVendor} disabled={!vendorForm.name}
-            style={{ padding: '10px 24px', background: '#1a1008', color: '#ffa01e', border: 'none', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', fontWeight: 500, cursor: 'pointer', opacity: !vendorForm.name ? 0.6 : 1 }}>
+          <button onClick={handleAddVendor} disabled={!vendorForm.name} className="admin-vendor-submit-btn">
             Add Vendor
           </button>
         </div>
@@ -341,27 +329,34 @@ export default function AdminVendors() {
           {/* Upload */}
           <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8e0d5', padding: 24, marginBottom: 24 }}>
             <h3 style={{ fontSize: 15, fontWeight: 500, color: '#1a1008', marginBottom: 16 }}>{getVendorServiceConfig(selectedVendor.service_id).admin.portfolioTitle}</h3>
-            <div className="admin-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-              <div>
-                <label style={{ fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: '#9e8e7a', display: 'block', marginBottom: 6 }}>Caption</label>
-                <input value={portfolioCaption} onChange={e => setPortfolioCaption(e.target.value)} placeholder="e.g. Royal Wedding 2024"
-                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #e8e0d5', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
+            <div className="admin-vendor-form-grid">
+              <div className="admin-vendor-form-group">
+                <label className="admin-vendor-label">Caption</label>
+                <input 
+                  value={portfolioCaption} 
+                  onChange={e => setPortfolioCaption(e.target.value)} 
+                  placeholder="e.g. Royal Wedding 2024"
+                  className="admin-vendor-input"
+                />
               </div>
-              <div>
-                <label style={{ fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: '#9e8e7a', display: 'block', marginBottom: 6 }}>Tags (comma separated, max 3)</label>
-                <input value={portfolioTags} onChange={e => setPortfolioTags(e.target.value)} placeholder={getVendorServiceConfig(selectedVendor.service_id).admin.tagsPlaceholder}
-                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #e8e0d5', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
+              <div className="admin-vendor-form-group">
+                <label className="admin-vendor-label">Tags (comma separated, max 3)</label>
+                <input 
+                  value={portfolioTags} 
+                  onChange={e => setPortfolioTags(e.target.value)} 
+                  placeholder={getVendorServiceConfig(selectedVendor.service_id).admin.tagsPlaceholder}
+                  className="admin-vendor-input"
+                />
               </div>
             </div>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ padding: '9px 18px', background: '#f7f5f2', border: '1px solid #e8e0d5', borderRadius: 8, fontSize: 13, cursor: 'pointer', color: '#5a4a36', display: 'inline-block' }}>
+            <div className="admin-vendor-form-group">
+              <label className="admin-vendor-file-label">
                 Choose Image
                 <input type="file" accept="image/*" onChange={e => { setPortfolioFile(e.target.files[0]); setPortfolioPreview(URL.createObjectURL(e.target.files[0])); }} style={{ display: 'none' }} />
               </label>
               {portfolioPreview && <img src={portfolioPreview} style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 8, marginLeft: 12, verticalAlign: 'middle' }} />}
             </div>
-            <button onClick={handlePortfolioUpload} disabled={!portfolioFile}
-              style={{ padding: '10px 24px', background: '#1a1008', color: '#ffa01e', border: 'none', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', fontWeight: 500, cursor: 'pointer', opacity: !portfolioFile ? 0.6 : 1 }}>
+            <button onClick={handlePortfolioUpload} disabled={!portfolioFile} className="admin-vendor-submit-btn">
               Upload
             </button>
           </div>
@@ -371,20 +366,20 @@ export default function AdminVendors() {
           {portfolio.length === 0 ? (
             <p style={{ color: '#9e8e7a', fontSize: 13 }}>No images uploaded yet.</p>
           ) : (
-            <div className="admin-grid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+            <div className="admin-portfolio-grid">
               {portfolio.map(img => (
-                <div key={img.id} style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8e0d5', overflow: 'hidden' }}>
-                  <img src={img.image_url} alt={img.caption} style={{ width: '100%', height: 160, objectFit: 'cover' }} />
-                  <div style={{ padding: 12 }}>
-                    <div style={{ fontSize: 12, fontWeight: 500, color: '#1a1008', marginBottom: 6 }}>{img.caption || 'No caption'}</div>
+                <div key={img.id} className="admin-portfolio-card">
+                  <img src={img.image_url} alt={img.caption} className="admin-portfolio-image" />
+                  <div className="admin-portfolio-content">
+                    <div className="admin-portfolio-caption">{img.caption || 'No caption'}</div>
                     {img.tags && img.tags.length > 0 && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+                      <div className="admin-portfolio-tags">
                         {img.tags.map((t, i) => (
-                          <span key={i} style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, background: '#c9a84c22', color: '#c9a84c', border: '1px solid #c9a84c44' }}>{t}</span>
+                          <span key={i} className="admin-portfolio-tag">{t}</span>
                         ))}
                       </div>
                     )}
-                    <button onClick={() => handleDeletePortfolio(img.id)} style={{ fontSize: 11, color: '#b91c1c', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    <button onClick={() => handleDeletePortfolio(img.id)} className="admin-portfolio-delete-btn">
                       Delete
                     </button>
                   </div>
@@ -401,22 +396,32 @@ export default function AdminVendors() {
           {/* Add Tag */}
           <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8e0d5', padding: 24, marginBottom: 24 }}>
             <h3 style={{ fontSize: 15, fontWeight: 500, color: '#1a1008', marginBottom: 16 }}>Add Tag for {selectedVendor.name}</h3>
-            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
-              <div style={{ flex: 1 }}>
-                <label style={{ fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: '#9e8e7a', display: 'block', marginBottom: 6 }}>Tag Name</label>
-                <input value={newTag} onChange={e => setNewTag(e.target.value)} placeholder="e.g. Candid, Award Winning"
-                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #e8e0d5', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
+            <div className="admin-tags-add-row">
+              <div className="admin-vendor-form-group">
+                <label className="admin-vendor-label">Tag Name</label>
+                <input 
+                  value={newTag} 
+                  onChange={e => setNewTag(e.target.value)} 
+                  placeholder="e.g. Candid, Award Winning"
+                  className="admin-vendor-input"
+                />
               </div>
-              <div>
-                <label style={{ fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: '#9e8e7a', display: 'block', marginBottom: 6 }}>Type</label>
-                <select value={tagType} onChange={e => setTagType(e.target.value)}
-                  style={{ padding: '9px 12px', border: '1px solid #e8e0d5', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none' }}>
+              <div className="admin-vendor-form-group">
+                <label className="admin-vendor-label">Type</label>
+                <select 
+                  value={tagType} 
+                  onChange={e => setTagType(e.target.value)}
+                  className="admin-vendor-select"
+                >
                   <option value="specialty">Specialty (Gold — on vendor card)</option>
                   <option value="work">Work (Grey — on image card)</option>
                 </select>
               </div>
-              <button onClick={handleAddTag} disabled={!newTag.trim()}
-                style={{ padding: '9px 20px', background: '#1a1008', color: '#ffa01e', border: 'none', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', cursor: 'pointer', opacity: !newTag.trim() ? 0.6 : 1 }}>
+              <button 
+                onClick={handleAddTag} 
+                disabled={!newTag.trim()}
+                className="admin-vendor-submit-btn"
+              >
                 Add
               </button>
             </div>
@@ -427,11 +432,11 @@ export default function AdminVendors() {
             <h3 style={{ fontSize: 14, fontWeight: 500, color: '#1a1008', marginBottom: 12 }}>
               Specialty Tags — Gold ({specialtyTags.length}/3)
             </h3>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <div className="admin-tags-list">
               {specialtyTags.map(t => (
-                <span key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '5px 12px', borderRadius: 20, background: '#c9a84c22', color: '#c9a84c', border: '1px solid #c9a84c66' }}>
+                <span key={t.id} className="admin-tag-item">
                   {t.tag}
-                  <button onClick={() => handleDeleteTag(t.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#c9a84c', fontSize: 14, padding: 0, lineHeight: 1 }}>×</button>
+                  <button onClick={() => handleDeleteTag(t.id)} className="admin-tag-delete-btn">×</button>
                 </span>
               ))}
               {specialtyTags.length === 0 && <p style={{ fontSize: 13, color: '#9e8e7a' }}>No specialty tags yet.</p>}
@@ -443,11 +448,11 @@ export default function AdminVendors() {
             <h3 style={{ fontSize: 14, fontWeight: 500, color: '#1a1008', marginBottom: 12 }}>
               Work Tags — Grey ({workTags.length}/3)
             </h3>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <div className="admin-tags-list">
               {workTags.map(t => (
-                <span key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '5px 12px', borderRadius: 20, background: '#f7f5f2', color: '#5a4a36', border: '1px solid #e8e0d5' }}>
+                <span key={t.id} className="admin-tag-item work">
                   {t.tag}
-                  <button onClick={() => handleDeleteTag(t.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#5a4a36', fontSize: 14, padding: 0, lineHeight: 1 }}>×</button>
+                  <button onClick={() => handleDeleteTag(t.id)} className="admin-tag-delete-btn">×</button>
                 </span>
               ))}
               {workTags.length === 0 && <p style={{ fontSize: 13, color: '#9e8e7a' }}>No work tags yet.</p>}

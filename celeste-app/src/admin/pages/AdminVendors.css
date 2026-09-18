@@ -1,0 +1,616 @@
+/* AdminVendors.css - Responsive styles for vendors management page */
+
+/* ── Tab navigation ── */
+.admin-vendors-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.admin-vendors-tab {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: none;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  text-transform: capitalize;
+  background: #f7f5f2;
+  color: #5a4a36;
+  transition: all 0.2s ease;
+}
+
+.admin-vendors-tab:hover {
+  background: #e8e0d5;
+}
+
+.admin-vendors-tab.active {
+  background: #1a1008;
+  color: #ffa01e;
+}
+
+/* ── Service filter buttons ── */
+.admin-vendors-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.admin-vendors-filter-btn {
+  padding: 7px 16px;
+  border-radius: 20px;
+  border: 1px solid #e8e0d5;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  font-weight: 500;
+  background: #fff;
+  color: #5a4a36;
+  transition: all 0.2s ease;
+}
+
+.admin-vendors-filter-btn:hover {
+  border-color: #1a1008;
+  background: #f7f5f2;
+}
+
+.admin-vendors-filter-btn.active {
+  background: #1a1008;
+  border-color: #1a1008;
+  color: #ffa01e;
+}
+
+/* ── Vendor cards grid ── */
+.admin-vendors-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.admin-vendor-card {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e8e0d5;
+  overflow: hidden;
+  transition: box-shadow 0.2s ease;
+}
+
+.admin-vendor-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.admin-vendor-card.inactive {
+  border-color: #fecaca;
+}
+
+.admin-vendor-image {
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  display: block;
+}
+
+.admin-vendor-image-placeholder {
+  width: 100%;
+  height: 140px;
+  background: #f7f5f2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+}
+
+.admin-vendor-status-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(34, 197, 94, 0.9);
+  color: #fff;
+}
+
+.admin-vendor-status-badge.inactive {
+  background: rgba(120, 120, 120, 0.85);
+}
+
+.admin-vendor-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.admin-vendor-content {
+  padding: 14px;
+}
+
+.admin-vendor-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1a1008;
+  margin-bottom: 4px;
+}
+
+.admin-vendor-service {
+  font-size: 11px;
+  color: #c9a84c;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.admin-vendor-specialty {
+  font-size: 12px;
+  color: #9e8e7a;
+  margin-bottom: 4px;
+}
+
+.admin-vendor-price {
+  font-size: 12px;
+  color: #c9a84c;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.admin-vendor-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.admin-vendor-btn {
+  flex: 1;
+  padding: 6px 10px;
+  background: #f7f5f2;
+  border: 1px solid #e8e0d5;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  color: #1a1008;
+  transition: all 0.2s ease;
+}
+
+.admin-vendor-btn:hover {
+  background: #e8e0d5;
+}
+
+.admin-vendor-btn.activate {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #15803d;
+}
+
+.admin-vendor-btn.deactivate {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+/* ── Add vendor form ── */
+.admin-vendor-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.admin-vendor-form-group {
+  margin-bottom: 16px;
+}
+
+.admin-vendor-label {
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #9e8e7a;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.admin-vendor-input,
+.admin-vendor-select {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #e8e0d5;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+  background: #fff;
+}
+
+.admin-vendor-input:focus,
+.admin-vendor-select:focus {
+  border-color: #c9a84c;
+  box-shadow: 0 0 0 3px rgba(201, 168, 110, 0.1);
+}
+
+.admin-vendor-file-label {
+  padding: 9px 18px;
+  background: #f7f5f2;
+  border: 1px solid #e8e0d5;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  color: #5a4a36;
+  display: inline-block;
+  transition: all 0.2s ease;
+}
+
+.admin-vendor-file-label:hover {
+  background: #e8e0d5;
+}
+
+.admin-vendor-submit-btn {
+  padding: 10px 24px;
+  background: #1a1008;
+  color: #ffa01e;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.admin-vendor-submit-btn:hover {
+  background: #2a1a10;
+}
+
+.admin-vendor-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── Portfolio grid ── */
+.admin-portfolio-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.admin-portfolio-card {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e8e0d5;
+  overflow: hidden;
+}
+
+.admin-portfolio-image {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+}
+
+.admin-portfolio-content {
+  padding: 12px;
+}
+
+.admin-portfolio-caption {
+  font-size: 12px;
+  font-weight: 500;
+  color: #1a1008;
+  margin-bottom: 6px;
+}
+
+.admin-portfolio-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.admin-portfolio-tag {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: rgba(201, 168, 110, 0.13);
+  color: #c9a84c;
+  border: 1px solid rgba(201, 168, 110, 0.27);
+}
+
+.admin-portfolio-delete-btn {
+  font-size: 11px;
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.admin-portfolio-delete-btn:hover {
+  background: #fee2e2;
+}
+
+/* ── Tags section ── */
+.admin-tags-add-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.admin-tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-tag-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  background: rgba(201, 168, 110, 0.13);
+  color: #c9a84c;
+  border: 1px solid rgba(201, 168, 110, 0.4);
+}
+
+.admin-tag-item.work {
+  background: #f7f5f2;
+  color: #5a4a36;
+  border: 1px solid #e8e0d5;
+}
+
+.admin-tag-delete-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  font-size: 14px;
+  padding: 0;
+  line-height: 1;
+  transition: opacity 0.2s ease;
+}
+
+.admin-tag-delete-btn:hover {
+  opacity: 0.7;
+}
+
+/* ── Empty state ── */
+.admin-vendors-empty {
+  text-align: center;
+  padding: 60px;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e8e0d5;
+}
+
+.admin-vendors-empty-text {
+  color: #9e8e7a;
+  font-size: 13px;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   RESPONSIVE BREAKPOINTS
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Tablet (768px - 1024px) */
+@media (max-width: 1024px) {
+  .admin-vendors-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .admin-portfolio-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .admin-vendor-form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Mobile (<=768px) */
+@media (max-width: 768px) {
+  .admin-vendors-tabs {
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+
+  .admin-vendors-tab {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  .admin-vendors-filters {
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+
+  .admin-vendors-filter-btn {
+    padding: 6px 12px;
+    font-size: 11px;
+  }
+
+  .admin-vendors-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .admin-portfolio-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .admin-vendor-form-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .admin-vendor-content {
+    padding: 12px;
+  }
+
+  .admin-vendor-image {
+    height: 120px;
+  }
+
+  .admin-vendor-image-placeholder {
+    height: 120px;
+    font-size: 28px;
+  }
+
+  .admin-portfolio-image {
+    height: 140px;
+  }
+
+  .admin-tags-add-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .admin-tags-add-row > div {
+    width: 100%;
+  }
+
+  .admin-tags-add-row button {
+    width: 100%;
+  }
+
+  .admin-vendors-empty {
+    padding: 40px 20px;
+  }
+}
+
+/* Small mobile (<=480px) */
+@media (max-width: 480px) {
+  .admin-vendors-tabs {
+    margin-bottom: 12px;
+  }
+
+  .admin-vendors-tab {
+    padding: 5px 10px;
+    font-size: 11px;
+  }
+
+  .admin-vendors-filters {
+    margin-bottom: 12px;
+  }
+
+  .admin-vendors-filter-btn {
+    padding: 5px 10px;
+    font-size: 10px;
+  }
+
+  .admin-vendor-card {
+    border-radius: 10px;
+  }
+
+  .admin-vendor-content {
+    padding: 10px;
+  }
+
+  .admin-vendor-name {
+    font-size: 13px;
+  }
+
+  .admin-vendor-service {
+    font-size: 10px;
+  }
+
+  .admin-vendor-specialty {
+    font-size: 11px;
+  }
+
+  .admin-vendor-price {
+    font-size: 11px;
+  }
+
+  .admin-vendor-actions {
+    flex-direction: column;
+  }
+
+  .admin-vendor-btn {
+    padding: 8px 12px;
+  }
+
+  .admin-vendor-form-group {
+    margin-bottom: 12px;
+  }
+
+  .admin-vendor-label {
+    font-size: 10px;
+  }
+
+  .admin-vendor-input,
+  .admin-vendor-select {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .admin-vendor-file-label {
+    padding: 8px 14px;
+    font-size: 12px;
+  }
+
+  .admin-vendor-submit-btn {
+    padding: 8px 20px;
+    font-size: 12px;
+  }
+
+  .admin-portfolio-content {
+    padding: 10px;
+  }
+
+  .admin-portfolio-caption {
+    font-size: 11px;
+  }
+
+  .admin-portfolio-delete-btn {
+    padding: 3px 8px;
+    font-size: 10px;
+  }
+
+  .admin-tag-item {
+    font-size: 11px;
+    padding: 4px 10px;
+  }
+
+  .admin-vendors-empty {
+    padding: 30px 16px;
+  }
+}
+
+/* Extra small mobile (<=360px) */
+@media (max-width: 360px) {
+  .admin-vendors-tabs {
+    gap: 4px;
+  }
+
+  .admin-vendors-tab {
+    padding: 4px 8px;
+    font-size: 10px;
+  }
+
+  .admin-vendors-filter-btn {
+    padding: 4px 8px;
+    font-size: 9px;
+  }
+
+  .admin-vendor-image {
+    height: 100px;
+  }
+
+  .admin-vendor-image-placeholder {
+    height: 100px;
+    font-size: 24px;
+  }
+
+  .admin-portfolio-image {
+    height: 120px;
+  }
+}

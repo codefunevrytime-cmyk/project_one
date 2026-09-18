@@ -2,7 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const pool    = require('../db');
 const bcrypt  = require('bcrypt');
-const jwt     = require('jsonwebtoken');
+const { safeSign, safeVerify } = require('../lib/jwt');
 const { logVendorStatusChange } = require('./payments');
 const adminAuth = require('../middleware/adminAuth');
 const rateLimit = require('../middleware/rateLimit');
@@ -28,14 +28,14 @@ const REFRESH_TOKEN_EXPIRES_IN = '30d';
 const ACCESS_TOKEN_EXPIRES_IN = '15m';
 
 function issueVendorTokens(res, vendorUserId) {
-  const accessToken = jwt.sign(
+  const accessToken = safeSign(
     { vendorUserId, type: 'access' },
-    process.env.JWT_SECRET,
+    null,
     { expiresIn: ACCESS_TOKEN_EXPIRES_IN }
   );
-  const refreshToken = jwt.sign(
+  const refreshToken = safeSign(
     { vendorUserId, type: 'refresh' },
-    process.env.JWT_SECRET,
+    null,
     { expiresIn: REFRESH_TOKEN_EXPIRES_IN }
   );
   setRefreshCookie(res, REFRESH_COOKIE_NAME, refreshToken, REFRESH_COOKIE_PATH, REFRESH_TOKEN_MAX_AGE_MS);
@@ -113,7 +113,7 @@ function vendorAuth(req, res, next) {
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No token' });
   try {
-    const payload = jwt.verify(auth.replace('Bearer ', ''), process.env.JWT_SECRET);
+    const payload = safeVerify(auth.replace('Bearer ', ''));
     if (payload.type !== 'access') {
       return res.status(401).json({ error: 'Invalid token' });
     }
@@ -122,7 +122,10 @@ function vendorAuth(req, res, next) {
     }
     req.vendorUserId = payload.vendorUserId;
     next();
-  } catch {
+  } catch (err) {
+    if (err.message.includes('Server configuration error')) {
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
     res.status(401).json({ error: 'Invalid token' });
   }
 }
@@ -261,7 +264,7 @@ router.post('/refresh', async (req, res) => {
 
     let payload;
     try {
-      payload = jwt.verify(raw, process.env.JWT_SECRET);
+      payload = safeVerify(raw);
     } catch {
       return res.status(401).json({ error: 'Invalid refresh token' });
     }
@@ -277,13 +280,16 @@ router.post('/refresh', async (req, res) => {
       return res.status(401).json({ error: 'Invalid refresh token' });
     }
 
-    const token = jwt.sign(
+    const token = safeSign(
       { vendorUserId: payload.vendorUserId, type: 'access' },
-      process.env.JWT_SECRET,
+      null,
       { expiresIn: ACCESS_TOKEN_EXPIRES_IN }
     );
     res.json({ token });
   } catch (err) {
+    if (err.message.includes('Server configuration error')) {
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
     res.status(500).json({ error: err.message });
   }
 });

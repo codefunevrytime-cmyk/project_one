@@ -7,7 +7,7 @@ import { eventsData, featuredEventTypes } from '../context/data/eventsData';
 import { useAuth } from '../hooks/useAuth';
 import { useModal } from '../hooks/useModal';
 import ClientAdminChat from '../components/ClientAdminChat';
-import OnboardingTour from '../components/onboarding/OnboardingTour';
+import ArcTour from '../components/ArcTour';
 import { galleryTourSteps } from './galleryTourSteps';
 
 
@@ -303,7 +303,7 @@ export default function GalleryPage() {
 
       <Footer />
     </div>
-    <OnboardingTour tourId="gallery" steps={galleryTourSteps} />
+    <ArcTour tourId="gallery" steps={galleryTourSteps} />
     </>
   );
 }

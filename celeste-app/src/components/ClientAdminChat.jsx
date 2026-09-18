@@ -4,6 +4,7 @@
 // Usage: <ClientAdminChat user={user} pageContext="Wedding Photography" />
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useAuth } from '../hooks/useAuth';
 
 import { API_URL } from '../config/api';
 import LocationPicker from './LocationPicker';
@@ -93,6 +94,7 @@ function Bubble({ msg }) {
 }
 
 export default function ClientAdminChat({ user, pageContext = '' }) {
+  const { authFetch } = useAuth();
   const [open,    setOpen]    = useState(false);
   const [step,    setStep]    = useState('form'); // 'form' | 'chat'
   const [convId,  setConvId]  = useState(null);
@@ -147,11 +149,17 @@ export default function ClientAdminChat({ user, pageContext = '' }) {
     return () => clearInterval(pollRef.current);
   }, [step, convId, open]);
 
+  // FIXED: was reading the auth token from localStorage ("celeste_token"),
+  // which AuthProvider never writes to — the access token is kept in
+  // memory only (see auth-context/AuthProvider.jsx). That always sent
+  // "Bearer null" -> 401, silently swallowed by the .catch, so messages
+  // just never loaded. authFetch() attaches the real in-memory token and
+  // retries once via the refresh-cookie flow if it had expired.
   const fetchMessages = useCallback(async (overrideId = null) => {
     const id = overrideId || convId;
     if (!id) return;
     try {
-      const res  = await fetch(`${API}/messages/admin-chat/${id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('celeste_token')}` } });
+      const res  = await authFetch(`${API}/messages/admin-chat/${id}`);
       const data = await res.json();
       if (data.messages) {
         setMessages(data.messages);
@@ -161,21 +169,21 @@ export default function ClientAdminChat({ user, pageContext = '' }) {
         }
       }
     } catch { /* silent */ }
-  }, [convId]);
+  }, [convId, authFetch]);
   useEffect(() => { fetchMessagesRef.current = fetchMessages; }, [fetchMessages]);
 
   // Uploads the pending image (if any) and returns its URL, or null if
   // there's nothing to upload / the upload fails. Called right before
   // sending a message that has an attachment.
+  // FIXED: same dead-localStorage-token bug — now uses authFetch().
   const uploadPendingImage = useCallback(async () => {
     if (!pendingImage) return null;
     setUploadingImage(true);
     try {
       const fd = new FormData();
       fd.append('image', pendingImage);
-      const res = await fetch(`${API}/messages/upload-image`, {
+      const res = await authFetch(`${API}/messages/upload-image`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${localStorage.getItem('celeste_token')}` },
         body: fd,
       });
       const data = await res.json();
@@ -185,7 +193,7 @@ export default function ClientAdminChat({ user, pageContext = '' }) {
     } finally {
       setUploadingImage(false);
     }
-  }, [pendingImage]);
+  }, [pendingImage, authFetch]);
 
   const clearAttachments = () => {
     setPendingImage(null);
@@ -201,6 +209,7 @@ export default function ClientAdminChat({ user, pageContext = '' }) {
     e.target.value = ''; // allow picking the same file again later
   };
 
+  // FIXED: same dead-localStorage-token bug — now uses authFetch().
   const handleStart = async () => {
     if (!form.name.trim() || (!form.message.trim() && !pendingImage && !pendingLocation)) {
       setError('Please enter your name, and a message, image, or location.');
@@ -210,9 +219,9 @@ export default function ClientAdminChat({ user, pageContext = '' }) {
     setError('');
     try {
       const image_url = await uploadPendingImage();
-      const res  = await fetch(`${API}/messages/admin-chat/start`, {
+      const res  = await authFetch(`${API}/messages/admin-chat/start`, {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('celeste_token')}` },
+        headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
           client_name:  form.name,
           client_email: form.email  || null,
@@ -241,15 +250,16 @@ export default function ClientAdminChat({ user, pageContext = '' }) {
     setSending(false);
   };
 
+  // FIXED: same dead-localStorage-token bug — now uses authFetch().
   const handleReply = async () => {
     if (!reply.trim() && !pendingImage && !pendingLocation) return;
     if (!convId) return;
     setSending(true);
     try {
       const image_url = await uploadPendingImage();
-      await fetch(`${API}/messages/admin-chat/${convId}`, {
+      await authFetch(`${API}/messages/admin-chat/${convId}`, {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('celeste_token')}` },
+        headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
           client_name: form.name || 'Client',
           message: reply,

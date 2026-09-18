@@ -4,6 +4,7 @@
 // are pulled straight from the logged-in user's profile (see useAuth / auth.js).
 
 import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { useAuth } from '../hooks/useAuth';
 
 import { API_URL } from '../config/api';
 
@@ -123,6 +124,7 @@ function Bubble({ msg }) {
 // user:   logged-in client { id, name, email, phone } — REQUIRED to chat
 // onLoginRequired: called instead of opening the panel when user is not logged in
 const ClientMessaging = forwardRef(function ClientMessaging({ vendor, user, onLoginRequired }, ref) {
+  const { authFetch } = useAuth();
   const [open, setOpen]         = useState(false);
   const [convId, setConvId]     = useState(null);
   const [messages, setMessages] = useState([]);
@@ -160,11 +162,18 @@ const ClientMessaging = forwardRef(function ClientMessaging({ vendor, user, onLo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, vendor?.id, user?.id]);
 
+  // FIXED: was reading the auth token from localStorage ("celeste_token"),
+  // which AuthProvider never writes to — the access token is kept in
+  // memory only (see auth-context/AuthProvider.jsx). That always sent
+  // "Bearer null", the backend rejected it with 401, and the .catch here
+  // silently swallowed it — so messages just never loaded, with no visible
+  // error. authFetch() attaches the real in-memory token and retries once
+  // via the refresh-cookie flow if it had expired.
   const fetchMessages = useCallback(async (overrideId = null) => {
     const id = overrideId || convId;
     if (!id) return;
     try {
-      const res  = await fetch(`${API}/messages/client/${id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('celeste_token')}` } });
+      const res  = await authFetch(`${API}/messages/client/${id}`);
       const data = await res.json();
       if (data.messages) {
         setMessages(data.messages);
@@ -172,12 +181,14 @@ const ClientMessaging = forwardRef(function ClientMessaging({ vendor, user, onLo
         if (!open) setUnread(newUnread);
       }
     } catch { /* silent */ }
-  }, [convId, open]);
+  }, [convId, open, authFetch]);
   useEffect(() => { fetchMessagesRef.current = fetchMessages; }, [fetchMessages]);
 
   // Sends `text` as either the first message (creates the conversation,
   // using the logged-in user's own name/email/phone — no form needed) or
   // a follow-up into an existing conversation.
+  // FIXED: same dead-localStorage-token bug as fetchMessages above — both
+  // calls below now use authFetch() instead.
   const sendMessage = useCallback(async (text) => {
     if (!user) { onLoginRequired?.(); return; }
     if (!text?.trim() || !vendor?.id) return;
@@ -185,9 +196,9 @@ const ClientMessaging = forwardRef(function ClientMessaging({ vendor, user, onLo
     setError('');
     try {
       if (!convId) {
-        const res  = await fetch(`${API}/messages/start`, {
+        const res  = await authFetch(`${API}/messages/start`, {
           method:  'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('celeste_token')}` },
+          headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify({
             client_name:  user.name,
             client_email: user.email || null,
@@ -206,9 +217,9 @@ const ClientMessaging = forwardRef(function ClientMessaging({ vendor, user, onLo
           setError(data.error || 'Could not start conversation.');
         }
       } else {
-        await fetch(`${API}/messages/client/${convId}`, {
+        await authFetch(`${API}/messages/client/${convId}`, {
           method:  'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('celeste_token')}` },
+          headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify({ client_name: user.name, message: text }),
         });
         fetchMessages(convId);
@@ -217,7 +228,7 @@ const ClientMessaging = forwardRef(function ClientMessaging({ vendor, user, onLo
       setError('Server error. Please try again.');
     }
     setSending(false);
-  }, [user, onLoginRequired, vendor, convId, fetchMessages]);
+  }, [user, onLoginRequired, vendor, convId, fetchMessages, authFetch]);
 
   const handleReply = () => {
     if (!reply.trim()) return;

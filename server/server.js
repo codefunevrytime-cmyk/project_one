@@ -5,8 +5,13 @@ const path = require('path');
 const http = require('http');
 const jwt = require('jsonwebtoken');
 const { getToken } = require('./lib/session');
+const { safeVerify } = require('./lib/jwt');
 const { Server } = require('socket.io');
 require('dotenv').config();
+
+// Validate required environment variables before starting the server
+const validateEnv = require('./validateEnv');
+validateEnv();
 
 const app = express();
 app.set('trust proxy', 1);
@@ -35,7 +40,11 @@ const allowedOrigins = (process.env.FRONTEND_ORIGINS || '')
   .filter(Boolean);
 
 if (allowedOrigins.length === 0) {
-  console.warn('[cors] WARNING: FRONTEND_ORIGINS is empty — no origins will be allowed. Set it in .env.');
+  console.error('[cors] ERROR: FRONTEND_ORIGINS is empty — no origins will be allowed. Server cannot start safely.');
+  console.error('[cors] Please set FRONTEND_ORIGINS in your .env file.');
+  console.error('[cors] Example: FRONTEND_ORIGINS=http://localhost:5173,http://localhost:5174');
+  console.error('[cors] For production: FRONTEND_ORIGINS=https://yourdomain.com');
+  process.exit(1);
 }
 
 const corsOptions = {
@@ -128,7 +137,7 @@ io.use((socket, next) => {
     return next(); // allow unauthenticated connection; just won't join any room
   }
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = safeVerify(token);
     socket.userId = decoded.id;
     socket.isAdmin = decoded.role === 'admin';
     socket.vendorUserId = decoded.vendorUserId; // vendor tokens carry this instead of id/role
