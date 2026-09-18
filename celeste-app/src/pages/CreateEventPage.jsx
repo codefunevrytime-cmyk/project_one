@@ -5,7 +5,7 @@ import { EVENT_CATEGORIES } from "../context/data/events";
 import styles from "./CreateEventPage.module.css";
 import { VENDOR_SERVICE_CONFIGS } from "../context/data/vendorServiceConfig";
 import LocationPicker from "../components/LocationPicker";
-import OnboardingTour from '../components/onboarding/OnboardingTour';
+import  ArcTour  from '../components/ArcTour';
 import { createEventTourSteps } from './createEventTourSteps';
 // DISABLED (kept for future use — see the commented-out usage in
 // VendorBlock below): only needed if the post-selection busy-warning
@@ -1452,7 +1452,7 @@ function StepReview({ form, vendorSelections, budget, submitting, submitError, o
 export default function CreateEventPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, authFetch } = useAuth();
 
   const prefillEvent = location.state?.referenceEvent ?? null;
 
@@ -1760,9 +1760,17 @@ export default function CreateEventPage() {
     };
 
     try {
-      const res = await fetch(`${API}/events`, {
+      // FIXED: was reading a Bearer token from localStorage ("celeste_token"
+      // / "token"), but AuthProvider keeps the access token in memory only
+      // (see auth-context/AuthProvider.jsx) — it's never written to
+      // localStorage, so this always sent "Bearer null" and the backend
+      // rejected every submission as "Not authenticated", even while
+      // logged in. authFetch() (from useAuth()) attaches the real in-memory
+      // token itself, and silently retries once via the refresh-cookie flow
+      // if the access token had expired since page load.
+      const res = await authFetch(`${API}/events`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("celeste_token") || localStorage.getItem("token")}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       const data = await res.json();
@@ -1775,7 +1783,7 @@ export default function CreateEventPage() {
       setSubmitError("Could not connect to server. Please try again.");
     }
     setSubmitting(false);
-  }, [form, vendorSelections, budget, user, navigate]);
+  }, [form, vendorSelections, budget, user, authFetch, navigate]);
 
   return (
     <>
@@ -1865,7 +1873,7 @@ export default function CreateEventPage() {
         onSelect={handleDecorationVenueSelect}
       />
     </div>
-    <OnboardingTour tourId="createEvent" steps={createEventTourSteps} />
+    <ArcTour tourId="createEvent" steps={createEventTourSteps} />
     </>
   );
 }

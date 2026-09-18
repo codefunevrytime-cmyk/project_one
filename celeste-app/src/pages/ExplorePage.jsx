@@ -6,7 +6,7 @@ import { Sidebar } from "../components/Sidebar";
 import styles from "./ExplorePage.module.css";
 import ClientAdminChat from '../components/ClientAdminChat';
 import { useAuth } from '../hooks/useAuth';
-import OnboardingTour from '../components/onboarding/OnboardingTour';
+import ArcTour from '../components/ArcTour';
 import { exploreTourSteps } from './exploreTourSteps';
 
 
@@ -462,7 +462,7 @@ export function ExplorePage({ bookmarks, onBookmarkToggle, selectedType, onClear
       <ClientAdminChat user={user} pageContext="Event Planning" />
 
     </div>
-    <OnboardingTour tourId="explore" steps={exploreTourSteps} />
+    <ArcTour tourId="explore" steps={exploreTourSteps} />
   </>
   );
 }

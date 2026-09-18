@@ -6,16 +6,16 @@
 // check "does this event belong to this client" compare against req.clientEmail
 // instead of trusting a query param or route param.
 
-const jwt  = require('jsonwebtoken');
 const pool = require('../db');
 const { getToken } = require('../lib/session');
+const { safeVerify } = require('../lib/jwt');
 
 async function clientAuth(req, res, next) {
   const token = getToken(req);
   if (!token) return res.status(401).json({ error: 'No token' });
 
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const payload = safeVerify(token);
     // Do not treat an admin or vendor JWT as a client session merely because
     // their payload also happens to contain a numeric id.
     if (!payload.id || payload.role || payload.vendorUserId) {
@@ -29,7 +29,11 @@ async function clientAuth(req, res, next) {
     req.clientId    = result.rows[0].id;
     req.clientEmail = result.rows[0].email;
     next();
-  } catch {
+  } catch (err) {
+    // Provide more specific error messages based on the error type
+    if (err.message.includes('Server configuration error')) {
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
     res.status(401).json({ error: 'Invalid token' });
   }
 }

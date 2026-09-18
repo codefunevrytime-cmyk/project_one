@@ -4,7 +4,8 @@ import { API_URL } from '../config/api';
 import { useTheme } from "../hooks/useTheme";
 import { getTokens } from "../styles/themeTokens";
 import { getSocket } from "../lib/socket";
-import OnboardingTour from '../components/onboarding/OnboardingTour';
+import { useAuth } from "../hooks/useAuth";
+import ArcTour from '../components/ArcTour';
 import { myEventsTourSteps } from './myEventsTourSteps';
 
 const API = API_URL;
@@ -362,6 +363,7 @@ function CancelPopup({ ev, onConfirm, onClose, cancelling }) {
 function EventCard({ ev, navigate, onCancel }) {
   const { isLight } = useTheme();
   const T = getTokens(isLight);
+  const { authFetch } = useAuth();
   const [expanded, setExpanded] = useState(false);
   const [addons, setAddons] = useState([]);
   const detailRef = useRef(null);
@@ -390,11 +392,18 @@ function EventCard({ ev, navigate, onCancel }) {
   // shows up without a reload.
   useEffect(() => {
     if (isCancelled) return;
-    fetch(`${API}/payments/addons/${ev.id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('celeste_token')}` } })
+    // FIXED: was reading the token from localStorage ("celeste_token"),
+    // which AuthProvider never writes to (access token is kept in memory
+    // only — see auth-context/AuthProvider.jsx). That always sent
+    // "Bearer undefined" and silently failed (swallowed by .catch), so
+    // add-on charges never showed up. authFetch() attaches the real
+    // in-memory token and retries once via the refresh-cookie flow if it
+    // had expired.
+    authFetch(`${API}/payments/addons/${ev.id}`)
       .then(r => r.json())
       .then(d => setAddons(Array.isArray(d) ? d : []))
       .catch(() => {});
-  }, [ev.id, isCancelled]);
+  }, [ev.id, isCancelled, authFetch]);
 
   useEffect(() => {
     if (isCancelled) return;
@@ -417,6 +426,7 @@ function EventCard({ ev, navigate, onCancel }) {
   const baseEventPayload = () => ({
     id: `EVT-${ev.id}`, bookingId: ev.id, name: ev.event_name, type: ev.event_type,
     venue: ev.location, guests: ev.capacity || 0, date: fmtDate(ev.event_date), time: ev.event_time || "18:00",
+    referenceEventName: ev.reference_event_title || null,
   });
 
   const handlePay = () => {
@@ -445,7 +455,7 @@ function EventCard({ ev, navigate, onCancel }) {
   };
 
   return (
-    <div style={{
+    <div className="EventCard" style={{
       background: isCancelled ? T.cardBgMuted : T.cardBg,
       border:`0.5px solid ${isCancelled? T.dangerBorder : expanded? T.goldBorder : T.borderFaint}`,
       borderRadius:16, overflow:"hidden", marginBottom:14,
@@ -570,16 +580,25 @@ export default function MyEvents() {
   const [activeTab, setActiveTab] = useState("Upcoming");
   const [cancelTarget, setCancelTarget] = useState(null);
   const [cancelling, setCancelling] = useState(false);
+  const { authFetch } = useAuth();
 
   const showSuccess = location.state?.eventSuccess;
 
   const fetchEvents = useCallback(() => {
-    const token = localStorage.getItem("celeste_token") || localStorage.getItem("token");
-    fetch(`${API}/events/my`, { headers: { Authorization: `Bearer ${token}` } })
+    // FIXED: was reading the token from localStorage ("celeste_token" /
+    // "token"), but AuthProvider keeps the access token in memory only —
+    // it's never written to localStorage (see auth-context/
+    // AuthProvider.jsx). This always sent "Bearer null", the backend
+    // rejected it, and the .catch swallowed the failure, so the list
+    // silently rendered as empty ("Nothing here yet") even for a client
+    // with real events — including a just-submitted one. authFetch()
+    // attaches the real in-memory token and retries once via the
+    // refresh-cookie flow if it had expired.
+    authFetch(`${API}/events/my`)
       .then(r => r.json())
       .then(data => { setEvents(Array.isArray(data) ? data : []); setLoading(false); })
       .catch(() => setLoading(false));
-  }, []);
+  }, [authFetch]);
 
   // Initial load stays a plain fetch — the socket only carries updates
   // that happen *after* the connection is live, not the full history.
@@ -608,10 +627,11 @@ export default function MyEvents() {
     if (!cancelTarget) return;
     setCancelling(true);
     try {
-      const token = localStorage.getItem("celeste_token") || localStorage.getItem("token");
-      await fetch(`${API}/events/${cancelTarget.id}/cancel`, {
+      // FIXED: same dead-localStorage-token bug as fetchEvents above —
+      // authFetch() attaches the real in-memory token instead.
+      await authFetch(`${API}/events/${cancelTarget.id}/cancel`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json" },
       });
       setCancelTarget(null);
       fetchEvents();
@@ -744,7 +764,7 @@ export default function MyEvents() {
         })()}
       </main>
     </div>
-    <OnboardingTour tourId="myEvents" steps={myEventsTourSteps} />
+    <ArcTour tourId="myEvents" steps={myEventsTourSteps} />
     </>
   );
 }

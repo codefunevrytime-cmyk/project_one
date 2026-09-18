@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useVendorAuth } from '../context/VendorAuthContext';
-
 import { API_URL } from '../../config/api';
 import { vendorFetch } from '../../lib/vendorApi';
 
@@ -17,69 +16,123 @@ function loadRazorpay() {
   });
 }
 
-const S = {
-  heading: { fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 300, color: '#e8eef8', marginBottom: 4 },
-  sub: { fontSize: 13, color: 'rgba(160,180,220,0.4)', marginBottom: 28 },
-  card: { background: 'rgba(10,15,28,0.8)', border: '1px solid rgba(56,100,220,0.14)', borderRadius: 14, padding: '24px 26px', marginBottom: 20 },
-  cardTitle: { fontSize: 13, fontWeight: 600, color: '#c8d8f8', marginBottom: 4, letterSpacing: '0.02em' },
-  label: { fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(160,180,220,0.4)' },
-  input: {
-    width: '100%', background: 'rgba(20,30,60,0.5)', border: '1px solid rgba(56,100,220,0.18)',
-    borderRadius: 9, padding: '11px 14px', fontSize: 14, color: '#e8eef8',
-    fontFamily: "'DM Sans', sans-serif", outline: 'none', boxSizing: 'border-box',
-  },
-};
-
 const STATUS_META = {
-  trial:    { label: 'Free trial',     color: '#4c8aff', icon: '🎁' },
-  active:   { label: 'Deposit active', color: '#5fcf7a', icon: '🛡' },
-  depleted: { label: 'Deposit depleted', color: '#f87171', icon: '⚠️' },
-  exited:   { label: 'Exited program', color: 'rgba(160,180,220,0.4)', icon: '↩' },
+  trial:    { label: 'Free Trial',       color: '#6ea8fe', glow: 'rgba(110,168,254,0.3)'  },
+  active:   { label: 'Active',           color: '#4ade80', glow: 'rgba(74,222,128,0.3)'   },
+  depleted: { label: 'Depleted',         color: '#f87171', glow: 'rgba(248,113,113,0.3)'  },
+  exited:   { label: 'Exited',           color: '#64748b', glow: 'rgba(100,116,139,0.2)'  },
 };
 
 const LEDGER_META = {
-  initial_deposit:   { label: 'Initial deposit',    color: '#4c8aff', icon: '＋', sign: '+' },
-  monthly_shortfall: { label: 'Monthly settlement', color: '#f0a84a', icon: '−', sign: '' },
-  topup:             { label: 'Top-up',             color: '#5fcf7a', icon: '＋', sign: '+' },
-  refund:            { label: 'Refund',              color: '#f87171', icon: '↩', sign: '−' },
-  adjustment:        { label: 'Adjustment',          color: 'rgba(160,180,220,0.6)', icon: '•', sign: '' },
+  initial_deposit:   { label: 'Initial Deposit',    color: '#6ea8fe' },
+  monthly_shortfall: { label: 'Monthly Settlement', color: '#fb923c' },
+  topup:             { label: 'Top-up',             color: '#4ade80' },
+  refund:            { label: 'Refund',             color: '#f87171' },
+  adjustment:        { label: 'Adjustment',         color: '#94a3b8' },
 };
 
-function fmt(n) { return Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 }); }
+function fmt(n) {
+  return Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+}
 
-/* ── One ledger row ───────────────────────────────────────────────────── */
+/* Circular SVG gauge */
+function DepositGauge({ pct, balance, target, color, label }) {
+  const R = 88;
+  const C = 2 * Math.PI * R;
+  const dash = (pct / 100) * C;
+  const gap = C - dash;
+
+  return (
+    <div style={{ position: 'relative', width: 220, height: 220, flexShrink: 0 }}>
+      <svg width="220" height="220" viewBox="0 0 220 220" style={{ transform: 'rotate(-90deg)' }}>
+        {/* track */}
+        <circle cx="110" cy="110" r={R} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="10" />
+        {/* fill */}
+        {pct > 0 && (
+          <circle
+            cx="110" cy="110" r={R}
+            fill="none"
+            stroke={color}
+            strokeWidth="10"
+            strokeLinecap="round"
+            strokeDasharray={`${dash} ${gap}`}
+            style={{ filter: `drop-shadow(0 0 8px ${color})`, transition: 'stroke-dasharray 0.8s cubic-bezier(0.16,1,0.3,1)' }}
+          />
+        )}
+      </svg>
+      {/* center content */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 13, fontWeight: 300, color: 'rgba(148,163,184,0.6)', marginBottom: 4, letterSpacing: '0.04em' }}>
+          BALANCE
+        </div>
+        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 36, fontWeight: 600, color, lineHeight: 1, letterSpacing: '-0.02em' }}>
+          ₹{fmt(balance)}
+        </div>
+        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: 'rgba(148,163,184,0.4)', marginTop: 6 }}>
+          of ₹{fmt(target)} target
+        </div>
+        <div style={{
+          marginTop: 10, padding: '3px 10px',
+          background: `${color}18`, border: `1px solid ${color}40`,
+          borderRadius: 99, fontFamily: "'DM Sans', sans-serif",
+          fontSize: 10, fontWeight: 600, color, letterSpacing: '0.08em',
+        }}>
+          {label}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LedgerRow({ row, isLast }) {
   const lm = LEDGER_META[row.type] || LEDGER_META.adjustment;
   const amt = Number(row.amount_paise) / 100;
+  const positive = amt > 0;
 
   return (
     <div style={{
-      display: 'flex', alignItems: 'flex-start', gap: 14,
-      padding: '14px 0', borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,0.06)',
+      display: 'flex', alignItems: 'center', gap: 14,
+      padding: '14px 0',
+      borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,0.04)',
     }}>
+      {/* icon dot */}
       <div style={{
-        width: 32, height: 32, borderRadius: '50%', flexShrink: 0, marginTop: 1,
-        background: `${lm.color}18`, border: `1px solid ${lm.color}40`,
+        width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+        background: `${lm.color}12`, border: `1px solid ${lm.color}30`,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 14, color: lm.color, fontWeight: 700,
       }}>
-        {lm.icon}
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          {positive
+            ? <path d="M7 11V3M3 7l4-4 4 4" stroke={lm.color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            : amt < 0
+              ? <path d="M7 3v8M3 7l4 4 4-4" stroke={lm.color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              : <path d="M3 7h8" stroke={lm.color} strokeWidth="1.5" strokeLinecap="round"/>
+          }
+        </svg>
       </div>
+
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
-          <div style={{ fontSize: 13, color: '#c8d8f8', fontWeight: 500 }}>
-            {lm.label}{row.month ? ` · ${row.month}` : ''}
-          </div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: lm.color, flexShrink: 0, whiteSpace: 'nowrap' }}>
-            {amt === 0 ? '—' : `${amt > 0 ? '+' : ''}₹${fmt(Math.abs(amt))}`}
-          </div>
+        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500, color: '#cbd5e1', marginBottom: 3 }}>
+          {lm.label}{row.month ? ` · ${row.month}` : ''}
         </div>
         {row.notes && (
-          <div style={{ fontSize: 11.5, color: 'rgba(160,180,220,0.45)', marginTop: 3, lineHeight: 1.5 }}>{row.notes}</div>
+          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11.5, color: 'rgba(148,163,184,0.45)', lineHeight: 1.5 }}>{row.notes}</div>
         )}
-        <div style={{ fontSize: 10.5, color: 'rgba(160,180,220,0.28)', marginTop: 4 }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'rgba(148,163,184,0.25)', marginTop: 3 }}>
           {new Date(row.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
         </div>
+      </div>
+
+      <div style={{
+        fontFamily: "'JetBrains Mono', monospace",
+        fontSize: 14, fontWeight: 600,
+        color: positive ? '#4ade80' : amt < 0 ? '#f87171' : '#64748b',
+        flexShrink: 0,
+      }}>
+        {amt === 0 ? '—' : `${positive ? '+' : '−'}₹${fmt(Math.abs(amt))}`}
       </div>
     </div>
   );
@@ -95,15 +148,9 @@ export default function VendorDeposit() {
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [inputFocused, setInputFocused] = useState(false);
+  const [btnHover, setBtnHover] = useState(false);
 
-  // FIXED: was reading the dead `localStorage.getItem('vendor_token')`
-  // key (never written to anymore — see VendorAuthContext.jsx), so this
-  // request always 401'd. The response body for a 401 still parses as
-  // JSON (`{ error: "..." }`), so `data` was truthy and the render below
-  // crashed on `data.ledger.length` — `ledger` doesn't exist on an error
-  // payload. vendorFetch() attaches the real in-memory token; the
-  // `d && d.ledger` guard below also makes this resilient to any future
-  // malformed/error response instead of crashing the whole page.
   const fetchDeposit = () => {
     if (!vendorId) return;
     vendorFetch(`${API}/payments/deposit/${vendorId}`)
@@ -173,20 +220,27 @@ export default function VendorDeposit() {
     }
   };
 
+  /* ── Loading ─────────────────────────────────────────────────────────── */
   if (loading) {
     return (
-      <div>
-        <div style={S.heading}>Security Deposit</div>
-        <div style={{ fontSize: 13, color: 'rgba(160,180,220,0.4)' }}>Loading…</div>
+      <div style={{ padding: '32px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+        {[0,1,2].map(i => (
+          <div key={i} style={{
+            width: 5, height: 5, borderRadius: '50%', background: '#6ea8fe',
+            animation: `vd-pulse 1.2s ease-in-out ${i * 0.18}s infinite`,
+          }} />
+        ))}
+        <style>{`@keyframes vd-pulse{0%,100%{opacity:.15;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}`}</style>
       </div>
     );
   }
 
+  /* ── Error ───────────────────────────────────────────────────────────── */
   if (!data) {
     return (
-      <div>
-        <div style={S.heading}>Security Deposit</div>
-        <div style={S.sub}>Could not load your deposit details. Please try again later.</div>
+      <div style={{ padding: '32px 0' }}>
+        <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 32, fontWeight: 300, color: '#e2e8f0', margin: '0 0 8px' }}>Security Deposit</h1>
+        <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'rgba(148,163,184,0.5)' }}>Could not load your deposit details. Please try again later.</p>
       </div>
     );
   }
@@ -195,163 +249,262 @@ export default function VendorDeposit() {
   const pct = Math.min(100, Math.round((data.balance / data.target) * 100));
   const shortfall = Math.max(0, data.target - data.balance);
 
-  return (
-    <div>
-      <div style={S.heading}>Security Deposit</div>
-      <div style={S.sub}>How Celeste's refundable deposit and monthly commission floor works for your account</div>
+  /* ── Shared card style ───────────────────────────────────────────────── */
+  const card = {
+    background: 'rgba(15,23,42,0.6)',
+    border: '1px solid rgba(255,255,255,0.07)',
+    borderRadius: 20,
+    backdropFilter: 'blur(20px)',
+    WebkitBackdropFilter: 'blur(20px)',
+  };
 
-      {/* Status banner */}
-      <div style={{
-        ...S.card,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16,
-        borderColor: `${meta.color}44`, background: `${meta.color}0d`,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
-            background: `${meta.color}18`, border: `1px solid ${meta.color}44`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
-          }}>
-            {meta.icon}
-          </div>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: meta.color }}>{meta.label}</div>
-            <div style={{ fontSize: 12, color: 'rgba(160,180,220,0.45)', marginTop: 2 }}>
-              {data.in_trial
-                ? `${data.days_left_in_trial} day${data.days_left_in_trial === 1 ? '' : 's'} left in your free trial`
-                : data.status === 'exited'
-                  ? 'You have left the deposit program'
-                  : `₹${fmt(data.balance)} of ₹${fmt(data.target)} target balance`}
-            </div>
-          </div>
-        </div>
-        {!data.in_trial && data.status !== 'exited' && (
-          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, color: meta.color }}>
-            ₹{fmt(data.balance)}
-          </div>
-        )}
+  const eyebrow = {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 10, fontWeight: 600,
+    letterSpacing: '0.18em', textTransform: 'uppercase',
+    color: 'rgba(148,163,184,0.4)',
+    marginBottom: 16,
+  };
+
+  return (
+    <div style={{ fontFamily: "'DM Sans', sans-serif", paddingBottom: 40 }}>
+
+      {/* ── Page header ──────────────────────────────────────────────── */}
+      <div style={{ marginBottom: 28 }}>
+        <h1 style={{
+          fontFamily: "'Fraunces', serif", fontWeight: 300,
+          fontSize: 34, color: '#e2e8f0',
+          margin: 0, lineHeight: 1.1, marginBottom: 8,
+        }}>
+          Security Deposit
+        </h1>
+        <p style={{ fontSize: 13, color: 'rgba(148,163,184,0.45)', margin: 0, lineHeight: 1.6, maxWidth: 420 }}>
+          Celeste's refundable deposit and monthly commission floor for your account.
+        </p>
       </div>
 
-      {/* Trial explainer */}
+      {/* ── Trial state ─────────────────────────────────────────────── */}
       {data.in_trial && (
-        <div style={S.card}>
-          <div style={S.cardTitle}>You're in your free trial</div>
-          <p style={{ fontSize: 13, color: 'rgba(160,180,220,0.55)', lineHeight: 1.7, marginTop: 10 }}>
-            New vendors get <strong style={{ color: '#c8d8f8' }}>2 months</strong> on Celeste with no security deposit required.
-            List your services, take bookings, and build reviews risk-free. Your trial ends on{' '}
-            <strong style={{ color: '#c8d8f8' }}>
-              {new Date(data.trial_ends_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
-            </strong>.
-            After that, a refundable ₹{fmt(data.target)} deposit will apply.
-          </p>
+        <div style={{
+          ...card,
+          padding: '28px 30px',
+          borderColor: 'rgba(110,168,254,0.2)',
+          marginBottom: 16,
+          display: 'flex', gap: 32, alignItems: 'center', flexWrap: 'wrap',
+        }}>
+          <div style={{
+            width: 52, height: 52, borderRadius: 16, flexShrink: 0,
+            background: 'rgba(110,168,254,0.1)', border: '1px solid rgba(110,168,254,0.25)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+              <path d="M11 2L13.5 8.5H20L14.5 12.5L16.5 19L11 15L5.5 19L7.5 12.5L2 8.5H8.5L11 2Z" stroke="#6ea8fe" strokeWidth="1.5" strokeLinejoin="round"/>
+            </svg>
+          </div>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: '#6ea8fe', marginBottom: 6 }}>You're on a free trial</div>
+            <p style={{ fontSize: 13, color: 'rgba(148,163,184,0.55)', lineHeight: 1.7, margin: 0 }}>
+              New vendors get <strong style={{ color: '#cbd5e1', fontWeight: 600 }}>2 months</strong> on Celeste with no deposit required. Trial ends{' '}
+              <strong style={{ color: '#cbd5e1', fontWeight: 600 }}>
+                {new Date(data.trial_ends_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </strong>. After that, a refundable ₹{fmt(data.target)} deposit will apply.
+            </p>
+          </div>
+          <div style={{ textAlign: 'center', flexShrink: 0 }}>
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 52, fontWeight: 300, color: '#6ea8fe', lineHeight: 1 }}>
+              {data.days_left_in_trial}
+            </div>
+            <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(148,163,184,0.35)', marginTop: 4 }}>
+              days left
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Balance meter — only once deposit is active */}
+      {/* ── Balance + Top-up (2 col when wide) ──────────────────────── */}
       {!data.in_trial && data.status !== 'exited' && (
-        <div style={S.card}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
-            <div style={S.cardTitle}>Deposit balance</div>
-            <span style={{ fontSize: 11, color: 'rgba(160,180,220,0.4)' }}>{pct}% of target</span>
-          </div>
-          <div style={{ height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.06)', overflow: 'hidden', marginBottom: 16 }}>
-            <div style={{
-              height: '100%', borderRadius: 4, width: `${pct}%`,
-              background: pct < 40 ? '#f87171' : pct < 100 ? '#f0a84a' : '#5fcf7a',
-              transition: 'width 0.3s ease',
-            }} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 16, marginBottom: 16, alignItems: 'start' }}>
+
+          {/* Gauge card */}
+          <div style={{
+            ...card,
+            padding: '30px 28px',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0,
+          }}>
+            <DepositGauge pct={pct} balance={data.balance} target={data.target} color={meta.color} label={meta.label} />
           </div>
 
-          {shortfall > 0 && (
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
-              background: 'rgba(240,168,74,0.08)', border: '1px solid rgba(240,168,74,0.25)',
-              borderRadius: 10, padding: '12px 16px', marginBottom: 18,
-            }}>
-              <span style={{ fontSize: 12.5, color: '#f0c088' }}>
-                You're ₹{fmt(shortfall)} below your ₹{fmt(data.target)} target. Top up to keep your deposit healthy.
-              </span>
-            </div>
-          )}
+          {/* Right column */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-            <div style={{ flex: '1 1 180px' }}>
-              <label style={{ ...S.label, display: 'block', marginBottom: 7 }}>Top-up amount (₹)</label>
-              <input
-                style={S.input} type="number" min="1" placeholder={`e.g. ${fmt(shortfall || data.target)}`}
-                value={topupAmount} onChange={e => setTopupAmount(e.target.value)}
-              />
+            {/* Shortfall warning */}
+            {shortfall > 0 && (
+              <div style={{
+                ...card,
+                padding: '18px 22px',
+                borderColor: 'rgba(251,146,60,0.2)',
+                background: 'rgba(251,146,60,0.05)',
+                display: 'flex', gap: 14, alignItems: 'flex-start',
+              }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                  background: 'rgba(251,146,60,0.12)', border: '1px solid rgba(251,146,60,0.25)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M8 2L14 13H2L8 2Z" stroke="#fb923c" strokeWidth="1.5" strokeLinejoin="round"/>
+                    <path d="M8 7v3M8 11.5v.5" stroke="#fb923c" strokeWidth="1.5" strokeLinecap="round"/>
+                  </svg>
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#fb923c', marginBottom: 3 }}>
+                    ₹{fmt(shortfall)} below target
+                  </div>
+                  <div style={{ fontSize: 12, color: 'rgba(251,146,60,0.6)', lineHeight: 1.5 }}>
+                    Top up to keep your deposit active and avoid service interruption.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Top-up form */}
+            <div style={{ ...card, padding: '22px 24px', flex: 1 }}>
+              <div style={eyebrow}>Add funds</div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 11, fontWeight: 500, color: 'rgba(148,163,184,0.45)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>
+                  Amount (₹)
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <span style={{
+                    position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
+                    fontFamily: "'JetBrains Mono', monospace", fontSize: 15,
+                    color: inputFocused ? 'rgba(110,168,254,0.7)' : 'rgba(148,163,184,0.3)',
+                    transition: 'color 0.2s',
+                    pointerEvents: 'none',
+                  }}>₹</span>
+                  <input
+                    type="number" min="1"
+                    placeholder={fmt(shortfall || data.target)}
+                    value={topupAmount}
+                    onChange={e => setTopupAmount(e.target.value)}
+                    onFocus={() => setInputFocused(true)}
+                    onBlur={() => setInputFocused(false)}
+                    style={{
+                      width: '100%', boxSizing: 'border-box',
+                      background: inputFocused ? 'rgba(110,168,254,0.05)' : 'rgba(255,255,255,0.03)',
+                      border: `1px solid ${inputFocused ? 'rgba(110,168,254,0.35)' : 'rgba(255,255,255,0.08)'}`,
+                      borderRadius: 12, padding: '13px 14px 13px 32px',
+                      fontFamily: "'JetBrains Mono', monospace", fontSize: 16,
+                      color: '#e2e8f0', outline: 'none',
+                      transition: 'border-color 0.2s, background 0.2s',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={handleTopup}
+                disabled={paying}
+                onMouseEnter={() => setBtnHover(true)}
+                onMouseLeave={() => setBtnHover(false)}
+                style={{
+                  width: '100%', padding: '13px 24px',
+                  background: paying
+                    ? 'rgba(110,168,254,0.15)'
+                    : btnHover
+                      ? 'rgba(110,168,254,0.22)'
+                      : 'rgba(110,168,254,0.15)',
+                  border: `1px solid ${paying ? 'rgba(110,168,254,0.2)' : 'rgba(110,168,254,0.35)'}`,
+                  borderRadius: 12,
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600,
+                  color: paying ? 'rgba(110,168,254,0.5)' : '#6ea8fe',
+                  cursor: paying ? 'not-allowed' : 'pointer',
+                  letterSpacing: '0.02em',
+                  transform: btnHover && !paying ? 'translateY(-1px)' : 'none',
+                  boxShadow: btnHover && !paying ? '0 8px 24px rgba(110,168,254,0.12)' : 'none',
+                  transition: 'all 0.2s',
+                }}
+              >
+                {paying ? 'Processing…' : 'Top up deposit'}
+              </button>
+
+              {error && (
+                <div style={{
+                  marginTop: 12, padding: '10px 14px', borderRadius: 10,
+                  background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)',
+                  fontSize: 12.5, color: '#f87171', fontFamily: "'DM Sans', sans-serif",
+                }}>
+                  {error}
+                </div>
+              )}
+              {success && (
+                <div style={{
+                  marginTop: 12, padding: '10px 14px', borderRadius: 10,
+                  background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)',
+                  fontSize: 12.5, color: '#4ade80', fontFamily: "'DM Sans', sans-serif",
+                }}>
+                  {success}
+                </div>
+              )}
             </div>
-            <button
-              onClick={handleTopup}
-              disabled={paying}
-              style={{
-                padding: '11px 24px', background: 'linear-gradient(135deg, #2a4aaa, #3a5acc)',
-                border: 'none', borderRadius: 9, color: '#e8f0ff', fontSize: 13, fontWeight: 500,
-                fontFamily: "'DM Sans', sans-serif", cursor: paying ? 'not-allowed' : 'pointer',
-                opacity: paying ? 0.7 : 1, whiteSpace: 'nowrap',
-              }}
-            >
-              {paying ? 'Processing…' : 'Top up deposit'}
-            </button>
           </div>
-
-          {error && (
-            <div style={{ marginTop: 14, fontSize: 12.5, color: '#ff8080', background: 'rgba(220,60,60,0.1)', border: '1px solid rgba(220,60,60,0.25)', borderRadius: 8, padding: '9px 13px' }}>
-              {error}
-            </div>
-          )}
-          {success && (
-            <div style={{ marginTop: 14, fontSize: 12.5, color: '#6ed496', background: 'rgba(40,120,70,0.12)', border: '1px solid rgba(60,180,100,0.25)', borderRadius: 8, padding: '9px 13px' }}>
-              {success}
-            </div>
-          )}
         </div>
       )}
 
-      {/* How it works */}
-      <div style={S.card}>
-        <div style={S.cardTitle}>How the deposit works</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
+      {/* ── How it works ────────────────────────────────────────────── */}
+      <div style={{ ...card, padding: '26px 28px', marginBottom: 16 }}>
+        <div style={eyebrow}>How it works</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 0 }}>
           {[
-            ['1', 'Every month, Celeste expects a minimum ₹1,000 in commission from your active bookings.'],
-            ['2', 'If your commission for the month falls short, the difference is deducted from your deposit — never more than the shortfall.'],
-            ['3', 'If you deactivate your profile for 15+ days in a month, no deduction is made for that period.'],
-            ['4', 'You can top up your deposit back to ₹1,000 at any time.'],
-            ['5', 'Whatever balance remains is refunded 100% whenever you choose to leave — no conditions attached.'],
-          ].map(([n, text]) => (
-            <div key={n} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            { n: '01', text: 'Celeste expects a minimum ₹1,000 in monthly commissions from your bookings.' },
+            { n: '02', text: 'If commission falls short, only the difference is deducted from your deposit.' },
+            { n: '03', text: 'Deactivating your profile for 15+ days in a month waives that month\'s deduction.' },
+            { n: '04', text: 'Top up your deposit back to ₹1,000 at any time through this page.' },
+            { n: '05', text: 'Your full remaining balance is refunded the moment you choose to leave.' },
+          ].map(({ n, text }, i, arr) => (
+            <div key={n} style={{
+              padding: '16px 0',
+              borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+              display: 'grid', gridTemplateColumns: '40px 1fr', gap: '0 12px', alignItems: 'start',
+            }}>
               <span style={{
-                width: 22, height: 22, borderRadius: '50%', flexShrink: 0, fontSize: 11, fontWeight: 700,
-                background: 'rgba(76,138,255,0.12)', border: '1px solid rgba(76,138,255,0.3)', color: '#4c8aff',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 1,
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 11, fontWeight: 600,
+                color: 'rgba(110,168,254,0.35)', paddingTop: 2,
               }}>{n}</span>
-              <span style={{ fontSize: 13, color: 'rgba(200,220,255,0.6)', lineHeight: 1.6 }}>{text}</span>
+              <span style={{ fontSize: 13, color: 'rgba(148,163,184,0.55)', lineHeight: 1.65 }}>{text}</span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Ledger */}
-      <div style={S.card}>
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
-          <div style={S.cardTitle}>Deposit history</div>
+      {/* ── Ledger ──────────────────────────────────────────────────── */}
+      <div style={{ ...card, padding: '26px 28px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <div style={eyebrow}>Transaction history</div>
           {data.ledger.length > 0 && (
-            <span style={{ fontSize: 11, color: 'rgba(160,180,220,0.35)' }}>
-              {data.ledger.length} entr{data.ledger.length === 1 ? 'y' : 'ies'}
+            <span style={{
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 10, color: 'rgba(148,163,184,0.25)', marginTop: -12,
+            }}>
+              {data.ledger.length} {data.ledger.length === 1 ? 'entry' : 'entries'}
             </span>
           )}
         </div>
+
         {data.ledger.length === 0 ? (
-          <p style={{ fontSize: 13, color: 'rgba(160,180,220,0.3)', marginTop: 12 }}>No deposit activity yet.</p>
-        ) : (
-          <div style={{ marginTop: 10 }}>
-            {data.ledger.map((row, i) => (
-              <LedgerRow key={row.id} row={row} isLast={i === data.ledger.length - 1} />
-            ))}
+          <div style={{ padding: '24px 0', textAlign: 'center' }}>
+            <div style={{ fontSize: 28, marginBottom: 10 }}>—</div>
+            <div style={{ fontSize: 13, color: 'rgba(148,163,184,0.28)' }}>No deposit activity yet.</div>
           </div>
+        ) : (
+          data.ledger.map((row, i) => (
+            <LedgerRow key={row.id} row={row} isLast={i === data.ledger.length - 1} />
+          ))
         )}
       </div>
+
     </div>
   );
 }

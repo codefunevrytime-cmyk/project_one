@@ -2,7 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const pool    = require('../db');
 const bcrypt  = require('bcrypt');
-const jwt     = require('jsonwebtoken');
+const { safeSign, safeVerify, getRefreshSecret } = require('../lib/jwt');
 const crypto  = require('crypto');
 const rateLimit = require('../middleware/rateLimit');
 const { isEmail, isPassword, text } = require('../lib/validation');
@@ -24,12 +24,12 @@ const REFRESH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 // file's own /refresh handler) reject a refresh token presented as an
 // access token, same guard vendorAuth() already has.
 function signAccessToken(id) {
-  return jwt.sign({ id, type: 'access' }, process.env.JWT_SECRET, { expiresIn: ACCESS_TOKEN_TTL });
+  return safeSign({ id, type: 'access' }, null, { expiresIn: ACCESS_TOKEN_TTL });
 }
 function signRefreshToken(id) {
-  return jwt.sign(
+  return safeSign(
     { id, type: 'refresh' },
-    process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
+    getRefreshSecret(),
     { expiresIn: REFRESH_TOKEN_TTL }
   );
 }
@@ -113,7 +113,7 @@ router.post('/refresh', async (req, res) => {
   if (!refreshToken) return res.status(401).json({ error: 'No refresh token' });
 
   try {
-    const payload = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET);
+    const payload = safeVerify(refreshToken, getRefreshSecret());
     if (payload.type !== 'refresh' || !payload.id) {
       return res.status(401).json({ error: 'Invalid token' });
     }
@@ -125,7 +125,10 @@ router.post('/refresh', async (req, res) => {
 
     const accessToken = signAccessToken(result.rows[0].id);
     res.json({ token: accessToken, expiresIn: 15 * 60 });
-  } catch {
+  } catch (err) {
+    if (err.message.includes('Server configuration error')) {
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
     return res.status(401).json({ error: 'Invalid or expired refresh token' });
   }
 });
@@ -135,12 +138,15 @@ router.get('/me', async (req, res) => {
   try {
     const token = getToken(req);
     if (!token) return res.status(401).json({ error: 'No token' });
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const payload = safeVerify(token);
     if (payload.type !== 'access' || !payload.id) return res.status(401).json({ error: 'Invalid token' });
     const result = await pool.query('SELECT id, name, email, phone FROM users WHERE id = $1', [payload.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
     res.json({ user: result.rows[0] });
   } catch (err) {
+    if (err.message.includes('Server configuration error')) {
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
     res.status(401).json({ error: 'Invalid token' });
   }
 });

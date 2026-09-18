@@ -11,15 +11,15 @@
 // leaked/exfiltrated refresh token from being usable directly against
 // admin-only routes.
 
-const jwt = require('jsonwebtoken');
 const { getToken } = require('../lib/session');
+const { safeVerify } = require('../lib/jwt');
 
 function adminAuth(req, res, next) {
   const token = getToken(req);
   if (!token) return res.status(401).json({ error: 'No token' });
 
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const payload = safeVerify(token);
 
     if (payload.role !== 'admin' || payload.type !== 'access') {
       return res.status(403).json({ error: 'Admin access required' });
@@ -27,7 +27,11 @@ function adminAuth(req, res, next) {
 
     req.adminId = payload.id;
     next();
-  } catch {
+  } catch (err) {
+    // Provide more specific error messages based on the error type
+    if (err.message.includes('Server configuration error')) {
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
     res.status(401).json({ error: 'Invalid token' });
   }
 }

@@ -110,7 +110,7 @@ function generateReceipt(payment) {
 export default function PaymentsHistory() {
   const navigate  = useNavigate();
   const location  = useLocation();
-  const { user }  = useAuth();
+  const { user, authFetch }  = useAuth();
 
   const fromSuccess = location.state?.fromSuccess;
   const successData = location.state;
@@ -121,9 +121,16 @@ export default function PaymentsHistory() {
   const [filter,      setFilter]      = useState("all");
   const [expanded,    setExpanded]    = useState(null);
 
+  // FIXED: was reading the auth token from localStorage ("celeste_token"),
+  // which AuthProvider never writes to — the access token is kept in
+  // memory only (see auth-context/AuthProvider.jsx). That always sent
+  // "Bearer null" -> 401, silently swallowed by the .catch, so the
+  // transaction list simply rendered empty. authFetch() attaches the real
+  // in-memory token and retries once via the refresh-cookie flow if it had
+  // expired.
   useEffect(() => {
     if (!user?.email) { setLoading(false); return; }
-    fetch(`${API}/payments/history`, { headers: { Authorization: `Bearer ${localStorage.getItem('celeste_token')}` } })
+    authFetch(`${API}/payments/history`)
       .then(r => r.json())
       .then(data => {
         setPayments(Array.isArray(data) ? data : []);
@@ -131,7 +138,7 @@ export default function PaymentsHistory() {
         if (fromSuccess && data.length > 0) setExpanded(data[0].id);
       })
       .catch(() => setLoading(false));
-  }, [user, fromSuccess]);
+  }, [user, fromSuccess, authFetch]);
 
   const filtered = payments.filter(p => filter === 'all' || p.status === filter || (filter === 'advance' && p.status === 'advance_paid'));
 

@@ -239,7 +239,9 @@ html, body { overflow-x: hidden; }
   .admin-page-card { padding: 18px 16px !important; }
 
   /* 3-col grids become 2-col */
-  .admin-grid-3 {
+  .admin-grid-3,
+  .admin-vendors-grid,
+  .admin-portfolio-grid {
     grid-template-columns: 1fr 1fr !important;
   }
 }
@@ -265,7 +267,10 @@ html, body { overflow-x: hidden; }
   /* Collapse every 2-column form/data grid to a single column */
   .admin-grid-2,
   .admin-grid-200,
-  .admin-grid-3 {
+  .admin-grid-3,
+  .admin-vendors-grid,
+  .admin-portfolio-grid,
+  .admin-vendor-form-grid {
     grid-template-columns: 1fr !important;
   }
 
