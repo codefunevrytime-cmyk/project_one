@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 
 import { API_URL } from '../../config/api';
+import { adminFetch } from '../../lib/adminApi';
 
 const API = API_URL;
-const token = () => localStorage.getItem('adminToken');
 
 export default function AdminReviews() {
   const [reviews,  setReviews]  = useState([]);
@@ -36,11 +36,11 @@ export default function AdminReviews() {
   const fetchReviews = async () => {
     setLoading(true);
     try {
-      let url = `${API}/reviews?all=true`;
+      let url = `/reviews?all=true`;
       if (filterVendor && filterVendor !== 'site') {
         url += `&vendor_id=${filterVendor}`;
       }
-      const res  = await fetch(url, { headers: { Authorization: `Bearer ${token()}` } });
+      const res  = await adminFetch(url);
       const data = await res.json();
       let rows   = Array.isArray(data) ? data : [];
 
@@ -63,9 +63,8 @@ export default function AdminReviews() {
   };
 
   const handleApprove = async (id) => {
-    await fetch(`${API}/reviews/${id}/approve`, {
+    await adminFetch(`/reviews/${id}/approve`, {
       method:  'PATCH',
-      headers: { Authorization: `Bearer ${token()}` },
     });
     fetchReviews();
     showSuccess('Review approved!');
@@ -73,9 +72,8 @@ export default function AdminReviews() {
 
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this review?')) return;
-    await fetch(`${API}/reviews/${id}`, {
+    await adminFetch(`/reviews/${id}`, {
       method:  'DELETE',
-      headers: { Authorization: `Bearer ${token()}` },
     });
     fetchReviews();
     showSuccess('Review deleted.');
@@ -86,11 +84,10 @@ export default function AdminReviews() {
       showSuccess('Name and message are required.');
       return;
     }
-    await fetch(`${API}/reviews`, {
+    await adminFetch(`/reviews`, {
       method:  'POST',
       headers: {
-        'Content-Type': 'application/json',
-        Authorization:  `Bearer ${token()}`, // server auto-approves admin-submitted reviews
+        'Content-Type': 'application/json', // server auto-approves admin-submitted reviews
       },
       body:    JSON.stringify({
         client_name: form.client_name,

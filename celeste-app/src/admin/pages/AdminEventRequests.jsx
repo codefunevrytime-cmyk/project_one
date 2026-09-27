@@ -6,44 +6,35 @@ import { getSocket } from '../../lib/socket'; // adjust path if your lib folder 
 import { adminFetch } from '../../lib/adminApi'; // adjust path if your lib folder sits elsewhere
 
 // ── Status lifecycle ──────────────────────────────────────────────────────
-// pending          → auto-set on client submit. Admin never needs a
-//                     distinct label for this — the event simply showing
-//                     up in the list is enough signal — so it folds into
-//                     "Reviewing" below via displayStatus(). The CLIENT
-//                     side (MyEvents.jsx) shows this same raw status as a
-//                     genuinely distinct "Submitted" label, since knowing
-//                     "we got it, nobody's looked yet" matters to them.
-// admin_reviewing  → auto-set the moment admin opens the card (see
-//                     toggleExpand's auto-PATCH below).
-// contact          → MANUAL. Admin sets this after reviewing, while
-//                     reaching out to the client to confirm details.
-// admin_approved   → MANUAL. Admin sets this once contact is done.
-// payment_pending  → AUTO. Set by maybeAdvanceEventStatus on the backend
-//                     once all vendor slots are accepted AND the event is
-//                     admin_approved. No manual button — admin approving
-//                     is enough; the payment step should never need a
-//                     deliberate "turn on payment" click.
-// confirmed        → AUTO. Set by the backend the moment the client's
-//                     advance payment succeeds (wired in payments.js, not
-//                     this file). No manual button for the same reason.
-// completed        → MANUAL. Admin marks the event done; this is what
-//                     reveals the balance-payment option on the client
-//                     side (see MyEvents.jsx's needsBalance).
-// cancelled        → MANUAL, via Terminate.
+// pending          → auto-set on client submit. Folds into "Reviewing".
+// admin_reviewing  → auto-set the moment admin opens the card.
+// contact          → MANUAL. Admin reaching out to confirm details.
+// admin_approved   → MANUAL.
+// payment_pending  → AUTO, once vendors accept + admin approved.
+// confirmed        → AUTO, on advance payment success (payments.js).
+// completed        → MANUAL. Reveals balance-payment on client side.
+// cancellation_requested → AUTO, the moment a client asks to cancel
+//                    (PATCH /events/:id/cancel). Nothing is cancelled or
+//                    refunded yet — admin must Approve or Deny below.
+// cancelled        → MANUAL, via two paths:
+//                    (a) admin/vendor Terminate → 100% refund
+//                    (b) admin approves a client cancellation request →
+//                        90% refund (fixed policy)
 const STATUS_LABELS = {
-  pending:         'Reviewing',
-  admin_reviewing: 'Reviewing',
-  contact:         'Contact',
-  admin_approved:  'Approved',
-  payment_pending: 'Payment Due',
-  confirmed:       'Confirmed',
-  completed:       'Completed',
-  cancelled:       'Cancelled',
+  pending:                'Reviewing',
+  admin_reviewing:        'Reviewing',
+  contact:                'Contact',
+  admin_approved:         'Approved',
+  payment_pending:        'Payment Due',
+  confirmed:              'Confirmed',
+  completed:              'Completed',
+  cancellation_requested: 'Cancellation Requested',
+  cancelled:              'Cancelled',
 };
 
 // Statuses admin can manually set from the "Update Status" buttons.
-// pending/payment_pending/confirmed are excluded on purpose — see the
-// lifecycle comment above.
+// cancellation_requested is deliberately excluded — that state is only
+// ever entered by the client's own cancel action, never set by admin.
 const MANUAL_STATUS_OPTIONS = [
   { value: 'admin_reviewing', label: 'Reviewing' },
   { value: 'contact',         label: 'Contact' },
@@ -52,9 +43,6 @@ const MANUAL_STATUS_OPTIONS = [
   { value: 'cancelled',       label: 'Cancelled' },
 ];
 
-// Maps a raw event status to the status used for the pill/class/grouped
-// counts. Only 'pending' folds (into 'admin_reviewing') — see comment
-// above. Every other status displays as itself.
 function displayStatus(status) {
   return status === 'pending' ? 'admin_reviewing' : status;
 }
@@ -78,9 +66,12 @@ const OFFLINE_METHOD_OPTIONS = [
   { value: 'bank_transfer', label: 'Bank Transfer / UPI' },
 ];
 
-// "Past" for admin purposes = an event that's done-and-dusted: completed,
-// cancelled, or an otherwise-active booking whose event date has already
-// gone by. Everything else counts as ongoing/upcoming.
+// Fixed refund policy — mirrors CLIENT_CANCELLATION_REFUND_PCT in
+// server/routes/payments.js. Shown in the approval banner so admin sees
+// exactly what clicking "Approve" is about to trigger, without having to
+// go check the backend.
+const CLIENT_CANCELLATION_REFUND_PCT = 90;
+
 const PAST_STATUSES = ['completed', 'cancelled'];
 
 function startOfToday() {
@@ -98,11 +89,6 @@ function isPastEvent(e) {
   return PAST_STATUSES.includes(e.status) || isPastDate(e.event_date);
 }
 
-// ── Find the "ongoing" event ──────────────────────────────────────────────
-// The soonest today-or-later event that's actually in-motion for admin
-// (approved, payment due, or confirmed) — the one thing admin most needs
-// eyes on right now. Pinned to the top of the Ongoing & Upcoming tab and
-// auto-expanded.
 const ONGOING_STATUSES = ['admin_approved', 'payment_pending', 'confirmed'];
 
 function findOngoing(list) {
@@ -133,10 +119,6 @@ const tabBtn = (active) => ({
   transition: 'all 0.15s',
 });
 
-// ── Full-size image lightbox ────────────────────────────────────────────
-// Used for client-uploaded reference images, which (unlike gallery
-// references) have no reference_event_id to link admin to a real /explore
-// page — this is the only place admin can actually see them at full size.
 function ImageLightbox({ src, onClose }) {
   if (!src) return null;
   return (
@@ -179,31 +161,26 @@ export default function AdminEventRequests() {
   const [statusUpdating, setStatusUpdating] = useState({});
   const [notes, setNotes] = useState({});
   const [actionMsg, setActionMsg] = useState('');
-  const [tab, setTab] = useState('upcoming'); // 'upcoming' | 'past'
+  const [tab, setTab] = useState('upcoming');
   const [lightboxImage, setLightboxImage] = useState(null);
 
-  // ── Add-on charges: keyed by event id ─────────────────────────────────
   const [addonsByEvent, setAddonsByEvent] = useState({});
-  const [addonForm, setAddonForm] = useState({});       // { [eventId]: { label, amount, notes } }
+  const [addonForm, setAddonForm] = useState({});
   const [addonSubmitting, setAddonSubmitting] = useState({});
 
-  // ── Offline payment recording: keyed by event id ───────────────────────
-  const [offlineForm, setOfflineForm] = useState({});    // { [eventId]: { payment_type, addon_id, payment_method, notes } }
+  const [offlineForm, setOfflineForm] = useState({});
   const [offlineSubmitting, setOfflineSubmitting] = useState({});
 
-  // ── Reference-price estimate (Option 3): keyed by event id ─────────────
-  // For a client-uploaded reference image (no reference_event_id, so no
-  // gallery price exists for it), admin can attach a ballpark estimate
-  // after reviewing the photo. This does NOT touch budget_estimate — it
-  // only records reference_event_price so the client sees a number instead
-  // of "price to be quoted" on their side, without silently changing a
-  // total the client may have already paid an advance against.
-  const [refPriceForm, setRefPriceForm] = useState({});        // { [eventId]: string }
+  const [refPriceForm, setRefPriceForm] = useState({});
   const [refPriceSubmitting, setRefPriceSubmitting] = useState({});
 
-  // Live updates: a client submits a new event, cancels one, or a payment
-  // lands — this merges the fresh row into local state without admin
-  // having to reload the tab to see it.
+  // ── NEW: client cancellation-request approve/deny ──────────────────────
+  const [cancellationActing, setCancellationActing] = useState({}); // { [eventId]: true }
+
+  // ── NEW: billing-correction (manual refund notice) ─────────────────────
+  const [billingForm, setBillingForm] = useState({});          // { [eventId]: { amount, note } }
+  const [billingSubmitting, setBillingSubmitting] = useState({});
+
   useEffect(() => {
     const socket = getSocket();
 
@@ -220,10 +197,6 @@ export default function AdminEventRequests() {
     return () => socket.off('event:update', onUpdate);
   }, []);
 
-  // Add-on charges live in their own state (addonsByEvent), keyed by event
-  // id, fetched on-demand when a card expands. Keep that in sync live too —
-  // e.g. if admin creates a charge from one tab/device, another admin tab
-  // (or the same one, after a payment settles it) sees it without a click.
   useEffect(() => {
     const socket = getSocket();
     const onAddonsUpdate = (payload) => {
@@ -234,9 +207,6 @@ export default function AdminEventRequests() {
     return () => socket.off('addons:update', onAddonsUpdate);
   }, []);
 
-  // Auto-open the ongoing event's detail section the first time events
-  // load, without fighting admin's own manual expand/collapse clicks
-  // afterwards (only runs while nothing has been expanded yet).
   useEffect(() => {
     if (events.length > 0 && expanded === null) {
       const ongoing = findOngoing(events);
@@ -292,7 +262,7 @@ export default function AdminEventRequests() {
     const hasPaid = paymentStatus === 'advance_paid' || paymentStatus === 'fully_paid';
     const confirmed = window.confirm(
       hasPaid
-        ? 'This client has paid. Terminating will trigger a refund. Are you sure?'
+        ? 'This client has paid. Terminating will refund 100% of everything paid so far. Are you sure?'
         : 'Are you sure you want to terminate this event request?'
     );
     if (!confirmed) return;
@@ -312,7 +282,8 @@ export default function AdminEventRequests() {
           body: JSON.stringify({ booking_id: eventId, refund_pct: 100, reason: 'Event terminated by admin' })
         });
         const refData = await refRes.json();
-        showMsg(refData.success ? 'Event terminated. Refund initiated (or noted for manual settlement if offline).' : 'Event terminated. Refund failed — check Razorpay dashboard.');
+        const total = ((refData.total_refund_amount || 0) / 100).toLocaleString('en-IN');
+        showMsg(refData.success ? `Event terminated. ₹${total} refunded across every paid instalment.` : 'Event terminated. Refund failed — check server logs / Razorpay dashboard.');
       } else {
         showMsg('Event terminated successfully.');
       }
@@ -323,9 +294,83 @@ export default function AdminEventRequests() {
     }
   }
 
-  // ── Cost-cutting: partial refund/adjustment on an already-paid event ───
+  // ── NEW: approve / deny a client's cancellation request ────────────────
+  async function approveCancellation(eventId) {
+    if (!window.confirm(`Approve this cancellation? ${CLIENT_CANCELLATION_REFUND_PCT}% of everything paid so far will be refunded automatically.`)) return;
+    setCancellationActing(s => ({ ...s, [eventId]: true }));
+    try {
+      const res = await adminFetch(`/events/admin/${eventId}/approve-cancellation`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      if (data.success) {
+        const total = (data.refund || []).reduce((s, r) => s + (r.refund_amount || 0), 0);
+        showMsg(total > 0
+          ? `Cancellation approved — ₹${(total / 100).toLocaleString('en-IN')} refunded (${CLIENT_CANCELLATION_REFUND_PCT}% policy).`
+          : 'Cancellation approved. Nothing had been paid, so no refund was needed.');
+        setEvents(ev => ev.map(e => e.id === eventId ? { ...e, status: 'cancelled' } : e));
+      } else {
+        showMsg(data.error || 'Could not approve cancellation.');
+      }
+    } catch {
+      showMsg('Could not connect to server.');
+    }
+    setCancellationActing(s => ({ ...s, [eventId]: false }));
+  }
+
+  async function denyCancellation(eventId) {
+    setCancellationActing(s => ({ ...s, [eventId]: true }));
+    try {
+      const res = await adminFetch(`/events/admin/${eventId}/deny-cancellation`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      if (data.success) {
+        showMsg('Cancellation request denied — event restored to its previous status.');
+        setEvents(ev => ev.map(e => e.id === eventId ? { ...e, status: data.status } : e));
+      } else {
+        showMsg(data.error || 'Could not deny cancellation.');
+      }
+    } catch {
+      showMsg('Could not connect to server.');
+    }
+    setCancellationActing(s => ({ ...s, [eventId]: false }));
+  }
+
+  // ── NEW: billing-correction manual refund notice ────────────────────────
+  const setBillingField = (eventId, key, val) =>
+    setBillingForm(f => ({ ...f, [eventId]: { ...(f[eventId] || { amount: '', note: '' }), [key]: val } }));
+
+  async function handleBillingCorrection(eventId) {
+    const form = billingForm[eventId] || {};
+    const amt = Number(form.amount);
+    if (!amt || amt <= 0) { showMsg('Enter a valid refund amount.'); return; }
+    if (!window.confirm(`Mark ₹${amt.toLocaleString('en-IN')} as a billing-correction refund for this client?`)) return;
+
+    setBillingSubmitting(s => ({ ...s, [eventId]: true }));
+    try {
+      const res = await adminFetch(`/payments/manual-adjustment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ booking_id: eventId, amount: amt, note: form.note || '' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showMsg(data.notice || 'Billing correction recorded.');
+        setBillingForm(f => ({ ...f, [eventId]: { amount: '', note: '' } }));
+      } else {
+        showMsg(data.error || 'Could not record billing correction.');
+      }
+    } catch {
+      showMsg('Could not connect to server.');
+    }
+    setBillingSubmitting(s => ({ ...s, [eventId]: false }));
+  }
+
   async function handleAdjustment(eventId) {
-    const pctStr = window.prompt('What % of the most recent paid amount should be refunded/adjusted? (e.g. 20)');
+    const pctStr = window.prompt('What % of everything paid so far should be refunded/adjusted? (e.g. 20)');
     if (!pctStr) return;
     const pct = Number(pctStr);
     if (!pct || pct <= 0 || pct > 100) { showMsg('Enter a valid percentage between 1 and 100.'); return; }
@@ -338,13 +383,13 @@ export default function AdminEventRequests() {
         body: JSON.stringify({ booking_id: eventId, refund_pct: pct, reason }),
       });
       const data = await res.json();
-      showMsg(data.success ? `Adjustment recorded — ₹${((data.refund_amount||0)/100).toLocaleString('en-IN')}${data.note ? ' (' + data.note + ')' : ''}` : (data.error || 'Adjustment failed.'));
+      const total = (data.results || []).reduce((s, r) => s + (r.refund_amount || 0), 0);
+      showMsg(data.success !== false ? `Adjustment recorded — ₹${(total / 100).toLocaleString('en-IN')} refunded across every paid instalment.` : (data.error || 'Adjustment failed.'));
     } catch {
       showMsg('Could not connect to server.');
     }
   }
 
-  // ── Add-on charges ───────────────────────────────────────────────────
   const setAddonField = (eventId, key, val) =>
     setAddonForm(f => ({ ...f, [eventId]: { ...(f[eventId] || {}), [key]: val } }));
 
@@ -381,7 +426,6 @@ export default function AdminEventRequests() {
     fetchAddons(eventId);
   }
 
-  // ── Offline / COD payment recording ──────────────────────────────────
   const setOfflineField = (eventId, key, val) =>
     setOfflineForm(f => ({ ...f, [eventId]: { ...(f[eventId] || { payment_type: 'advance', payment_method: 'cash' }), [key]: val } }));
 
@@ -421,10 +465,6 @@ export default function AdminEventRequests() {
     setOfflineSubmitting(s => ({ ...s, [eventId]: false }));
   }
 
-  // ── Reference-price estimate (Option 3) ───────────────────────────────
-  // Lets admin attach a ballpark ₹ estimate to a client-uploaded reference
-  // photo that came in with no price at all. Deliberately does NOT touch
-  // budget_estimate — see note above the state declarations.
   async function handleSetReferencePrice(eventId) {
     const val = Number(refPriceForm[eventId]);
     if (!val || val <= 0) { showMsg('Enter a valid amount.'); return; }
@@ -455,12 +495,6 @@ export default function AdminEventRequests() {
     setExpanded(next);
     if (next && !addonsByEvent[next]) fetchAddons(next);
 
-    // Opening a still-"pending" request means admin is now looking at it —
-    // flip it to "admin_reviewing" so the client sees "Reviewing" instead of
-    // "Pending" without admin having to click the status button manually.
-    // This only fires from 'pending' specifically, so re-opening a card
-    // that's already further along (approved, payment due, confirmed, etc.)
-    // never gets bumped backwards to "Reviewing".
     if (next) {
       const ev = events.find(e => e.id === next);
       if (ev && ev.status === 'pending') {
@@ -472,27 +506,22 @@ export default function AdminEventRequests() {
   if (loading) return <div className="aer-loading">Loading event requests…</div>;
 
   const grouped = {
-    // 'pending' folded in here — see displayStatus() comment above.
     admin_reviewing: events.filter(e => e.status === 'admin_reviewing' || e.status === 'pending'),
     contact: events.filter(e => e.status === 'contact'),
     admin_approved: events.filter(e => e.status === 'admin_approved'),
     payment_pending: events.filter(e => e.status === 'payment_pending'),
     confirmed: events.filter(e => e.status === 'confirmed'),
+    cancellation_requested: events.filter(e => e.status === 'cancellation_requested'),
     completed: events.filter(e => e.status === 'completed'),
     cancelled: events.filter(e => e.status === 'cancelled'),
   };
 
-  // ── Ongoing & Upcoming tab ─────────────────────────────────────────────
   const ongoing = findOngoing(events);
   const upcomingRest = events
     .filter(e => !isPastEvent(e) && e.id !== ongoing?.id)
     .sort(byEventDateAsc);
   const upcomingList = [...(ongoing ? [ongoing] : []), ...upcomingRest];
 
-  // ── Past tab ────────────────────────────────────────────────────────────
-  // Completed/cancelled/date-passed events, newest-event-first, with
-  // cancelled ones pushed to the very end (also newest-first among
-  // themselves).
   const pastNonCancelled = events
     .filter(e => isPastEvent(e) && e.status !== 'cancelled')
     .sort(byEventDateDesc);
@@ -500,6 +529,11 @@ export default function AdminEventRequests() {
   const pastList = [...pastNonCancelled, ...cancelled];
 
   const activeList = tab === 'upcoming' ? upcomingList : pastList;
+
+  // Cancellation requests are the most time-sensitive thing on this page —
+  // pin them above everything else on the upcoming tab regardless of date,
+  // same reasoning as the "ongoing" pin.
+  const pendingCancellations = events.filter(e => e.status === 'cancellation_requested');
 
   return (
     <div className="aer-page">
@@ -522,7 +556,21 @@ export default function AdminEventRequests() {
         <div className="aer-empty">No event requests yet.</div>
       ) : (
         <>
-          {/* ── Tab toggle ── */}
+          {/* ── Pending cancellation requests — always visible, both tabs ── */}
+          {pendingCancellations.length > 0 && (
+            <div style={{
+              background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12,
+              padding: '14px 18px', marginBottom: 20,
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#b91c1c', marginBottom: 4 }}>
+                ⚠️ {pendingCancellations.length} client cancellation request{pendingCancellations.length === 1 ? '' : 's'} waiting for your approval
+              </div>
+              <div style={{ fontSize: 12, color: 'rgba(185,28,28,0.75)' }}>
+                Open the event below to Approve ({CLIENT_CANCELLATION_REFUND_PCT}% refund) or Deny.
+              </div>
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
             <button style={tabBtn(tab === 'upcoming')} onClick={() => setTab('upcoming')}>
               Ongoing &amp; Upcoming {upcomingList.length > 0 ? `(${upcomingList.length})` : ''}
@@ -543,13 +591,11 @@ export default function AdminEventRequests() {
                 const pendingAddons = addons.filter(a => a.status === 'pending');
                 const aForm = addonForm[ev.id] || { label: '', amount: '', notes: '' };
                 const oForm = offlineForm[ev.id] || { payment_type: 'advance', payment_method: 'cash', notes: '' };
+                const bForm = billingForm[ev.id] || { amount: '', note: '' };
                 const hasPaid = ev.payment_status === 'advance_paid' || ev.payment_status === 'fully_paid';
                 const isOngoing = ongoing?.id === ev.id;
-                // A reference with no reference_event_id never came from the
-                // gallery — it's a photo the client uploaded themselves.
-                // There's no /explore page for it to link to, so it's the
-                // one case that needs the full-size lightbox.
                 const isCustomRef = !ev.reference_event_id && !!ev.reference_event_image;
+                const isCancellationPending = ev.status === 'cancellation_requested';
 
                 const dStatus = displayStatus(ev.status);
 
@@ -557,14 +603,20 @@ export default function AdminEventRequests() {
                 <div
                   key={ev.id}
                   className={`aer-card aer-status-${dStatus}`}
-                  style={isOngoing ? { borderLeftWidth: 4, boxShadow: '0 0 0 1px rgba(33,138,79,0.25)' } : undefined}
+                  style={
+                    isCancellationPending
+                      ? { borderLeftWidth: 4, borderLeftColor: '#c73e3e', boxShadow: '0 0 0 1px rgba(199,62,62,0.2)' }
+                      : isOngoing
+                        ? { borderLeftWidth: 4, boxShadow: '0 0 0 1px rgba(33,138,79,0.25)' }
+                        : undefined
+                  }
                 >
                   {/* Card header */}
                   <div className="aer-card-header" onClick={() => toggleExpand(ev.id)}>
                     <div className="aer-card-left">
                       <div className="aer-event-type" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span>{ev.event_type}</span>
-                        {isOngoing && (
+                        {isOngoing && !isCancellationPending && (
                           <span style={{
                             fontSize: 10, fontWeight: 700, letterSpacing: '0.06em',
                             color: '#218a4f', background: 'rgba(33,138,79,0.12)',
@@ -572,6 +624,16 @@ export default function AdminEventRequests() {
                             padding: '2px 8px', textTransform: 'uppercase',
                           }}>
                             ● Ongoing
+                          </span>
+                        )}
+                        {isCancellationPending && (
+                          <span style={{
+                            fontSize: 10, fontWeight: 700, letterSpacing: '0.06em',
+                            color: '#b91c1c', background: 'rgba(199,62,62,0.12)',
+                            border: '1px solid rgba(199,62,62,0.3)', borderRadius: 20,
+                            padding: '2px 8px', textTransform: 'uppercase',
+                          }}>
+                            ⚠ Cancellation Requested
                           </span>
                         )}
                       </div>
@@ -585,7 +647,7 @@ export default function AdminEventRequests() {
                     </div>
                     <div className="aer-card-right">
                       <div className="aer-budget">₹{(ev.budget_estimate || 0).toLocaleString('en-IN')}</div>
-                      <div className={`aer-status-pill aer-pill-${dStatus}`}>
+                      <div className={`aer-status-pill aer-pill-${dStatus}`} style={isCancellationPending ? { background: 'rgba(199,62,62,0.15)', color: '#b91c1c' } : undefined}>
                         {STATUS_LABELS[dStatus] || dStatus}
                       </div>
                       <div className="aer-expand-icon">{expanded === ev.id ? '▲' : '▼'}</div>
@@ -595,6 +657,43 @@ export default function AdminEventRequests() {
                   {/* Expanded details */}
                   {expanded === ev.id && (
                     <div className="aer-card-body">
+
+                      {/* ── NEW: cancellation-request approve/deny banner ── */}
+                      {isCancellationPending && (
+                        <div className="aer-section">
+                          <div style={{
+                            background: 'rgba(199,62,62,0.06)', border: '1px solid rgba(199,62,62,0.25)',
+                            borderRadius: 10, padding: '16px 18px',
+                          }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: '#b91c1c', marginBottom: 6 }}>
+                              Client has requested cancellation
+                            </div>
+                            <p style={{ fontSize: 12.5, color: 'rgba(42,32,24,0.7)', lineHeight: 1.6, marginBottom: 14 }}>
+                              {hasPaid
+                                ? `Approving will refund ${CLIENT_CANCELLATION_REFUND_PCT}% of everything paid so far (every paid instalment — advance and balance, if both landed) and cancel the event.`
+                                : 'Nothing has been paid on this event yet — approving will simply cancel it, no refund needed.'}
+                            </p>
+                            <div style={{ display: 'flex', gap: 10 }}>
+                              <button
+                                className="aer-status-btn"
+                                disabled={cancellationActing[ev.id]}
+                                onClick={() => approveCancellation(ev.id)}
+                                style={{ background: 'rgba(33,138,79,0.12)', borderColor: 'rgba(33,138,79,0.4)', color: '#218a4f', fontWeight: 600 }}
+                              >
+                                {cancellationActing[ev.id] ? '…' : `✓ Approve (${CLIENT_CANCELLATION_REFUND_PCT}% refund)`}
+                              </button>
+                              <button
+                                className="aer-status-btn"
+                                disabled={cancellationActing[ev.id]}
+                                onClick={() => denyCancellation(ev.id)}
+                              >
+                                {cancellationActing[ev.id] ? '…' : '✕ Deny'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Client info */}
                       <div className="aer-section">
                         <div className="aer-section-title">Client</div>
@@ -662,13 +761,6 @@ export default function AdminEventRequests() {
                                 </div>
                               )}
 
-                              {/* ── Option 3: admin can set an estimate for a
-                                  client-uploaded reference that has no price
-                                  yet. Hides itself once a price is set. This
-                                  only updates reference_event_price — it does
-                                  NOT recompute budget_estimate, since the
-                                  client may already have paid an advance
-                                  against the original total. */}
                               {isCustomRef && !ev.reference_event_price && (
                                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 2 }}>
                                   <input
@@ -689,10 +781,6 @@ export default function AdminEventRequests() {
                                 </div>
                               )}
 
-                              {/* Gallery-sourced reference: send admin to the real
-                                  /explore listing for full context. Client-uploaded
-                                  reference: no such page exists, so open it full
-                                  size right here instead. */}
                               {ev.reference_event_id ? (
                                 <button
                                   className="aer-view-img-btn"
@@ -889,19 +977,54 @@ export default function AdminEventRequests() {
                         )}
                       </div>
 
-                      {/* ── Cost-cutting / adjustment ──────────────────────────── */}
+                      {/* ── Cost adjustment (% based, existing) ─────────────────── */}
                       {hasPaid && (
                         <div className="aer-section">
-                          <div className="aer-section-title">Cost Adjustment</div>
+                          <div className="aer-section-title">Cost Adjustment (% of everything paid)</div>
                           <p style={{ fontSize: 12, color: 'rgba(42,32,24,0.55)', marginBottom: 10, lineHeight: 1.6 }}>
                             If the final cost came in lower than what the client already paid (e.g. a vendor
-                            dropped out, or a service was reduced), record a partial refund/adjustment here.
-                            Online payments trigger a real Razorpay refund; offline ones just update the ledger
-                            for you to settle manually.
+                            dropped out, or a service was reduced), record a partial refund/adjustment here — a
+                            percentage of everything paid so far (advance + balance, if both landed).
                           </p>
                           <button className="aer-terminate-btn" onClick={() => handleAdjustment(ev.id)}>
-                            ↩ Issue partial refund / adjustment
+                            ↩ Issue % refund / adjustment
                           </button>
+                        </div>
+                      )}
+
+                      {/* ── NEW: Billing correction (exact ₹ amount) ────────────── */}
+                      {hasPaid && (
+                        <div className="aer-section">
+                          <div className="aer-section-title">Billing Correction (wrong amount was shown)</div>
+                          <p style={{ fontSize: 12, color: 'rgba(42,32,24,0.55)', marginBottom: 10, lineHeight: 1.6 }}>
+                            Use this when the ORIGINAL bill itself was miscalculated (not a cancellation) —
+                            enter the exact ₹ amount owed back. This records a "refund coming shortly" notice
+                            against the booking; settle the actual transfer outside the app.
+                          </p>
+                          <div className="aer-inline-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr auto', gap: 8, alignItems: 'center' }}>
+                            <input
+                              className="aer-notes"
+                              style={{ minHeight: 'auto', padding: '9px 12px' }}
+                              type="number"
+                              placeholder="Exact amount ₹"
+                              value={bForm.amount}
+                              onChange={e => setBillingField(ev.id, 'amount', e.target.value)}
+                            />
+                            <input
+                              className="aer-notes"
+                              style={{ minHeight: 'auto', padding: '9px 12px' }}
+                              placeholder="Reason (optional, shown to client)"
+                              value={bForm.note}
+                              onChange={e => setBillingField(ev.id, 'note', e.target.value)}
+                            />
+                            <button
+                              className="aer-status-btn"
+                              disabled={billingSubmitting[ev.id]}
+                              onClick={() => handleBillingCorrection(ev.id)}
+                            >
+                              {billingSubmitting[ev.id] ? '…' : 'Mark refund'}
+                            </button>
+                          </div>
                         </div>
                       )}
 
@@ -917,32 +1040,36 @@ export default function AdminEventRequests() {
                         />
                       </div>
 
-                      {/* Status control */}
-                      <div className="aer-section aer-actions">
-                        <div className="aer-section-title">Update Status</div>
-                        <div className="aer-status-buttons">
-                          {MANUAL_STATUS_OPTIONS.map(opt => (
-                            <button
-                              key={opt.value}
-                              className={`aer-status-btn ${dStatus === opt.value ? 'aer-status-btn-active' : ''}`}
-                              disabled={statusUpdating[ev.id] || dStatus === opt.value}
-                              onClick={() => updateStatus(ev.id, opt.value)}
-                            >
-                              {opt.label}
-                            </button>
-                          ))}
+                      {/* Status control — hidden while a cancellation request is
+                          pending, so admin can't accidentally set a normal
+                          status out from under an unresolved request. */}
+                      {!isCancellationPending && (
+                        <div className="aer-section aer-actions">
+                          <div className="aer-section-title">Update Status</div>
+                          <div className="aer-status-buttons">
+                            {MANUAL_STATUS_OPTIONS.map(opt => (
+                              <button
+                                key={opt.value}
+                                className={`aer-status-btn ${dStatus === opt.value ? 'aer-status-btn-active' : ''}`}
+                                disabled={statusUpdating[ev.id] || dStatus === opt.value}
+                                onClick={() => updateStatus(ev.id, opt.value)}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
 
-                          {!['cancelled', 'completed'].includes(ev.status) && (
-                            <button
-                              className="aer-terminate-btn"
-                              disabled={statusUpdating[ev.id]}
-                              onClick={() => terminateEvent(ev.id, ev.payment_status)}
-                            >
-                              ✕ Terminate
-                            </button>
-                          )}
+                            {!['cancelled', 'completed'].includes(ev.status) && (
+                              <button
+                                className="aer-terminate-btn"
+                                disabled={statusUpdating[ev.id]}
+                                onClick={() => terminateEvent(ev.id, ev.payment_status)}
+                              >
+                                ✕ Terminate
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   )}
                 </div>

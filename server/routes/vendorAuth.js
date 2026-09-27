@@ -9,6 +9,11 @@ const rateLimit = require('../middleware/rateLimit');
 const { isEmail, isPassword, text } = require('../lib/validation');
 const { finalizeImageUpload } = require('../lib/imageUpload');
 const { getCookie, setRefreshCookie, clearRefreshCookie } = require('../lib/session');
+// Same category whitelist services.js's POST / and PATCH /:id/category
+// enforce. Reused here (rather than duplicated) so the two lists can never
+// drift apart — see the FIX comment on this route below for why this
+// route needed it too.
+const { VALID_CATEGORIES } = require('./services');
 router.use(rateLimit({ max: 30 }));
 
 // ── Refresh-token config ──────────────────────────────────────────────────
@@ -154,6 +159,19 @@ router.post('/signup', async (req, res) => {
     const { name, email, password, phone, service_category } = req.body;
     if (!text(name, 120) || !isEmail(email) || !isPassword(password)) {
       return res.status(400).json({ error: 'Provide a name, valid email, and password of at least 8 characters' });
+    }
+    // FIXED: this route can mint a brand-new `services` row from
+    // `service_category` below (see the `if (service_category)` block).
+    // services.js's own POST / and PATCH /:id/category both validate that
+    // value against VALID_CATEGORIES before writing it — this route was
+    // the one path that inserted it unvalidated. A tampered/arbitrary
+    // string here created an "orphan category": a services row whose
+    // category never matches anything VendorSignup.jsx / VendorProfile.jsx /
+    // any listing page actually looks for, silently landing the vendor
+    // in the same photography-fallback state as the invitation vs.
+    // custom-invitations mismatch. Reject before touching the DB at all.
+    if (service_category && !VALID_CATEGORIES.includes(service_category)) {
+      return res.status(400).json({ error: `service_category must be one of: ${VALID_CATEGORIES.join(', ')}` });
     }
     const exists = await pool.query('SELECT id FROM vendor_users WHERE email = $1', [email]);
     if (exists.rows.length > 0) return res.status(400).json({ error: 'Email already registered' });

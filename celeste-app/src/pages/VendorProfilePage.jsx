@@ -495,6 +495,22 @@ export default function VendorProfilePage({ bookmarks, onBookmarkToggle, service
   const [messageSent,    setMessageSent]    = useState(false);
   const [messageError,   setMessageError]   = useState('');
 
+  // Auto-fill "Send a Message" from the client's registered account info
+  // (name/phone/email) as soon as `user` is available — covers both the
+  // initial page load for an already-logged-in client and the moment the
+  // session gets restored via the refresh-cookie flow in AuthContext.
+  // Only fills fields that are still blank, so it never overwrites
+  // anything the client has already typed into the form themselves.
+  useEffect(() => {
+    if (!user) return;
+    setContactForm(f => ({
+      ...f,
+      name:  f.name  || user.name  || '',
+      phone: f.phone || user.phone || '',
+      email: f.email || user.email || '',
+    }));
+  }, [user]);
+
   // Booking form state
   const [bookingForm, setBookingForm] = useState({ name: '', phone: '', email: '', date: '', eventType: '', service: '' });
   const [bookingSending, setBookingSending] = useState(false);
@@ -696,7 +712,7 @@ const photographer = dbVendor
       openLoginPrompt('message');
       return;
     }
-    setBookingForm(f => ({ ...f, name: user.name || f.name, email: user.email || f.email, service: serviceName || f.service }));
+    setBookingForm(f => ({ ...f, name: user.name || f.name, phone: user.phone || f.phone, email: user.email || f.email, service: serviceName || f.service }));
     setBookingError('');
     setShowBookingModal(true);
   };

@@ -170,7 +170,7 @@ export default function SignupPage() {
   const handleSignup = async () => {
     setLoading(true);
     try {
-      await signup(fname, lname, email, pw);
+      await signup(fname, lname, email, pw, phone);
       setToast('Account created!');
       setTimeout(() => navigate('/'), 800);
     } catch (err) {

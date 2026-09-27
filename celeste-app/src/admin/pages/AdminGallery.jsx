@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { API_URL } from '../../config/api';
+import { adminFetch } from '../../lib/adminApi';
 
 const API = API_URL;
-const token = () => localStorage.getItem('adminToken');
 
 const EVENT_TYPES = ['Wedding', 'Birthday', 'Corporate', 'Concert', 'Festival', 'Sports', 'Outdoor', 'Expo', 'Cultural', 'Charity', 'Food'];
 const SCALE_OPTIONS = ['Small', 'Medium', 'Large'];
@@ -90,9 +90,8 @@ export default function AdminGallery() {
     fd.append('show_on_landing', showOnLanding);
 
     try {
-      const res  = await fetch(`${API}/gallery`, {
+      const res  = await adminFetch(`/gallery`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token()}` },
         body: fd,
       });
       const data = await res.json();
@@ -114,9 +113,8 @@ export default function AdminGallery() {
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this image?')) return;
     try {
-      await fetch(`${API}/gallery/${id}`, {
+      await adminFetch(`/gallery/${id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token()}` },
       });
       if (selectedGalleryItem?.id === id) setSelectedGalleryItem(null);
       fetchImages();
@@ -128,9 +126,8 @@ export default function AdminGallery() {
   // ── Toggle whether an item shows on the public Landing Page ────────────
   const handleToggleLanding = async (id) => {
     try {
-      await fetch(`${API}/gallery/${id}/landing`, {
+      await adminFetch(`/gallery/${id}/landing`, {
         method: 'PATCH',
-        headers: { Authorization: `Bearer ${token()}` },
       });
       fetchImages();
     } catch {
@@ -153,9 +150,8 @@ export default function AdminGallery() {
     fd.append('image', extraFile);
     fd.append('caption', extraCaption);
     try {
-      const res = await fetch(`${API}/gallery/${selectedGalleryItem.id}/images`, {
+      const res = await adminFetch(`/gallery/${selectedGalleryItem.id}/images`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token()}` },
         body: fd,
       });
       const data = await res.json();
@@ -177,9 +173,8 @@ export default function AdminGallery() {
   const handleDeleteExtra = async (imageId) => {
     if (!window.confirm('Delete this extra image?')) return;
     try {
-      await fetch(`${API}/gallery/images/${imageId}`, {
+      await adminFetch(`/gallery/images/${imageId}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token()}` },
       });
       fetchExtraImages(selectedGalleryItem.id);
       fetchImages();

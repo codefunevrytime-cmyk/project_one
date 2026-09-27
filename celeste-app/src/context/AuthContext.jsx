@@ -124,13 +124,13 @@ export function AuthProvider({ children }) {
     return data;
   }, [refreshAccessToken, scheduleRefresh]);
 
-  const signup = useCallback(async (firstName, lastName, email, password) => {
+  const signup = useCallback(async (firstName, lastName, email, password, phone) => {
     const name = `${firstName} ${lastName}`.trim();
     const res  = await fetch(`${API_BASE}/api/auth/signup`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body:    JSON.stringify({ name, email, password }),
+      body:    JSON.stringify({ name, email, password, phone }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Signup failed');

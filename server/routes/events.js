@@ -22,83 +22,21 @@
 //                       routes, which previously flipped status to
 //                       'completed' on its own if the event date had
 //                       passed. Completed is admin-only now.
-//   cancelled        → MANUAL, via Terminate / client cancel.
-// ─────────────────────────────────────────────────────────────────────────────
-//
-// ── CHANGES IN THIS VERSION ─────────────────────────────────────────────────
-// decoration_venue_id / decoration_venue_image / decoration_venue_title:
-// NEW columns backing the Create Event "decoration location" secondary
-// screen (CreateEventPage.jsx's DecorationVenuePicker). Previously
-// `decoration_type` only stored the category string (home/lawn/hotel/...);
-// there was nowhere to persist which specific real photo the client picked
-// for that category. decoration_venue_id points at decoration_venues.id
-// (see routes/decorationVenues.js) when the photo came from that catalog;
-// image/title are denormalized alongside it so /my and /admin/all can
-// render the picked photo without an extra join, and so the record still
-// makes sense even if that decoration_venues row is later deleted (FK is
-// ON DELETE SET NULL on decoration_venue_id only — image/title are kept).
-//
-// maybeAdvanceEventStatus() (pre-existing): once ALL vendor slots on an
-// event are 'accepted' AND admin has set status to 'admin_approved', the
-// event is automatically flipped to 'payment_pending'. Checked from both
-// sides (vendor responds, or admin approves) so it works regardless of
-// which happens first.
-//
-// reference_event_price column: previously only gallery-sourced references
-// carried a price (fixed gallery data, never stored on the event row
-// itself). Now that clients can upload their OWN reference photo (no
-// gallery row, no price), we persist a price on the event row so:
-//   1. A client-uploaded reference's price (if/when admin sets one — see
-//      PATCH /admin/:id/reference-price below) can be shown back to the
-//      client.
-//   2. It's readable from both /my and /admin/all without extra joins.
-// This does NOT feed into budget_estimate automatically — budget_estimate
-// is fixed at submission time and left untouched here, since a client may
-// already have paid an advance against that original total.
-//
-// ── VENDOR SLOT VALIDATION ────────────────────────────────────────────────
-// Previously, POST / trusted req.body.vendors wholesale: any vendor_id and
-// quoted_price the client sent was inserted directly into
-// event_vendor_slots, with no check that the vendor_id existed, was
-// active, matched the requested service_type, or that the price was
-// anything close to real. Since event_vendor_slots.quoted_price feeds
-// straight into payout math (via effective_price in GET /my and
-// GET /admin/all), a fabricated vendor_id/price pair could drive real
-// payouts off a vendor that's inactive, deleted, or belongs to a
-// different category entirely — or off an arbitrary price the client
-// made up.
-//
-// validateVendorSlot() below re-fetches each vendor server-side and
-// rejects the whole submission (400) if a slot references a vendor that
-// doesn't exist, isn't active, whose service category doesn't match
-// the vendor's actual category, or that requests a sub-service
-// (coverage_type) the vendor never priced on their own profile. The price
-// actually persisted mirrors CreateEventPage.jsx's computeVendorTotal()
-// exactly: sum of the vendor's own per-sub-service prices for whichever
-// coverage_types were picked (falling back to price_per_day if none
-// were), × days.
-//
-// FIXED — category comparison used the wrong field entirely: it compared
-// `v.service_type` (a human-readable display LABEL sent from the frontend,
-// e.g. "Custom Invitations") against `vendor.service_category` (the DB
-// SLUG, e.g. "custom-invitations"). A label with a space can never equal
-// a slug with a hyphen, so this check failed for every single vendor slot
-// on every single event submission, regardless of vendor or category —
-// "Vendor N does not offer <service>" fired unconditionally. The frontend
-// (CreateEventPage.jsx) now sends BOTH: `service_type` (label, kept as-is
-// for display/storage) and a new `service_category` field carrying the
-// same canonical slug (`VENDOR_SERVICE_CONFIGS[...].id`) that
-// vendors.service_category actually stores. Validation below now compares
-// slug-to-slug. If an older/cached frontend build sends no
-// service_category at all, this check is skipped entirely rather than
-// falling back to the broken label comparison — better to skip a
-// secondary safety check than to hard-block 100% of submissions again.
-// ─────────────────────────────────────────────────────────────────────────────
-//
-// ── SOCKET.IO LIVE UPDATES ────────────────────────────────────────────────
-// emitEventUpdate(io, eventId) is called after every write that changes an
-// event row OR a vendor slot's status, so both the client's MyEvents page
-// and admin's AdminEventRequests page update live without a reload.
+//   cancellation_requested → AUTO, the moment a CLIENT asks to cancel (see
+//                       PATCH /:id/cancel below). Parked here — nothing is
+//                       actually cancelled or refunded yet. Payments are
+//                       blocked while in this state (see
+//                       assertPaymentEligible in payments.js).
+//   cancelled        → MANUAL. Two paths now:
+//                       (a) admin/vendor-initiated termination
+//                           (AdminEventRequests "Terminate") → 100% refund
+//                       (b) admin approves a client's cancellation request
+//                           (PATCH /admin/:id/approve-cancellation) → 90%
+//                           refund (CLIENT_CANCELLATION_REFUND_PCT in
+//                           payments.js)
+//                       Both routes now refund EVERY paid instalment for
+//                       the booking via refundAllPaidPayments(), not just
+//                       the most recent one.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const express = require('express');
@@ -108,15 +46,12 @@ const jwt     = require('jsonwebtoken');
 const { emitEventUpdate, emitAddonsUpdate } = require('../lib/emitEventUpdate');
 const adminAuth = require('../middleware/adminAuth');
 const rateLimit = require('../middleware/rateLimit');
+const { refundAllPaidPayments, CLIENT_CANCELLATION_REFUND_PCT } = require('./payments');
 
-// Same per-IP throttle pattern used in auth.js / admin.js / etc. This
-// router was previously unthrottled — event creation (POST /) and vendor
-// slot responses were both callable at unlimited rate per IP.
 router.use(rateLimit({ max: 30 }));
 
 // ── Auto-migrate ──────────────────────────────────────────────────────────────
 async function ensureTables() {
-  // Main event requests table
   await pool.query(`
     CREATE TABLE IF NOT EXISTS event_requests (
       id                     SERIAL PRIMARY KEY,
@@ -143,7 +78,6 @@ async function ensureTables() {
     )
   `);
 
-  // Add missing columns to existing table if they don't exist
   const alterColumns = [
   `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS client_id INTEGER`,
   `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS client_name TEXT`,
@@ -151,29 +85,26 @@ async function ensureTables() {
   `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS reference_event_image TEXT`,
   `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS reference_event_title TEXT`,
   `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS reference_event_type TEXT`,
-  // NEW: price for a reference event/image. Nullable/0 by default — a
-  // client-uploaded photo starts with no price until admin sets one via
-  // PATCH /admin/:id/reference-price.
   `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS reference_event_price NUMERIC`,
   `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS payment_status TEXT`,
   `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS additional_details TEXT`,
-  // NEW — the specific decoration venue photo picked on the Create Event
-  // secondary screen (see decorationVenues.js). decoration_type keeps
-  // storing just the category (home/lawn/hotel/...) as before.
   `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS decoration_venue_id INTEGER REFERENCES decoration_venues(id) ON DELETE SET NULL`,
   `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS decoration_venue_image TEXT`,
   `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS decoration_venue_title TEXT`,
+  // NEW — remembers what status an event was in right before a client
+  // asked to cancel, so a denied cancellation request bounces back to
+  // exactly where it was instead of guessing (e.g. landing everyone back
+  // at 'admin_reviewing' even if they were already 'payment_pending').
+  `ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS pre_cancellation_status TEXT`,
 ];
   for (const sql of alterColumns) {
     await pool.query(sql).catch(() => {}); // ignore if already exists
   }
 
-  // Helpful for fast "my events" lookups
   await pool.query(
     `CREATE INDEX IF NOT EXISTS idx_event_requests_client_id ON event_requests(client_id)`
   ).catch(() => {});
 
-  // ── One-time backfill for rows created before client_id existed ─────────────
   await pool.query(`
     UPDATE event_requests er
     SET client_id = u.id
@@ -183,7 +114,6 @@ async function ensureTables() {
       AND LOWER(er.client_email) = LOWER(u.email)
   `).catch(err => console.error('client_id backfill skipped:', err.message));
 
-  // Vendor slots table
   await pool.query(`
     CREATE TABLE IF NOT EXISTS event_vendor_slots (
       id                      SERIAL PRIMARY KEY,
@@ -204,7 +134,6 @@ async function ensureTables() {
     )
   `);
 
-  // Add missing columns to vendor slots
   const alterSlots = [
     `ALTER TABLE event_vendor_slots ADD COLUMN IF NOT EXISTS days INTEGER DEFAULT 1`,
     `ALTER TABLE event_vendor_slots ADD COLUMN IF NOT EXISTS coverage_types TEXT[]`,
@@ -227,41 +156,9 @@ function getClientFromToken(req) {
   } catch { return null; }
 }
 
-// ── NEW: server-side vendor slot validation ───────────────────────────────────
-// Re-fetches the vendor from the DB (never trusts the client's payload) and
-// checks it exists, is active, and — if the client specified a
-// service_category — that it matches the vendor's actual service category.
-//
-// ALSO computes the authoritative price here, mirroring
-// CreateEventPage.jsx's computeVendorTotal() exactly:
-//   - if the client picked sub-services (coverage_types), sum THIS
-//     vendor's own price for each one (from the vendors.prices JSONB
-//     column they set on their own profile)
-//   - otherwise fall back to price_per_day
-//   - multiply by days
-// The "multiply by days" step matches frontend behaviour for BOTH pricing
-// models without the backend needing to know which one a service_type
-// uses: only "perDay" services ever send a real `days` value in the
-// payload (see CreateEventPage.jsx's extraFields config) — a "flat"
-// service never sends `days`, so it defaults to 1 here and the
-// multiplication is a no-op, same as frontend's `if (pricingModel ===
-// "flat") return base` short-circuit.
-//
-// Any coverage_type the client sends that the vendor hasn't actually
-// priced (missing from vendors.prices) is rejected outright, rather than
-// silently contributing ₹0 — otherwise a client could request a
-// sub-service the vendor never offered/priced and get it inserted for
-// free, which is its own price-fabrication path even with the flat-price
-// fallback closed off.
-//
-// Returns { ok: true, vendor, price } on success or { ok: false, error }
-// on failure; the caller rejects the whole submission on any failure
-// rather than silently dropping/ignoring the bad slot, since a
-// partially-created event with missing vendor coverage is its own kind
-// of confusing state.
+// ── Server-side vendor slot validation ─────────────────────────────────────
 async function validateVendorSlot(v) {
   if (!v.vendor_id) {
-    // No vendor attached to this slot at all — nothing to validate.
     return { ok: true, vendor: null, price: null };
   }
 
@@ -281,18 +178,6 @@ async function validateVendorSlot(v) {
     return { ok: false, error: `Vendor ${v.vendor_id} is not currently active` };
   }
 
-  // FIXED: was comparing v.service_type (display LABEL, e.g. "Custom
-  // Invitations") against vendor.service_category (DB SLUG, e.g.
-  // "custom-invitations") — a label can never equal a slug, so this check
-  // rejected every single vendor slot on every submission unconditionally.
-  // Now compares v.service_category (the canonical slug the frontend now
-  // sends alongside service_type — see CreateEventPage.jsx's
-  // vendorsPayload construction) against vendor.service_category, i.e.
-  // slug-to-slug. If the client payload doesn't include service_category
-  // at all (e.g. a stale cached frontend bundle), this check is skipped
-  // rather than falling back to the old broken comparison — a missing
-  // secondary safety check is far better than hard-blocking every
-  // submission again.
   if (v.service_category && vendor.service_category &&
       String(v.service_category).toLowerCase() !== String(vendor.service_category).toLowerCase()) {
     return { ok: false, error: `Vendor ${v.vendor_id} does not offer ${v.service_type || v.service_category}` };
@@ -304,9 +189,6 @@ async function validateVendorSlot(v) {
   let base;
   if (coverageTypes.length > 0) {
     for (const svc of coverageTypes) {
-      // hasOwnProperty (not just a truthy/undefined check) so a
-      // legitimately-priced-at-0 sub-service isn't confused with one the
-      // vendor never priced at all.
       if (!Object.prototype.hasOwnProperty.call(vendorPrices, svc)) {
         return { ok: false, error: `Vendor ${v.vendor_id} has not priced "${svc}"` };
       }
@@ -323,12 +205,6 @@ async function validateVendorSlot(v) {
 }
 
 // ── Payment-flow helper ────────────────────────────────────────────────────────
-// Call this any time a vendor slot status changes OR admin changes event
-// status. It checks: are all (non-replaced) vendor slots 'accepted'? Is the
-// event already 'admin_approved'? If both true, flip event to
-// 'payment_pending' so the client's MyEvents page shows the Pay button.
-// If any slot is 'declined', we do NOT auto-advance — admin/client must
-// resolve that first (e.g. client picks another vendor).
 async function maybeAdvanceEventStatus(eventId) {
   try {
     const evRes = await pool.query(`SELECT status FROM event_requests WHERE id = $1`, [eventId]);
@@ -342,14 +218,8 @@ async function maybeAdvanceEventStatus(eventId) {
     const slots = slotsRes.rows;
 
     const anyDeclined = slots.some(s => s.status === 'declined');
-    if (anyDeclined) return; // needs manual resolution
+    if (anyDeclined) return;
 
-    // A zero-vendor event (a simple booking with no vendors attached) has
-    // nothing to wait on — "all vendors accepted" is trivially true since
-    // there are no vendors. Previously this function returned early on an
-    // empty slots array, which meant a zero-vendor event could NEVER
-    // advance past 'admin_approved' no matter what admin did, since there
-    // was nothing left to trigger the check again.
     const allAccepted = slots.length === 0 || slots.every(s => s.status === 'accepted');
 
     if (allAccepted && event.status === 'admin_approved') {
@@ -392,25 +262,12 @@ router.post('/', async (req, res) => {
   vendors = [],
 } = req.body;
 
-    // NEW: validate every vendor slot BEFORE creating anything. Fail the
-    // whole submission (400) rather than the event partially existing
-    // with a bad/missing vendor slot — a client resubmits from scratch
-    // instead of ending up with a half-broken event to sort out later.
     const validated = [];
     for (const v of vendors) {
       const result = await validateVendorSlot(v);
       if (!result.ok) {
         return res.status(400).json({ error: result.error });
       }
-      // FIXED: validateVendorSlot() computes the authoritative price and
-      // returns it as result.price, but it was never carried into this
-      // array — only input/vendor were kept. The insert loop below
-      // destructures `price` back out of `validated`, so it was always
-      // `undefined` (-> stored as NULL in quoted_price) regardless of
-      // whether vendor_id was set or the price calc succeeded. This is
-      // what caused vendors to see ₹0 while the client's budget screen
-      // (which computes its own total client-side) showed the correct
-      // amount.
       validated.push({ input: v, vendor: result.vendor, price: result.price });
     }
 
@@ -487,10 +344,6 @@ const eventResult = await pool.query(
       );
     }
 
-    // New submission — tell the admin room right away so a fresh request
-    // shows up on AdminEventRequests without a reload. No client room
-    // push needed here since the client already has this in local state
-    // from the form they just submitted.
     await emitEventUpdate(req.app.get('io'), eventId);
 
     res.json({ success: true, id: eventId });
@@ -514,7 +367,7 @@ router.get('/my', async (req, res) => {
               reference_event_id, reference_event_image,
               reference_event_title, reference_event_type, reference_event_price,
               additional_details,
-              admin_notes, status, payment_status, created_at, updated_at
+              admin_notes, status, pre_cancellation_status, payment_status, created_at, updated_at
        FROM event_requests
        WHERE client_id = $1
        ORDER BY created_at DESC`,
@@ -549,15 +402,40 @@ router.get('/my', async (req, res) => {
   }
 });
 
-// ── PATCH /api/events/:id/cancel — client cancels ────────────────────────────
+// ── PATCH /api/events/:id/cancel — client REQUESTS cancellation ─────────────
+// CHANGED: this used to cancel the event immediately, with no refund ever
+// triggered from this path at all (refund only happened via admin's
+// Terminate button). Per the agreed policy, a client cancelling on their
+// own should get a 90% refund — but that needs an admin approval step in
+// between, not an instant client-side cancel. So this route now only
+// PARKS the request: status becomes 'cancellation_requested' (remembering
+// the prior status in pre_cancellation_status so a denial can bounce it
+// back), and nothing is refunded or actually cancelled yet.
+//
+// See PATCH /admin/:id/approve-cancellation below for the step that
+// actually cancels the event and issues the 90% refund, and
+// PATCH /admin/:id/deny-cancellation for rejecting the request.
 router.patch('/:id/cancel', async (req, res) => {
   try {
     const token = getClientFromToken(req);
     if (!token?.id) return res.status(401).json({ error: 'Not authenticated' });
 
+    const evRes = await pool.query(
+      `SELECT status FROM event_requests WHERE id = $1 AND client_id = $2`,
+      [req.params.id, token.id]
+    );
+    if (evRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    const currentStatus = evRes.rows[0].status;
+    if (['cancelled', 'completed', 'cancellation_requested'].includes(currentStatus)) {
+      return res.status(400).json({ error: `Cannot request cancellation from status: ${currentStatus}` });
+    }
+
     const result = await pool.query(
       `UPDATE event_requests
-       SET status = 'cancelled', updated_at = NOW()
+       SET pre_cancellation_status = status, status = 'cancellation_requested', updated_at = NOW()
        WHERE id = $1 AND client_id = $2
        RETURNING id`,
       [req.params.id, token.id]
@@ -567,10 +445,90 @@ router.patch('/:id/cancel', async (req, res) => {
       return res.status(404).json({ error: 'Event not found' });
     }
 
-    // Admin's tab should see the cancellation live too.
+    // Admin's tab should see this pending request live too.
     await emitEventUpdate(req.app.get('io'), req.params.id);
 
-    res.json({ success: true });
+    res.json({ success: true, status: 'cancellation_requested' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── PATCH /api/events/admin/:id/approve-cancellation ──────────────────────
+// Admin approves a client's pending cancellation request: the event is
+// actually cancelled now, and — if anything was paid — a FIXED 90% refund
+// (CLIENT_CANCELLATION_REFUND_PCT) is issued across every paid instalment
+// via refundAllPaidPayments(), which also cancels every pending
+// vendor_payouts row for the event.
+router.patch('/admin/:id/approve-cancellation', adminAuth, async (req, res) => {
+  try {
+    const evRes = await pool.query(
+      `SELECT status, payment_status FROM event_requests WHERE id = $1`,
+      [req.params.id]
+    );
+    const event = evRes.rows[0];
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    if (event.status !== 'cancellation_requested') {
+      return res.status(400).json({ error: 'This event has no pending cancellation request' });
+    }
+
+    await pool.query(
+      `UPDATE event_requests
+       SET status = 'cancelled', pre_cancellation_status = NULL,
+           admin_notes = $1, updated_at = NOW()
+       WHERE id = $2`,
+      [req.body.admin_notes || 'Client cancellation approved by admin — 90% refund issued', req.params.id]
+    );
+
+    const hasPaid = event.payment_status === 'advance_paid' || event.payment_status === 'fully_paid';
+    let refundResult = null;
+
+    if (hasPaid) {
+      refundResult = await refundAllPaidPayments(
+        req.app.get('io'),
+        req.params.id,
+        CLIENT_CANCELLATION_REFUND_PCT,
+        'Client-requested cancellation approved by admin — 90% refund policy'
+      );
+    } else {
+      await emitEventUpdate(req.app.get('io'), req.params.id);
+    }
+
+    res.json({ success: true, refund_pct: CLIENT_CANCELLATION_REFUND_PCT, refund: refundResult });
+  } catch (err) {
+    console.error('approve-cancellation error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── PATCH /api/events/admin/:id/deny-cancellation ─────────────────────────
+// Admin denies the request — no refund, no cancellation. The event bounces
+// back to whatever status it was in right before the client asked to
+// cancel (falls back to 'admin_reviewing' only if that was somehow never
+// recorded).
+router.patch('/admin/:id/deny-cancellation', adminAuth, async (req, res) => {
+  try {
+    const evRes = await pool.query(
+      `SELECT status, pre_cancellation_status FROM event_requests WHERE id = $1`,
+      [req.params.id]
+    );
+    const event = evRes.rows[0];
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    if (event.status !== 'cancellation_requested') {
+      return res.status(400).json({ error: 'This event has no pending cancellation request' });
+    }
+
+    const revertTo = event.pre_cancellation_status || 'admin_reviewing';
+
+    await pool.query(
+      `UPDATE event_requests
+       SET status = $1, pre_cancellation_status = NULL, updated_at = NOW()
+       WHERE id = $2`,
+      [revertTo, req.params.id]
+    );
+
+    await emitEventUpdate(req.app.get('io'), req.params.id);
+    res.json({ success: true, status: revertTo });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -587,7 +545,7 @@ router.get('/admin/all', adminAuth, async (req, res) => {
           reference_event_id, reference_event_image,
           reference_event_title, reference_event_type, reference_event_price,
           additional_details,
-          admin_notes, status, payment_status, created_at, updated_at
+          admin_notes, status, pre_cancellation_status, payment_status, created_at, updated_at
    FROM event_requests ORDER BY created_at DESC`
 );
     const events = eventsRes.rows;
@@ -630,16 +588,10 @@ router.patch('/admin/:id/status', adminAuth, async (req, res) => {
       [status, admin_notes || null, req.params.id]
     );
 
-    // If admin just approved, check whether vendors already all accepted —
-    // if so, immediately advance to payment_pending rather than waiting
-    // on a vendor action that already happened.
     if (status === 'admin_approved') {
       await maybeAdvanceEventStatus(req.params.id);
     }
 
-    // Emit AFTER maybeAdvanceEventStatus so the client gets whatever the
-    // final status ended up being (admin_approved OR payment_pending),
-    // not a stale intermediate value.
     await emitEventUpdate(req.app.get('io'), req.params.id);
 
     res.json({ success: true });
@@ -648,20 +600,7 @@ router.patch('/admin/:id/status', adminAuth, async (req, res) => {
   }
 });
 
-// ── PATCH /api/events/admin/:id/reference-price — admin sets a price on a
-//    client-uploaded reference image ──────────────────────────────────────────
-// A gallery-picked reference already carries its own price from the gallery
-// data itself. A client-uploaded photo (reference_event_id IS NULL but
-// reference_event_image IS NOT NULL) has no price at all — this lets admin
-// attach a ballpark estimate after reviewing the photo.
-//
-// Deliberately scoped narrow: only updates reference_event_price, never
-// budget_estimate. budget_estimate was fixed at submission time and the
-// client may already have paid an advance against it — silently changing
-// the total here would be surprising and could desync it from what was
-// actually paid for. If you want the admin's estimate to also roll into
-// the total budget, that needs its own explicit flow (and a decision on
-// how to handle events that already have a payment against them).
+// ── PATCH /api/events/admin/:id/reference-price ──────────────────────────
 router.patch('/admin/:id/reference-price', adminAuth, async (req, res) => {
   try {
     const { reference_event_price } = req.body;
@@ -693,14 +632,6 @@ router.patch('/admin/:id/reference-price', adminAuth, async (req, res) => {
 });
 
 // ── GET /api/events/vendor/requests — vendor sees their slots ────────────────
-// FIXED: was accepting any valid vendor JWT with no `type` check — a vendor
-// refresh token (30-day life, meant to live only in the HttpOnly cookie —
-// see issueVendorTokens() in vendorAuth.js) has the exact same
-// { vendorUserId, type } shape as an access token, differing only in
-// `type`. vendorAuth.js's own middleware and vendorOrAdminAuth.js both
-// already enforce `type === 'access'` for this reason; this route never
-// did, so a leaked refresh token would work here identically to a
-// legitimate 15-minute access token.
 router.get('/vendor/requests', async (req, res) => {
   try {
     const auth = req.headers.authorization;
@@ -732,14 +663,6 @@ router.get('/vendor/requests', async (req, res) => {
 });
 
 // ── PATCH /api/events/vendor/respond/:slotId ─────────────────────────────────
-// FIXED: this route had NO auth check at all — anyone who knew or guessed
-// a slotId could accept/decline any vendor's booking slot. Now requires a
-// valid vendor token, and the UPDATE is scoped so a vendor can only touch
-// their own slots (same ownership check as GET /vendor/requests above).
-//
-// FIXED (2): also now enforces `type === 'access'` — same reasoning as
-// GET /vendor/requests above. Without it, a leaked vendor refresh token
-// could be used to accept/decline booking slots directly.
 router.patch('/vendor/respond/:slotId', async (req, res) => {
   try {
     const auth = req.headers.authorization;
@@ -775,13 +698,7 @@ router.patch('/vendor/respond/:slotId', async (req, res) => {
 
     const eventId = slotRes.rows[0]?.event_id;
     if (eventId) {
-      // Vendor just accepted/declined — check if this completes the
-      // "all vendors accepted + admin approved" condition.
       await maybeAdvanceEventStatus(eventId);
-
-      // Either way (accepted, declined, or auto-advanced to
-      // payment_pending), both the client and admin should see the vendor
-      // status change live.
       await emitEventUpdate(req.app.get('io'), eventId);
     }
 
