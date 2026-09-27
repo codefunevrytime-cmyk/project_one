@@ -5,7 +5,7 @@ import { EVENT_CATEGORIES } from "../context/data/events";
 import styles from "./CreateEventPage.module.css";
 import { VENDOR_SERVICE_CONFIGS } from "../context/data/vendorServiceConfig";
 import LocationPicker from "../components/LocationPicker";
-import  ArcTour  from '../components/ArcTour';
+import ArcTour from '../components/ArcTour';
 import { createEventTourSteps } from './createEventTourSteps';
 // DISABLED (kept for future use — see the commented-out usage in
 // VendorBlock below): only needed if the post-selection busy-warning

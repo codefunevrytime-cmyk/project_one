@@ -52,8 +52,23 @@ const corsOptions = {
   credentials: true
 };
 
+// CORS must run before anything that might short-circuit a response
+// (including route mounts below), otherwise responses from those routes
+// go out without CORS headers and the browser blocks them client-side.
 app.use(cors(corsOptions));
+
+// The Razorpay webhook needs the RAW request bytes to verify its HMAC
+// signature — the parsed JSON object won't do, the signature is computed
+// over the exact bytes Razorpay sent. This raw parser is scoped to just
+// this one path and MUST be registered before the generic express.json()
+// below: body-parser marks the body as already-parsed once one of these
+// middlewares runs, so express.json() below will see that and skip
+// re-parsing for this path, leaving req.body as the Buffer the webhook
+// route expects. Every other route is untouched and still gets normal
+// parsed JSON via the single express.json() call below.
+app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '1mb' }));
+
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Some legacy database rows reference images that were removed from local
 // storage. Keep the record intact, but return an image placeholder instead of

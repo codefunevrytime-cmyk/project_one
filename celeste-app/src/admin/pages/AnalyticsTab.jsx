@@ -2,25 +2,20 @@ import { useState, useEffect, useCallback } from 'react';
 import { Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { TrendingUp, Calendar, Users, IndianRupee, Clock, ArrowUpRight, ArrowDownRight, Download } from 'lucide-react';
 
-import { API_URL } from '../../config/api';
+import { adminFetch } from '../../lib/adminApi';
 
 // ── Config ──────────────────────────────────────────────────────────────
-// Matches the existing admin panel's Bearer-token pattern (see
-// AdminEventRequests.jsx) and its established white/gold palette.
-const API_BASE = `${API_URL}/analytics`;
+// Matches the existing admin panel's in-memory-token pattern (see
+// AdminVendorPayouts.jsx) and its established white/gold palette.
+const API_BASE = `/analytics`;
 
 const gold = '#a3760f';
 const goldPale = '#f5efe0';
 const ink = '#2a2420';
 const inkMuted = '#8a8078';
 
-function authHeaders() {
-  const token = localStorage.getItem('adminToken'); // adjust key if yours differs
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
 async function fetchJSON(path) {
-  const res = await fetch(`${API_BASE}${path}`, { headers: authHeaders() });
+  const res = await adminFetch(`${API_BASE}${path}`);
   if (!res.ok) throw new Error(`Request failed: ${path}`);
   return res.json();
 }

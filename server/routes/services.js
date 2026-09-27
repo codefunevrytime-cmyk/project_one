@@ -10,6 +10,11 @@ const adminAuth = require('../middleware/adminAuth');
 // previously could only be caught after the fact via the /:id/category
 // fix-up route, once a vendor was already silently stuck showing
 // photography fields).
+//
+// Exported (see bottom of file) so routes/vendorAuth.js's POST /signup —
+// which can also mint a brand-new services row from a client-supplied
+// service_category — validates against this exact same list instead of
+// inserting whatever string it's given.
 const VALID_CATEGORIES = ['photography', 'invitation', 'decor', 'catering', 'music', 'makeup', 'venue'];
 
 // GET all active services
@@ -104,3 +109,9 @@ router.delete('/:id', adminAuth, async (req, res) => {
 });
 
 module.exports = router;
+// Attached rather than changed to `module.exports = { router, VALID_CATEGORIES }`
+// so every existing `require('./routes/services')` call site (which expects
+// the router itself, e.g. `app.use('/api/services', require('./routes/services'))`)
+// keeps working unchanged — an Express router is just a function, and
+// functions can carry extra properties.
+module.exports.VALID_CATEGORIES = VALID_CATEGORIES;

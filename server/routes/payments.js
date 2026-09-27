@@ -18,7 +18,15 @@ const razorpay = new Razorpay({
 // router was previously unthrottled — Razorpay order-creation routes
 // (advance/balance/addon/deposit topup) and the deposit admin actions
 // were all callable at unlimited rate per IP.
-router.use(rateLimit({ max: 30 }));
+//
+// NOTE: this does NOT apply to /webhook (see that route) — Razorpay's own
+// IPs hitting the webhook shouldn't be throttled against this per-IP
+// limiter, and the route is registered before this middleware for exactly
+// that reason.
+router.use((req, res, next) => {
+  if (req.path === '/webhook') return next();
+  return rateLimit({ max: 30 })(req, res, next);
+});
 
 // Default platform commission — now a FLAT percentage of each vendor's
 // FULL quoted price, taken once, regardless of how many payments (advance/
@@ -37,6 +45,16 @@ const EVENT_ADVANCE_PCT = 20;
 // if they never filled this field in.
 const DEFAULT_VENDOR_ADVANCE_PCT = 30;
 
+// ── Cancellation refund policy ────────────────────────────────────────────
+// Fixed business rule (confirmed by product owner):
+//   - Client requests cancellation, admin approves it -> 90% refund.
+//   - Admin/vendor-initiated termination (AdminEventRequests "Terminate")
+//     -> 100% refund.
+// Both now go through the SAME refundAllPaidPayments() helper below, so
+// both refund every paid instalment (advance + balance if both landed),
+// not just the most recent one.
+const CLIENT_CANCELLATION_REFUND_PCT = 90;
+
 // ── Deposit system constants ─────────────────────────────────────────────
 const DEPOSIT_TARGET_PAISE   = 100000; // ₹1000, in paise
 const TRIAL_MONTHS           = 2;
@@ -52,6 +70,11 @@ async function ensureColumns() {
   await pool.query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS notes TEXT`).catch(() => {});
   await pool.query(`ALTER TABLE event_requests ADD COLUMN IF NOT EXISTS admin_commission_pct NUMERIC`).catch(() => {});
   await pool.query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS event_id INTEGER`).catch(() => {});
+  // NEW — records which webhook delivery (Razorpay's event id) last touched
+  // a payment row, purely for debugging/support ("did the webhook even
+  // arrive for this payment?"). Not used for the idempotency guard itself —
+  // that's still the `status = 'pending'` check on the UPDATE.
+  await pool.query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS last_webhook_event_id TEXT`).catch(() => {});
 }
 ensureColumns().catch(console.error);
 
@@ -335,30 +358,7 @@ async function getEventOnlyCostPaise(eventId, totalBudgetRupees) {
   return Math.max(0, totalBudgetPaise - vendorCostsTotalPaise);
 }
 
-// ── Contingency reconciliation (NEW) ──────────────────────────────────────
-// The 5% contingency buffer isn't its own stored column — it's implicit in
-// budget_estimate exactly the way CreateEventPage.jsx computed it at
-// submission: contingency = (event-only cost) − reference_event_price.
-// "Event-only cost" is budget_estimate minus the vendor slots' own total
-// (getEventOnlyCostPaise above), so this stays correct even if
-// reference_event_price is set/changed later by admin's
-// PATCH /admin/:id/reference-price (a client-uploaded reference starts at
-// 0, so 100% of the event-only cost is contingency until admin prices it).
-//
-// "Consumed" is the running total of event_addons.contingency_covered
-// across every non-cancelled add-on — see POST /addons below, which is
-// the only place that column is ever written.
-//
-// IMPORTANT CAVEAT this does not attempt to solve: contingency is drawn
-// down here against the full BUDGETED amount, not against cash actually
-// collected so far. Only the 20% event-advance has necessarily been
-// collected before the balance payment lands (see computeAdvanceSplit) —
-// so a contingency-funded add-on created mid-event may be "spending"
-// buffer that hasn't been fully paid in yet. Budget-estimate itself works
-// the same way (it's a commitment, not a bank balance), so this mirrors
-// existing behavior rather than introducing a new inconsistency — but
-// it's worth knowing before treating "remaining contingency" as literal
-// cash on hand.
+// ── Contingency reconciliation ────────────────────────────────────────────
 async function getContingencyBreakdownPaise(eventId, budgetEstimateRupees) {
   const eventOnlyPaise = await getEventOnlyCostPaise(eventId, budgetEstimateRupees);
 
@@ -395,12 +395,6 @@ function parseAdvancePct(paymentTermsText) {
   return pct;
 }
 
-// Every active vendor slot on an event, enriched with that vendor's own
-// advance % (from their payment_terms) and their FIXED total commission
-// owed — commissionPct × their full quoted_price, computed once and never
-// recalculated differently at balance time. This fixed number is what lets
-// commission always add up to exactly commissionPct% of the vendor's total,
-// no matter how it gets front-loaded across advance/balance payments.
 async function getVendorSlotsWithTerms(eventId, commissionPct) {
   const r = await pool.query(
     `SELECT evs.vendor_id, evs.service_type, evs.quoted_price,
@@ -428,22 +422,7 @@ async function getVendorSlotsWithTerms(eventId, commissionPct) {
   });
 }
 
-// ── computeAdvanceSplit ───────────────────────────────────────────────────
-// The advance payment = flat 20% of the event-only cost (reference event +
-// contingency) PLUS each vendor's own advance% of their full quoted price.
-// Commission is taken here, upfront, off each vendor's advance slice —
-// capped at that slice (a vendor with a very low advance % simply carries
-// any remaining commission over to be settled at balance time instead).
 async function computeAdvanceSplit(eventId, totalBudgetRupees, commissionPct) {
-  // FIXED: advance used to be 20% of eventOnlyPaise (reference event price
-  // + contingency buffer combined). Contingency is a reserve for
-  // unplanned add-ons, not a guaranteed cost, so charging an advance
-  // against it upfront isn't right — the client would be paying toward
-  // something that may never be spent. Advance is now computed only
-  // against the reference event price. Contingency itself is untouched
-  // here; it's still tracked (getContingencyBreakdownPaise) and only ever
-  // becomes payable at balance/final-payment time, and only for whatever
-  // portion actually got consumed by add-ons (see GET /summary).
   const { refPricePaise } = await getContingencyBreakdownPaise(eventId, totalBudgetRupees);
   const eventAdvancePaise = Math.round(refPricePaise * (EVENT_ADVANCE_PCT / 100));
 
@@ -472,14 +451,6 @@ async function computeAdvanceSplit(eventId, totalBudgetRupees, commissionPct) {
   return { totalAmountPaise, adminCommission, vendorShare: vendorShareTotal, perVendorPayouts, slots, eventAdvancePaise };
 }
 
-// ── computeBalanceSplit ───────────────────────────────────────────────────
-// balancePaise is whatever's left of the total budget (server-computed the
-// same way it always was: total - alreadyPaid - refunded). Per vendor slot,
-// the balance owed is the remaining (100 - advance%) portion of their
-// quoted price, minus whatever commission wasn't already collected during
-// the advance (normally ₹0 extra here, since advance % almost always
-// exceeds the commission %, but this correctly carries over the remainder
-// on any vendor whose advance was smaller than their commission owed).
 async function computeBalanceSplit(eventId, balancePaise, commissionPct) {
   const slots = await getVendorSlotsWithTerms(eventId, commissionPct);
 
@@ -509,23 +480,11 @@ async function computeBalanceSplit(eventId, balancePaise, commissionPct) {
     });
   }
 
-  // Whatever of the balance isn't vendor money is admin's — this covers any
-  // leftover event-only balance (reference event/contingency remainder)
-  // plus any commission shortfall just carried over above.
   const adminCommission = balancePaise - vendorShareTotal;
 
   return { adminCommission, vendorShare: vendorShareTotal, perVendorPayouts };
 }
 
-// ── Proportional split — RETAINED, addon payments only ───────────────────
-// Add-on charges (extra costs raised mid-event) aren't tied to any single
-// vendor's own quoted price/advance terms, so they keep the original
-// proportional-split behavior: split across active vendor slots by their
-// share of total vendor cost, commission taken proportionally. This is
-// unrelated to the advance/balance restructuring above. NOTE: this now
-// only ever runs against the CLIENT-BILLED portion of an add-on (see
-// POST /addons / /offline below) — the contingency-covered portion never
-// creates a payment or a vendor payout, since no new client money moved.
 async function splitPaymentProportional(eventId, totalBudgetRupees, paymentAmountPaise, commissionPct) {
   const totalBudgetPaise = Math.round(Number(totalBudgetRupees || 0) * 100);
   const vendorCostsTotalPaise = await getVendorCostsTotalPaise(eventId);
@@ -579,10 +538,6 @@ async function createVendorPayoutsProportional(paymentId, eventId, vendorSharePa
   }
 }
 
-// ── createVendorPayoutsFromBreakdown ─────────────────────────────────────
-// Used by BOTH advance and balance payments — inserts a payout row per
-// vendor slot directly from a computeAdvanceSplit/computeBalanceSplit
-// breakdown, rather than re-deriving shares proportionally.
 async function createVendorPayoutsFromBreakdown(paymentId, eventId, perVendorPayouts) {
   for (const p of perVendorPayouts) {
     if (p.amount <= 0 && p.commission_amount <= 0) continue;
@@ -596,23 +551,12 @@ async function createVendorPayoutsFromBreakdown(paymentId, eventId, perVendorPay
 }
 
 // ── Payment-eligibility gate ──────────────────────────────────────────────
-// Centralised so /create-order (online) and /offline (admin-recorded) can't
-// drift apart. Mirrors the agreed status lifecycle (see events.js's header
-// comment):
-//   advance → only once the event is sitting at 'payment_pending' (i.e.
-//             admin approved AND all vendors accepted — set automatically,
-//             see maybeAdvanceEventStatus in events.js).
-//   balance → only once admin has manually marked the event 'completed'.
-//             This is intentional, not a default worth loosening: the
-//             client's "Pay Balance" button only ever appears after
-//             Completed (see MyEvents.jsx's needsBalance), so the backend
-//             enforces the same rule rather than trusting the frontend.
-//   addon   → allowed any time the event isn't cancelled; add-on charges
-//             can come up at any stage once vendors/payment are underway.
-// Throws an object {status, error} the route can respond with directly.
+// FIXED: also blocks 'cancellation_requested' — a client shouldn't be able
+// to pay the balance while their own cancellation request is sitting with
+// admin waiting for approve/deny.
 function assertPaymentEligible(event, paymentType) {
-  if (event.status === 'cancelled') {
-    throw { status: 400, error: 'This event has been cancelled' };
+  if (event.status === 'cancelled' || event.status === 'cancellation_requested') {
+    throw { status: 400, error: 'This event is being cancelled and is not payable right now' };
   }
   if (paymentType === 'advance' && event.status !== 'payment_pending') {
     throw { status: 400, error: 'This event is not ready for the advance payment yet' };
@@ -620,6 +564,173 @@ function assertPaymentEligible(event, paymentType) {
   if (paymentType === 'balance' && event.status !== 'completed') {
     throw { status: 400, error: 'Balance payment is only available once the event has been marked completed' };
   }
+}
+
+// ── finalizePaidPayment ────────────────────────────────────────────────────
+// THE FIX (part 2 of the webhook fix): the commission-split / vendor-payout
+// / event-status logic that used to live ONLY inside POST /verify has been
+// pulled out here so that BOTH /verify (client-triggered, after Razorpay
+// checkout succeeds in the browser) and POST /webhook (Razorpay-triggered,
+// server-to-server, independent of the client's browser) do exactly the
+// same reconciliation for a captured payment.
+//
+// Idempotency: the UPDATE below only succeeds `WHERE status = 'pending'`.
+// Whichever of /verify or /webhook reaches this first "wins" — its UPDATE
+// affects 1 row and it goes on to create vendor payouts / flip the event
+// status. The other one's UPDATE affects 0 rows (`alreadyProcessed: true`)
+// and does nothing further. This makes it safe for both paths to race, or
+// for Razorpay to redeliver the same webhook more than once.
+async function finalizePaidPayment(io, payment, event, razorpayPaymentId, webhookEventId = null) {
+  const commissionPct = event.admin_commission_pct || DEFAULT_COMMISSION_PCT;
+  const booking_id = payment.booking_id;
+
+  let adminCommission, vendorShare, perVendorPayouts, addonVendorCommission;
+
+  if (payment.payment_type === 'advance') {
+    const split = await computeAdvanceSplit(booking_id, event.budget_estimate, commissionPct);
+    adminCommission = split.adminCommission;
+    vendorShare = split.vendorShare;
+    perVendorPayouts = split.perVendorPayouts;
+  } else if (payment.payment_type === 'balance') {
+    const split = await computeBalanceSplit(booking_id, payment.amount, commissionPct);
+    adminCommission = split.adminCommission;
+    vendorShare = split.vendorShare;
+    perVendorPayouts = split.perVendorPayouts;
+  } else {
+    const split = await splitPaymentProportional(booking_id, event.budget_estimate, payment.amount, commissionPct);
+    adminCommission = split.adminCommission;
+    vendorShare = split.vendorShare;
+    addonVendorCommission = split.vendorCommission;
+  }
+
+  const markResult = await pool.query(
+    `UPDATE payments
+     SET razorpay_payment_id = $1, status = 'paid', admin_commission = $2, vendor_share = $3,
+         event_id = $4, last_webhook_event_id = COALESCE($6, last_webhook_event_id)
+     WHERE id = $5 AND status = 'pending'
+     RETURNING id`,
+    [razorpayPaymentId, adminCommission, vendorShare, booking_id, payment.id, webhookEventId]
+  );
+  if (markResult.rowCount !== 1) {
+    // The other reconciliation path (webhook vs. client /verify) already
+    // claimed this payment between our read and this write.
+    return { alreadyProcessed: true };
+  }
+
+  if (payment.addon_id) {
+    await pool.query(`UPDATE event_addons SET status = 'paid' WHERE id = $1`, [payment.addon_id]);
+  }
+
+  let newPaymentStatus = event.payment_status;
+  let newStatus = event.status;
+
+  if (payment.payment_type === 'advance') {
+    newPaymentStatus = 'advance_paid';
+    newStatus = 'confirmed';
+  } else if (payment.payment_type === 'balance') {
+    newPaymentStatus = 'fully_paid';
+  }
+
+  await pool.query(
+    `UPDATE event_requests SET payment_status = $1, status = $2, updated_at = NOW() WHERE id = $3`,
+    [newPaymentStatus, newStatus, booking_id]
+  );
+
+  if (payment.payment_type === 'advance' || payment.payment_type === 'balance') {
+    await createVendorPayoutsFromBreakdown(payment.id, booking_id, perVendorPayouts);
+  } else {
+    await createVendorPayoutsProportional(payment.id, booking_id, vendorShare, addonVendorCommission);
+  }
+
+  await emitEventUpdate(io, booking_id);
+  if (payment.addon_id) {
+    await emitAddonsUpdate(io, booking_id);
+  }
+
+  return { alreadyProcessed: false, adminCommission, vendorShare };
+}
+
+// ── refundAllPaidPayments ──────────────────────────────────────────────────
+// THE FIX: the old /refund route only ever looked at the single most
+// recently-paid `payments` row for a booking. If a client had paid BOTH
+// advance and balance, terminating/cancelling the event refunded only the
+// balance — the advance payment was never touched, and its vendor_payouts
+// (tied to that payment_id specifically) never got cancelled either, so a
+// vendor could still be paid out for a booking that was cancelled.
+//
+// This walks every 'paid' payment row for the event, refunds each one at
+// `refundPct` (Razorpay refund for online payments, a status flip + note
+// for offline ones — same distinction the old single-payment code made),
+// and then cancels every still-pending vendor_payouts row for the WHOLE
+// event (by event_id, not payment_id) — so no vendor slice survives a
+// cancellation regardless of which instalment it came from.
+//
+// Used by:
+//   - POST /refund              (generic admin refund/adjustment, kept for
+//                                 the existing "Cost Adjustment" UI)
+//   - PATCH /events/admin/:id/approve-cancellation (90% — client-requested)
+//   - AdminEventRequests "Terminate" button, via POST /refund with pct=100
+async function refundAllPaidPayments(io, eventId, refundPct, reason) {
+  const payRes = await pool.query(
+    `SELECT * FROM payments WHERE booking_id = $1 AND status = 'paid' ORDER BY created_at ASC`,
+    [eventId]
+  );
+
+  const results = [];
+  let anyRefunded = false;
+
+  for (const payment of payRes.rows) {
+    const refundAmt = Math.round((Number(payment.amount) * refundPct) / 100);
+    if (refundAmt <= 0) continue;
+
+    if (!payment.razorpay_payment_id) {
+      // Offline payment — no Razorpay charge to reverse. Flip status and
+      // leave a note; admin settles the actual money movement outside the
+      // app, same as the original single-payment offline-refund path did.
+      await pool.query(
+        `UPDATE payments SET status = 'refunded', refund_amount = $1, notes = $2 WHERE id = $3`,
+        [refundAmt, reason || 'Refund (offline payment)', payment.id]
+      );
+      results.push({ payment_id: payment.id, payment_type: payment.payment_type, refund_amount: refundAmt, online: false });
+      anyRefunded = true;
+      continue;
+    }
+
+    try {
+      const refund = await razorpay.payments.refund(payment.razorpay_payment_id, {
+        amount: refundAmt,
+        notes: { event_id: String(eventId), reason: reason || 'Refund' },
+      });
+      await pool.query(
+        `UPDATE payments SET status = 'refunded', refund_id = $1, refund_amount = $2, notes = $3 WHERE id = $4`,
+        [refund.id, refundAmt, reason || null, payment.id]
+      );
+      results.push({ payment_id: payment.id, payment_type: payment.payment_type, refund_amount: refundAmt, online: true, refund_id: refund.id });
+      anyRefunded = true;
+    } catch (err) {
+      console.error(`refundAllPaidPayments: refund failed for payment ${payment.id}:`, err.message);
+      results.push({ payment_id: payment.id, error: err.message });
+    }
+  }
+
+  if (anyRefunded) {
+    await pool.query(
+      `UPDATE event_requests SET payment_status = 'refunded', updated_at = NOW() WHERE id = $1`,
+      [eventId]
+    ).catch(() => {});
+
+    // FIXED: scoped to event_id, not a single payment_id — every pending
+    // payout for this event is clawed back, whichever instalment it came
+    // from.
+    await pool.query(
+      `UPDATE vendor_payouts SET status = 'cancelled' WHERE event_id = $1 AND status = 'pending'`,
+      [eventId]
+    ).catch(() => {});
+
+    await emitEventUpdate(io, eventId);
+  }
+
+  return results;
 }
 
 // ── POST /api/payments/create-order ─────────────────────────────────────
@@ -656,7 +767,15 @@ router.post('/create-order', clientAuth, async (req, res) => {
       const split = await computeAdvanceSplit(booking_id, event.budget_estimate, commissionPct);
       amount = split.totalAmountPaise;
     } else if (payment_type === 'balance') {
-      amount = totalBudgetPaise - alreadyPaidPaise - refundedPaise;
+      // FIXED: was `totalBudgetPaise - alreadyPaidPaise - refundedPaise`,
+      // which ignored unused contingency the way GET /summary already
+      // waives it (billableTotalPaise). That meant the number a client
+      // saw on their summary screen (balance_due, contingency-waived)
+      // could be LOWER than what this route would actually charge them —
+      // same waiver logic now applied here so the two never disagree.
+      const contingencyBreakdown = await getContingencyBreakdownPaise(booking_id, event.budget_estimate);
+      const billableTotalPaise = Math.max(0, totalBudgetPaise - contingencyBreakdown.remainingPaise);
+      amount = billableTotalPaise - alreadyPaidPaise - refundedPaise;
       if (amount <= 0) {
         return res.status(400).json({ error: 'No balance due for this event' });
       }
@@ -666,8 +785,6 @@ router.post('/create-order', clientAuth, async (req, res) => {
       const addon = addonRes.rows[0];
       if (!addon) return res.status(404).json({ error: 'Add-on not found' });
       if (addon.status !== 'pending') return res.status(400).json({ error: 'This add-on is not payable' });
-      // Only the portion NOT already covered by contingency is billable —
-      // see POST /addons, which sets contingency_covered at creation time.
       const billablePaise = Math.round((Number(addon.amount) - Number(addon.contingency_covered || 0)) * 100);
       if (billablePaise <= 0) {
         return res.status(400).json({ error: 'This add-on is fully covered by contingency — nothing to pay' });
@@ -698,6 +815,10 @@ router.post('/create-order', clientAuth, async (req, res) => {
 });
 
 // ── POST /api/payments/verify ───────────────────────────────────────────
+// Client-triggered confirmation, called from the browser right after the
+// Razorpay checkout succeeds. See POST /webhook below for the
+// server-to-server path that reconciles a payment even if this call never
+// arrives (closed tab, dropped network, etc).
 router.post('/verify', clientAuth, async (req, res) => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature, booking_id } = req.body;
@@ -719,157 +840,232 @@ router.post('/verify', clientAuth, async (req, res) => {
     const paymentRes = await pool.query('SELECT * FROM payments WHERE razorpay_order_id = $1', [razorpay_order_id]);
     const payment = paymentRes.rows[0];
     if (!payment) return res.status(404).json({ error: 'Payment record not found' });
-    if (payment.booking_id !== Number(booking_id) || payment.status !== 'pending') {
+    if (payment.booking_id !== Number(booking_id)) {
+      return res.status(400).json({ error: 'Payment does not belong to this event' });
+    }
+
+    // FIXED (webhook coexistence): previously this route hard-required
+    // status === 'pending' and returned a 400 otherwise. Now that the
+    // webhook can finalize a payment before the client's /verify call
+    // lands (slow network, backgrounded tab, etc), a payment that's
+    // already 'paid' by the time /verify runs is a SUCCESS, not an error —
+    // the client should still see a normal success response.
+    if (payment.status === 'paid') {
+      return res.json({ success: true, already_processed: true, payment_type: payment.payment_type });
+    }
+    if (payment.status !== 'pending') {
       return res.status(400).json({ error: 'Payment is not pending for this event' });
     }
 
-    const commissionPct = event.admin_commission_pct || DEFAULT_COMMISSION_PCT;
+    const result = await finalizePaidPayment(req.app.get('io'), payment, event, razorpay_payment_id);
 
-    let adminCommission, vendorShare, perVendorPayouts, addonVendorCommission;
-
-    if (payment.payment_type === 'advance') {
-      const split = await computeAdvanceSplit(booking_id, event.budget_estimate, commissionPct);
-      adminCommission = split.adminCommission;
-      vendorShare = split.vendorShare;
-      perVendorPayouts = split.perVendorPayouts;
-    } else if (payment.payment_type === 'balance') {
-      const split = await computeBalanceSplit(booking_id, payment.amount, commissionPct);
-      adminCommission = split.adminCommission;
-      vendorShare = split.vendorShare;
-      perVendorPayouts = split.perVendorPayouts;
-    } else {
-      const split = await splitPaymentProportional(booking_id, event.budget_estimate, payment.amount, commissionPct);
-      adminCommission = split.adminCommission;
-      vendorShare = split.vendorShare;
-      addonVendorCommission = split.vendorCommission;
+    if (result.alreadyProcessed) {
+      // Lost the race to the webhook between our read above and the
+      // UPDATE inside finalizePaidPayment — still a success for the client.
+      return res.json({ success: true, already_processed: true, payment_type: payment.payment_type });
     }
 
-    const markResult = await pool.query(
-      `UPDATE payments
-       SET razorpay_payment_id = $1, status = 'paid', admin_commission = $2, vendor_share = $3, event_id = $4
-       WHERE razorpay_order_id = $5 AND booking_id = $4 AND status = 'pending'
-       RETURNING id`,
-      [razorpay_payment_id, adminCommission, vendorShare, booking_id, razorpay_order_id]
-    );
-    if (markResult.rowCount !== 1) return res.status(409).json({ error: 'Payment was already processed' });
-
-    if (payment.addon_id) {
-      await pool.query(`UPDATE event_addons SET status = 'paid' WHERE id = $1`, [payment.addon_id]);
-    }
-
-    // ── Status transition ──────────────────────────────────────────────
-    // advance → 'confirmed', automatically, no admin click required (see
-    //   the status-lifecycle comment at the top of events.js).
-    // balance → status is deliberately left UNCHANGED. It used to also
-    //   auto-flip to 'completed' here if the event date had already
-    //   passed — that's been removed. 'completed' is admin-only now (the
-    //   Completed button in AdminEventRequests.jsx), and a balance payment
-    //   is only reachable in the first place once the event is already
-    //   'completed' (assertPaymentEligible above enforces this), so there
-    //   was never anything for this branch to actually change anyway.
-    // addon → doesn't touch event.status at all.
-    let newPaymentStatus = event.payment_status;
-    let newStatus = event.status;
-
-    if (payment.payment_type === 'advance') {
-      newPaymentStatus = 'advance_paid';
-      newStatus = 'confirmed';
-    } else if (payment.payment_type === 'balance') {
-      newPaymentStatus = 'fully_paid';
-    }
-
-    await pool.query(
-      `UPDATE event_requests SET payment_status = $1, status = $2, updated_at = NOW() WHERE id = $3`,
-      [newPaymentStatus, newStatus, booking_id]
-    );
-
-    if (payment.payment_type === 'advance' || payment.payment_type === 'balance') {
-      await createVendorPayoutsFromBreakdown(payment.id, booking_id, perVendorPayouts);
-    } else {
-      await createVendorPayoutsProportional(payment.id, booking_id, vendorShare, addonVendorCommission);
-    }
-
-    // Payment landed — client's status/payment_status changed (and, for an
-    // addon payment, that addon just flipped to 'paid') so push both live.
-    await emitEventUpdate(req.app.get('io'), booking_id);
-    if (payment.addon_id) {
-      await emitAddonsUpdate(req.app.get('io'), booking_id);
-    }
-
-    res.json({ success: true, adminCommission, vendorShare, payment_type: payment.payment_type });
+    res.json({ success: true, adminCommission: result.adminCommission, vendorShare: result.vendorShare, payment_type: payment.payment_type });
   } catch (err) {
     console.error('Verify error:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
+// ── POST /api/payments/webhook ───────────────────────────────────────────
+// THE FIX for issue #4: Razorpay calls this directly, server-to-server,
+// whenever a payment is captured — independent of whether the client's
+// browser ever calls /verify above. Before this route existed, a client
+// closing the tab or losing network right after paying (but before /verify
+// fired) meant: money captured by Razorpay, but the `payments` row stuck
+// at 'pending' forever, the event never moved to 'confirmed', and vendor
+// payouts never created. This route is the reconciliation fallback.
+//
+// SETUP REQUIRED (outside this file):
+//   1. Razorpay Dashboard -> Settings -> Webhooks -> add an endpoint
+//      pointing at https://<your-domain>/api/payments/webhook, subscribed
+//      to at least the `payment.captured` event. Copy the "Webhook Secret"
+//      it generates.
+//   2. Set that value as RAZORPAY_WEBHOOK_SECRET in your env — this is a
+//      DIFFERENT secret from RAZORPAY_KEY_SECRET used above in /verify.
+//   3. This route needs the RAW request bytes to verify Razorpay's
+//      signature (HMAC-SHA256 over the raw body, not the parsed JSON). If
+//      server.js applies `express.json()` globally before this router is
+//      mounted, the body will already be parsed/consumed and the
+//      signature check below will always fail. In server.js, do:
+//
+//        app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
+//        app.use(express.json());              // for every other route
+//        app.use('/api/payments', paymentsRouter);
+//
+//      i.e. give this one path the raw-body parser BEFORE the global JSON
+//      parser is applied, so req.body here is a Buffer.
+router.post('/webhook', async (req, res) => {
+  try {
+    const signature = req.headers['x-razorpay-signature'];
+    const rawBody = req.body;
+
+    if (!signature || !Buffer.isBuffer(rawBody)) {
+      console.error('Webhook: missing signature header or body is not raw — check express.raw() is mounted for this path before express.json()');
+      return res.status(400).json({ error: 'Invalid webhook request' });
+    }
+
+    const expectedSignature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_WEBHOOK_SECRET)
+      .update(rawBody)
+      .digest('hex');
+
+    if (expectedSignature !== signature) {
+      console.error('Webhook: signature mismatch');
+      return res.status(400).json({ error: 'Invalid signature' });
+    }
+
+    const payload = JSON.parse(rawBody.toString('utf8'));
+    const eventType = payload.event;
+    const webhookEventId = payload.account_id && payload.created_at
+      ? `${eventType}:${payload.payload?.payment?.entity?.id}:${payload.created_at}`
+      : null;
+
+    // Only payment.captured actually needs action here. Acknowledge
+    // everything else with 200 so Razorpay doesn't keep retrying deliveries
+    // we don't care about.
+    if (eventType !== 'payment.captured') {
+      return res.json({ received: true, ignored: eventType });
+    }
+
+    const paymentEntity = payload.payload?.payment?.entity;
+    if (!paymentEntity || !paymentEntity.order_id) {
+      console.error('Webhook: payment.captured payload missing order_id', payload);
+      return res.json({ received: true, ignored: 'malformed payload' });
+    }
+
+    const razorpayOrderId = paymentEntity.order_id;
+    const razorpayPaymentId = paymentEntity.id;
+
+    const paymentRes = await pool.query(
+      `SELECT * FROM payments WHERE razorpay_order_id = $1`,
+      [razorpayOrderId]
+    );
+    const payment = paymentRes.rows[0];
+    if (!payment) {
+      // Shouldn't normally happen (we create the row before Razorpay ever
+      // sees the order), but ack anyway — retrying won't make the row
+      // appear.
+      console.error(`Webhook: no payments row found for order ${razorpayOrderId}`);
+      return res.json({ received: true, ignored: 'no matching payment row' });
+    }
+
+    // Idempotent no-op if /verify (or a previous webhook delivery for the
+    // same event) already finalized this payment.
+    if (payment.status !== 'pending') {
+      return res.json({ received: true, already_processed: true });
+    }
+
+    const eventRes = await pool.query('SELECT * FROM event_requests WHERE id = $1', [payment.booking_id]);
+    const event = eventRes.rows[0];
+    if (!event) {
+      console.error(`Webhook: no event_requests row for booking ${payment.booking_id}`);
+      return res.json({ received: true, ignored: 'no matching event' });
+    }
+
+    const result = await finalizePaidPayment(req.app.get('io'), payment, event, razorpayPaymentId, webhookEventId);
+
+    res.json({ received: true, processed: !result.alreadyProcessed });
+  } catch (err) {
+    console.error('Webhook error:', err);
+    // A 500 here (rather than 200) is intentional — it makes Razorpay
+    // retry with backoff instead of us silently swallowing a real bug.
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── POST /api/payments/refund ───────────────────────────────────────────
+// Generic admin-triggered refund. Now a thin wrapper around
+// refundAllPaidPayments() — refunds EVERY paid instalment for the booking
+// at `refund_pct`, not just the latest one. Used by:
+//   - AdminEventRequests "Terminate" button (refund_pct: 100)
+//   - AdminEventRequests "Cost Adjustment" prompt (refund_pct: whatever
+//     admin types — a genuine miscalculation-style partial refund taken
+//     as a % of what's been paid)
 router.post('/refund', adminAuth, async (req, res) => {
   try {
     const { booking_id, refund_pct, reason } = req.body;
+    if (!booking_id) return res.status(400).json({ error: 'booking_id is required' });
 
-    const payRes = await pool.query(
-      `SELECT * FROM payments WHERE booking_id = $1 AND status = 'paid' ORDER BY created_at DESC LIMIT 1`,
-      [booking_id]
+    const results = await refundAllPaidPayments(
+      req.app.get('io'),
+      booking_id,
+      Number(refund_pct) || 100,
+      reason || 'Refund issued by admin'
     );
-    if (payRes.rows.length === 0) return res.json({ success: true, message: 'No payment to refund' });
 
-    const payment    = payRes.rows[0];
-    const refundAmt  = Math.round((payment.amount * (refund_pct || 100)) / 100);
-
-    if (!payment.razorpay_payment_id) {
-      await pool.query(
-        `UPDATE payments SET status = 'refunded', refund_amount = $1, notes = $2 WHERE id = $3`,
-        [refundAmt, reason || 'Manual refund (offline payment)', payment.id]
-      );
-      await pool.query(
-        `UPDATE event_requests SET payment_status = 'refunded', updated_at = NOW() WHERE id = $1`,
-        [booking_id]
-      ).catch(() => {});
-      await pool.query(
-        `UPDATE vendor_payouts SET status = 'cancelled' WHERE payment_id = $1 AND status = 'pending'`,
-        [payment.id]
-      ).catch(() => {});
-      await emitEventUpdate(req.app.get('io'), booking_id);
-      return res.json({ success: true, refund_id: null, refund_amount: refundAmt, note: 'Offline payment — settle refund manually outside the app.' });
+    if (results.length === 0) {
+      return res.json({ success: true, message: 'No payment to refund', results: [] });
     }
 
-    const refund = await razorpay.payments.refund(payment.razorpay_payment_id, {
-      amount: refundAmt,
-      notes:  { event_id: String(booking_id), reason: reason || 'Booking cancelled' },
+    const totalRefundAmount = results.reduce((s, r) => s + (r.refund_amount || 0), 0);
+    const anyFailed = results.some(r => r.error);
+
+    res.json({
+      success: !anyFailed,
+      results,
+      total_refund_amount: totalRefundAmount,
+      note: anyFailed ? 'One or more instalments failed to refund automatically — check server logs and settle manually if needed.' : undefined,
     });
-
-    await pool.query(
-      `UPDATE payments SET status = 'refunded', refund_id = $1, refund_amount = $2, notes = $3 WHERE id = $4`,
-      [refund.id, refundAmt, reason || null, payment.id]
-    );
-
-    await pool.query(
-      `UPDATE event_requests SET payment_status = 'refunded', updated_at = NOW() WHERE id = $1`,
-      [booking_id]
-    ).catch(() => {});
-
-    await pool.query(
-      `UPDATE vendor_payouts SET status = 'cancelled' WHERE payment_id = $1 AND status = 'pending'`,
-      [payment.id]
-    ).catch(() => {});
-
-    await emitEventUpdate(req.app.get('io'), booking_id);
-
-    res.json({ success: true, refund_id: refund.id, refund_amount: refundAmt });
   } catch (err) {
     console.error('Refund error:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ── GET /api/payments/contingency/:eventId — admin, reconciliation view ──
-// Surfaces the contingency breakdown so admin can see, at any point, how
-// much of the buffer is left and how much add-ons have eaten into it —
-// without having to derive it by hand from budget_estimate. Also what
-// AdminEventRequests.jsx calls when an event is marked 'completed' to
-// offer a contingency refund via the existing /refund (Cost Adjustment)
-// pathway.
+// ── POST /api/payments/manual-adjustment ─────────────────────────────────
+// Billing-correction flow: the ORIGINAL bill shown to the client was
+// wrong (not a cancellation) — admin enters the exact ₹ amount owed back
+// and this records it as a refund-in-progress against the booking.
+//
+// Deliberately does NOT try to call Razorpay automatically here, because
+// an arbitrary correction amount doesn't necessarily map cleanly onto one
+// specific captured payment's ID/amount — same reasoning the existing
+// offline-refund path already uses elsewhere in this file. Admin settles
+// the actual transfer outside the app; this row is the paper trail plus
+// the "you'll be refunded shortly" notice.
+//
+// TEMP: there's no dedicated client-notification channel wired yet, so
+// the notice just lives in this payment row's `notes` field, which
+// GET /summary already returns to the client's own event view. Swap this
+// out for a real notification (email/push/in-app) later without changing
+// the route's contract.
+router.post('/manual-adjustment', adminAuth, async (req, res) => {
+  try {
+    const { booking_id, amount, note } = req.body;
+    const amt = Number(amount);
+    if (!booking_id) return res.status(400).json({ error: 'booking_id is required' });
+    if (!amt || amt <= 0) return res.status(400).json({ error: 'A valid amount is required' });
+
+    const evRes = await pool.query('SELECT id FROM event_requests WHERE id = $1', [booking_id]);
+    if (evRes.rows.length === 0) return res.status(404).json({ error: 'Event not found' });
+
+    const amountPaise = Math.round(amt * 100);
+    const noticeText = `Refund of ₹${amt.toLocaleString('en-IN')} will be processed shortly — billing correction.${note ? ' ' + note : ''}`;
+
+    const result = await pool.query(
+      `INSERT INTO payments
+         (booking_id, event_id, amount, status, payment_type, payment_method, refund_amount, notes)
+       VALUES ($1, $1, $2, 'refunded', 'manual_adjustment', 'manual', $2, $3)
+       RETURNING *`,
+      [booking_id, amountPaise, noticeText]
+    );
+
+    await emitEventUpdate(req.app.get('io'), booking_id);
+
+    res.json({ success: true, payment: result.rows[0], notice: noticeText });
+  } catch (err) {
+    console.error('Manual adjustment error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/payments/contingency/:eventId ────────────────────────────────
 router.get('/contingency/:eventId', adminAuth, async (req, res) => {
   try {
     const eventId = req.params.eventId;
@@ -894,10 +1090,6 @@ router.get('/contingency/:eventId', adminAuth, async (req, res) => {
       contingency_total: breakdown.contingencyTotalPaise / 100,
       contingency_consumed: breakdown.consumedPaise / 100,
       contingency_remaining: breakdown.remainingPaise / 100,
-      // Only meaningful as an actual refund once the client has paid in
-      // full — before that, "remaining" is a budgeted figure, not
-      // necessarily collected cash. See getContingencyBreakdownPaise's
-      // comment for why.
       refund_ready: event.payment_status === 'fully_paid',
       funded_addons: addonsRes.rows,
     });
@@ -918,10 +1110,6 @@ router.post('/addons', adminAuth, async (req, res) => {
     const evRes = await pool.query('SELECT budget_estimate FROM event_requests WHERE id = $1', [event_id]);
     if (evRes.rows.length === 0) return res.status(404).json({ error: 'Event not found' });
 
-    // NEW — check unspent contingency first. Whatever the buffer can
-    // cover is drawn down silently (no client charge, no payment record);
-    // only the remainder (if any) becomes a billable add-on the way it
-    // always did.
     const { remainingPaise } = await getContingencyBreakdownPaise(event_id, evRes.rows[0].budget_estimate);
     const amountPaise = Math.round(Number(amount) * 100);
     const contingencyCoveredPaise = Math.min(remainingPaise, amountPaise);
@@ -933,11 +1121,6 @@ router.post('/addons', adminAuth, async (req, res) => {
         ? 'contingency'
         : 'mixed';
 
-    // Fully contingency-covered add-ons need no client payment at all —
-    // mark 'paid' immediately so it doesn't sit on the client's "amount
-    // due" list forever. Partially/fully client-billed ones stay
-    // 'pending' exactly as before, and go through the normal
-    // create-order/offline flow for whatever portion is still owed.
     const initialStatus = billablePaise <= 0 ? 'paid' : 'pending';
 
     const result = await pool.query(
@@ -951,8 +1134,6 @@ router.post('/addons', adminAuth, async (req, res) => {
       ]
     );
 
-    // New charge created — client's MyEvents "Pay ₹X" prompt and admin's
-    // add-on list should both pick it up without a reload.
     await emitAddonsUpdate(req.app.get('io'), event_id);
 
     res.json({ success: true, addon: result.rows[0], billable_amount: billablePaise / 100 });
@@ -998,20 +1179,12 @@ router.patch('/addons/:addonId/cancel', adminAuth, async (req, res) => {
 // ── POST /api/payments/offline ──────────────────────────────────────────
 router.post('/offline', adminAuth, async (req, res) => {
   try {
-    // admin_id can still be passed in the body for the notes text below,
-    // but req.adminId (from the verified token) is the trustworthy value —
-    // prefer it if you want to attribute this to a specific admin account.
     const { booking_id, payment_type = 'advance', addon_id, payment_method = 'cash', notes, admin_id } = req.body;
 
     const evRes = await pool.query('SELECT * FROM event_requests WHERE id = $1', [booking_id]);
     const event = evRes.rows[0];
     if (!event) return res.status(404).json({ error: 'Event not found' });
 
-    // Offline payments are admin-recorded, but that doesn't mean the
-    // status rules are optional — enforce the same gate as /create-order
-    // (previously missing here entirely) so admin can't accidentally
-    // record an advance before payment_pending or a balance before the
-    // event is actually marked completed.
     try {
       assertPaymentEligible(event, payment_type);
     } catch (gate) {
@@ -1037,7 +1210,10 @@ router.post('/offline', adminAuth, async (req, res) => {
       const split = await computeAdvanceSplit(booking_id, event.budget_estimate, commissionPct);
       amountPaise = split.totalAmountPaise;
     } else if (payment_type === 'balance') {
-      amountPaise = totalBudgetPaise - alreadyPaidPaise - refundedPaise;
+      // Same contingency-waiver fix as /create-order above.
+      const contingencyBreakdown = await getContingencyBreakdownPaise(booking_id, event.budget_estimate);
+      const billableTotalPaise = Math.max(0, totalBudgetPaise - contingencyBreakdown.remainingPaise);
+      amountPaise = billableTotalPaise - alreadyPaidPaise - refundedPaise;
       if (amountPaise <= 0) return res.status(400).json({ error: 'No balance due for this event' });
     } else if (payment_type === 'addon') {
       if (!addon_id) return res.status(400).json({ error: 'addon_id is required' });
@@ -1046,7 +1222,6 @@ router.post('/offline', adminAuth, async (req, res) => {
       if (!addonRow || addonRow.status !== 'pending') {
         return res.status(400).json({ error: 'Add-on not found or already settled' });
       }
-      // Same as /create-order — only the un-covered portion is payable.
       amountPaise = Math.round((Number(addonRow.amount) - Number(addonRow.contingency_covered || 0)) * 100);
       if (amountPaise <= 0) {
         return res.status(400).json({ error: 'This add-on is fully covered by contingency — nothing to record' });
@@ -1091,9 +1266,6 @@ router.post('/offline', adminAuth, async (req, res) => {
       await pool.query(`UPDATE event_addons SET status = 'paid' WHERE id = $1`, [addon_id]);
     }
 
-    // Same reasoning as /verify above: advance auto-confirms, balance
-    // leaves status untouched (it's already 'completed' by this point —
-    // see assertPaymentEligible), addon doesn't touch status.
     let newPaymentStatus = event.payment_status;
     let newStatus = event.status;
     if (payment_type === 'advance') {
@@ -1114,8 +1286,6 @@ router.post('/offline', adminAuth, async (req, res) => {
       await createVendorPayoutsProportional(insertRes.rows[0].id, booking_id, vendorShare, addonVendorCommission);
     }
 
-    // Same as /verify above — push the fresh status/payment_status, and the
-    // addon's new 'paid' status if this was an add-on settlement.
     await emitEventUpdate(req.app.get('io'), booking_id);
     if (addonRow) {
       await emitAddonsUpdate(req.app.get('io'), booking_id);
@@ -1129,11 +1299,6 @@ router.post('/offline', adminAuth, async (req, res) => {
 });
 
 // ── GET /api/payments/vendor-advance-terms/:eventId ──────────────────────
-// Full advance breakdown for the checkout page — the event's own 20%
-// advance (on reference event + contingency only), plus each vendor's own
-// advance %, amount, and how much commission gets front-loaded off that
-// vendor's slice. This is what PaymentCheckout.jsx renders instead of the
-// old single "30% of everything" figure.
 router.get('/vendor-advance-terms/:eventId', clientAuth, async (req, res) => {
   try {
     const eventId = req.params.eventId;
@@ -1150,14 +1315,6 @@ router.get('/vendor-advance-terms/:eventId', clientAuth, async (req, res) => {
     const commissionPct = event.admin_commission_pct || DEFAULT_COMMISSION_PCT;
     const split = await computeAdvanceSplit(eventId, event.budget_estimate, commissionPct);
 
-    // Reference event price / contingency buffer, split out for display.
-    // computeAdvanceSplit() now charges the advance only against the
-    // reference event price (see its comment) — split.eventAdvancePaise
-    // is therefore already 100% attributable to the reference event, and
-    // contingency's advance share is always ₹0: contingency is never part
-    // of the upfront advance, only ever settled at balance/final-payment
-    // time for whatever portion (if any) actually got consumed by add-ons
-    // (see GET /summary).
     const contingencyBreakdown = await getContingencyBreakdownPaise(eventId, event.budget_estimate);
     const referenceAdvancePaise = split.eventAdvancePaise;
     const contingencyAdvancePaise = 0;
@@ -1214,25 +1371,6 @@ router.get('/summary/:eventId', clientAuth, async (req, res) => {
 
     const totalBudgetPaise = Math.round(Number(event.budget_estimate || 0) * 100);
 
-    // ── NEW: waive unused contingency from the final (balance) bill ──────
-    // budget_estimate always includes the FULL 5% contingency buffer, but
-    // it exists to fund unplanned add-ons — it was never a guaranteed
-    // charge. getContingencyBreakdownPaise() already tracks exactly how
-    // much of it was actually drawn down (via event_addons.contingency_covered):
-    //   - No add-ons at all -> consumed = 0 -> the entire buffer is waived
-    //     here automatically, so the client never pays for a buffer they
-    //     never used.
-    //   - Add-ons used, but stayed within the buffer -> only the consumed
-    //     slice stays part of the bill (it funded something real); the
-    //     unused remainder is still waived.
-    //   - Add-ons exceeded the buffer -> consumed is capped at the full
-    //     buffer (contingency_covered is capped per-addon at whatever
-    //     remained when each add-on was created — see POST /addons), so
-    //     the whole buffer counts as consumed and nothing is waived. The
-    //     excess beyond the buffer was already billed as its own separate
-    //     'addon' payment at creation time (see billablePaise in
-    //     POST /addons), so it's already reflected in netPaidPaise below
-    //     and never double-charged here.
     const contingencyBreakdown = await getContingencyBreakdownPaise(eventId, event.budget_estimate);
     const billableTotalPaise = Math.max(0, totalBudgetPaise - contingencyBreakdown.remainingPaise);
 
@@ -1243,21 +1381,22 @@ router.get('/summary/:eventId', clientAuth, async (req, res) => {
 
     const advancePaid = payments.some(p => p.payment_type === 'advance' && p.status === 'paid');
 
+    // Surface any not-yet-executed billing-correction notice (manual
+    // adjustment rows) explicitly, so the client's UI can show it as a
+    // banner rather than digging through the payments list. TEMP per the
+    // note on POST /manual-adjustment above.
+    const pendingRefundNotices = payments
+      .filter(p => p.payment_type === 'manual_adjustment')
+      .map(p => ({ amount: Number(p.refund_amount || p.amount) / 100, note: p.notes, created_at: p.created_at }));
+
     res.json({
       event_id:       Number(eventId),
       total_budget:   Number(event.budget_estimate || 0),
-      // NEW: what's actually billable after waiving unused contingency —
-      // this (not total_budget) is what balance_due is computed against.
-      // Use this for any "total" the client is shown alongside balance_due,
-      // so the numbers stay consistent with what they're actually charged.
       billable_total: billableTotalPaise / 100,
       contingency: {
         total:    contingencyBreakdown.contingencyTotalPaise / 100,
         consumed: contingencyBreakdown.consumedPaise / 100,
         waived:   contingencyBreakdown.remainingPaise / 100,
-        // true once any add-on has actually drawn on the buffer — lets the
-        // frontend decide whether to show a "Contingency" line or fold it
-        // into an "Add-ons (covered by contingency)" line instead.
         used_by_addons: contingencyBreakdown.consumedPaise > 0,
       },
       paid:           paidPaise / 100,
@@ -1265,11 +1404,8 @@ router.get('/summary/:eventId', clientAuth, async (req, res) => {
       net_paid:       netPaidPaise / 100,
       balance_due:    balanceDuePaise / 100,
       advance_paid:   advancePaid,
-      // Balance is only actually collectible once the event is marked
-      // completed (see assertPaymentEligible) — surface that here too so
-      // any UI reading this summary directly stays consistent with
-      // MyEvents.jsx's needsBalance gating.
       can_pay_balance: advancePaid && balanceDuePaise > 0 && event.status === 'completed',
+      pending_refund_notices: pendingRefundNotices,
       payments,
       addons: addonsRes.rows,
       pending_addons_total: addonsRes.rows.filter(a => a.status === 'pending').reduce((s, a) => s + Number(a.amount), 0),
@@ -1282,7 +1418,7 @@ router.get('/summary/:eventId', clientAuth, async (req, res) => {
 // ── GET /api/payments/history?email= ────────────────────────────────────
 router.get('/history', clientAuth, async (req, res) => {
   try {
-    const email = req.clientEmail; // req.query.email ignore — apna hi data milega
+    const email = req.clientEmail;
     const result = await pool.query(
       `SELECT p.*, e.event_type, e.event_date, e.event_name, e.client_name,
               e.client_email AS email, e.status AS booking_status
@@ -1542,3 +1678,5 @@ router.get('/deposit/admin/all', adminAuth, async (req, res) => {
 
 module.exports = router;
 module.exports.logVendorStatusChange = logVendorStatusChange;
+module.exports.refundAllPaidPayments = refundAllPaidPayments;
+module.exports.CLIENT_CANCELLATION_REFUND_PCT = CLIENT_CANCELLATION_REFUND_PCT;

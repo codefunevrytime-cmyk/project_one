@@ -1,11 +1,21 @@
 import { useState, useEffect } from 'react';
 import { DEFAULT_VENDOR_SERVICE, VENDOR_SERVICE_CONFIGS, getVendorServiceConfig } from '../../context/data/vendorServiceConfig';
 
-import { API_URL } from '../../config/api';
+import { adminFetch } from '../../lib/adminApi';
 import './AdminVendors.css';
 
-const API = API_URL;
-const token = () => localStorage.getItem('adminToken');
+// FIXED: this file was still on the pre-migration auth pattern —
+// `localStorage.getItem('adminToken')` — from before AdminApp.jsx moved to
+// an in-memory access token + HttpOnly refresh cookie (see lib/adminApi.js).
+// AdminApp.jsx never writes anything to localStorage; it only calls
+// setAdminAccessToken(), which is in-memory only. So every write here
+// (add vendor, toggle active, portfolio upload/delete, tag add/delete) was
+// silently sending "Authorization: Bearer null" and getting a 401 back —
+// same class of bug already fixed in AdminAvailability.jsx,
+// AdminVendorPayouts.jsx and AdminVendorDeposits.jsx. Switched every call
+// to adminFetch(), which attaches the real in-memory token and transparently
+// refreshes it on 401. Paths are now relative ('/vendors', not
+// `${API}/vendors`), since adminFetch already prepends API_URL itself.
 
 export default function AdminVendors() {
   const [vendors, setVendors] = useState([]);
@@ -36,7 +46,7 @@ export default function AdminVendors() {
 
   const fetchVendors = async () => {
     try {
-      const res = await fetch(`${API}/vendors`);
+      const res = await adminFetch(`/vendors`);
       const data = await res.json();
       setVendors(data);
     } catch {
@@ -47,7 +57,7 @@ export default function AdminVendors() {
 
   const fetchServices = async () => {
     try {
-      const res = await fetch(`${API}/services`);
+      const res = await adminFetch(`/services`);
       const data = await res.json();
       setServices(Array.isArray(data) ? data : []);
     } catch {
@@ -57,7 +67,7 @@ export default function AdminVendors() {
 
   const fetchPortfolio = async (vendorId) => {
     try {
-      const res = await fetch(`${API}/vendors/${vendorId}/portfolio`);
+      const res = await adminFetch(`/vendors/${vendorId}/portfolio`);
       const data = await res.json();
       setPortfolio(data);
     } catch {
@@ -67,7 +77,7 @@ export default function AdminVendors() {
 
   const fetchTags = async (vendorId) => {
     try {
-      const res = await fetch(`${API}/vendors/${vendorId}/tags`);
+      const res = await adminFetch(`/vendors/${vendorId}/tags`);
       const data = await res.json();
       setTags(data);
     } catch {
@@ -85,30 +95,31 @@ export default function AdminVendors() {
   };
 
   const handleAddVendor = async () => {
-  const formData = new FormData();
-  formData.append('name', vendorForm.name);
-  formData.append('specialty', vendorForm.specialty);
-  formData.append('contact', vendorForm.contact);
-  formData.append('service_id', vendorForm.service_id);
-  formData.append('price_per_day', vendorForm.price_per_day);
-  if (vendorPhoto) formData.append('photo', vendorPhoto);
+    const formData = new FormData();
+    formData.append('name', vendorForm.name);
+    formData.append('specialty', vendorForm.specialty);
+    formData.append('contact', vendorForm.contact);
+    formData.append('service_id', vendorForm.service_id);
+    formData.append('price_per_day', vendorForm.price_per_day);
+    if (vendorPhoto) formData.append('photo', vendorPhoto);
 
-  await fetch(`${API}/vendors`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token()}` },
-    body: formData,
-  });
-  setVendorForm({ name: '', specialty: '', contact: '', service_id: vendorForm.service_id || String(DEFAULT_VENDOR_SERVICE.serviceId), price_per_day: '' });
-  setVendorPhoto(null);
-  showSuccess('Vendor added!');
-  setActiveTab('vendors'); // ← switch to vendors tab
-  setTimeout(() => fetchVendors(), 500); // ← delay
-};
+    // NOTE: no Content-Type header here on purpose — the browser sets the
+    // multipart boundary itself for FormData bodies. adminFetch only adds
+    // the Authorization header on top of whatever's passed in.
+    await adminFetch(`/vendors`, {
+      method: 'POST',
+      body: formData,
+    });
+    setVendorForm({ name: '', specialty: '', contact: '', service_id: vendorForm.service_id || String(DEFAULT_VENDOR_SERVICE.serviceId), price_per_day: '' });
+    setVendorPhoto(null);
+    showSuccess('Vendor added!');
+    setActiveTab('vendors'); // ← switch to vendors tab
+    setTimeout(() => fetchVendors(), 500); // ← delay
+  };
 
   const handleToggle = async (id) => {
-    await fetch(`${API}/vendors/${id}/toggle`, {
+    await adminFetch(`/vendors/${id}/toggle`, {
       method: 'PATCH',
-      headers: { Authorization: `Bearer ${token()}` },
     });
     fetchVendors();
   };
@@ -120,9 +131,8 @@ export default function AdminVendors() {
     formData.append('caption', portfolioCaption);
     formData.append('tags', portfolioTags);
 
-    await fetch(`${API}/vendors/${selectedVendor.id}/portfolio`, {
+    await adminFetch(`/vendors/${selectedVendor.id}/portfolio`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token()}` },
       body: formData,
     });
     setPortfolioFile(null);
@@ -135,18 +145,17 @@ export default function AdminVendors() {
 
   const handleDeletePortfolio = async (id) => {
     if (!window.confirm('Delete this image?')) return;
-    await fetch(`${API}/vendors/portfolio/${id}`, {
+    await adminFetch(`/vendors/portfolio/${id}`, {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${token()}` },
     });
     fetchPortfolio(selectedVendor.id);
   };
 
   const handleAddTag = async () => {
     if (!newTag.trim() || !selectedVendor) return;
-    await fetch(`${API}/vendors/${selectedVendor.id}/tags`, {
+    await adminFetch(`/vendors/${selectedVendor.id}/tags`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tag: newTag, tag_type: tagType }),
     });
     setNewTag('');
@@ -155,9 +164,8 @@ export default function AdminVendors() {
   };
 
   const handleDeleteTag = async (id) => {
-    await fetch(`${API}/vendors/tags/${id}`, {
+    await adminFetch(`/vendors/tags/${id}`, {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${token()}` },
     });
     fetchTags(selectedVendor.id);
   };
